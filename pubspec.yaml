@@ -59,3 +59,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/js/novel_reader.js
+    - assets/css/novel_reader.css

@@ -98,19 +98,41 @@ function sendImage(image,event){
     rect:{x:rect.left,y:rect.top,w:rect.width,h:rect.height}});
   return true;
 }
+var suppressImageClick=false;
 function initImages(){
-  var timer=null;
-  function cancel(){if(timer){clearTimeout(timer);timer=null;}}
-  if(longPressPreview){
-    document.addEventListener('touchstart',function(event){
-      cancel();
-      var image=findImage(event.target);
-      if(!image)return;
-      timer=setTimeout(function(){timer=null;sendImage(image,null);},500);
-    },{passive:true});
-    document.addEventListener('touchmove',cancel,{passive:true});
-    document.addEventListener('touchend',cancel,{passive:true});
+  var timer=null,startX=0,startY=0,tracking=false;
+  function cancel(){
+    if(timer){clearTimeout(timer);timer=null;}
+    tracking=false;
   }
+  window.__nvSetLongPressPreview=function(value){
+    longPressPreview=!!value;
+    if(!longPressPreview)cancel();
+  };
+  document.addEventListener('touchstart',function(event){
+    cancel();
+    suppressImageClick=false;
+    if(!longPressPreview||event.touches.length!==1)return;
+    var image=findImage(event.target);
+    if(!image)return;
+    startX=event.touches[0].clientX;
+    startY=event.touches[0].clientY;
+    tracking=true;
+    timer=setTimeout(function(){
+      timer=null;
+      tracking=false;
+      suppressImageClick=sendImage(image,null);
+    },500);
+  },{passive:true});
+  document.addEventListener('touchmove',function(event){
+    if(!tracking||event.touches.length!==1){cancel();return;}
+    var dx=event.touches[0].clientX-startX;
+    var dy=event.touches[0].clientY-startY;
+    // 手指静止时也会有少量坐标抖动；只在确实开始拖动后取消长按。
+    if(dx*dx+dy*dy>144)cancel();
+  },{passive:true});
+  document.addEventListener('touchend',cancel,{passive:true});
+  document.addEventListener('touchcancel',cancel,{passive:true});
   document.addEventListener('contextmenu',function(event){
     if(findImage(event.target))event.preventDefault();
   });
@@ -216,6 +238,12 @@ function initTapZones(){
     if(event.target&&event.target.closest){
       if(event.target.closest('a')||event.target.closest('button'))return;
       var image=findImage(event.target);
+      if(image&&suppressImageClick){
+        suppressImageClick=false;
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       if(image&&!longPressPreview){
         if(sendImage(image,event))return;
       }

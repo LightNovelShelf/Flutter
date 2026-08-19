@@ -54,6 +54,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   late final ReaderPositionWriteQueue<ReaderRestorePosition> _positions;
   late final AppLifecycleListener _lifecycle;
   late final Future<String> _readerScriptSource;
+  late final Future<String> _readerCssSource;
 
   late int _sortNum;
   late ReaderOpenPosition _openPosition;
@@ -89,6 +90,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     _openPosition = widget.openPosition;
     _api = ref.read(apiClientProvider);
     _readerScriptSource = rootBundle.loadString('assets/js/novel_reader.js');
+    _readerCssSource = rootBundle.loadString('assets/css/novel_reader.css');
     _positions = ReaderPositionWriteQueue<ReaderRestorePosition>(
       _persistPosition,
       fingerprint: (position) => '${position.chapterId}:${position.position}',
@@ -322,6 +324,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     final content = _content;
     if (content == null) return;
     final readerScriptSource = await _readerScriptSource;
+    final readerCssSource = await _readerCssSource;
     if (!mounted) return;
     final settings = ref.read(appSettingsProvider);
     final paged = settings.readerViewMode == ReaderViewMode.paged;
@@ -340,6 +343,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
       typography: _typography(settings),
       paged: paged,
       readerScriptSource: readerScriptSource,
+      readerCssSource: readerCssSource,
       fontDataUrl: _fontDataUrl,
       imagePreviewOnLongPress: settings.readerImagePreviewOpenOnLongPress,
     );
@@ -375,15 +379,24 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
       unawaited(_renderDocument());
       return;
     }
+    if (previous.readerImagePreviewOpenOnLongPress !=
+        next.readerImagePreviewOpenOnLongPress) {
+      unawaited(
+        _controller.runJavaScript(
+          readerImagePreviewModeScript(next.readerImagePreviewOpenOnLongPress),
+        ),
+      );
+    }
     final typographyChanged =
         previous.fontSize != next.fontSize ||
         previous.readerLineHeight != next.readerLineHeight ||
         previous.readerSidePadding != next.readerSidePadding ||
         previous.readerFirstLineIndent != next.readerFirstLineIndent;
-    if (!typographyChanged) return;
-    unawaited(
-      _controller.runJavaScript(readerTypographyScript(_typography(next))),
-    );
+    if (typographyChanged) {
+      unawaited(
+        _controller.runJavaScript(readerTypographyScript(_typography(next))),
+      );
+    }
   }
 
   void _onBridgeMessage(JavaScriptMessage message) {

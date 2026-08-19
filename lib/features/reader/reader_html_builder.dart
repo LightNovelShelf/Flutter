@@ -1,4 +1,3 @@
-import 'reader_content_css.dart';
 import 'reader_engine.dart';
 
 const String readerBridgeChannel = 'ReaderBridge';
@@ -106,6 +105,11 @@ String readerTypographyScript(ReaderTypography typography) {
       'if(window.__nvReflow)window.__nvReflow();})();';
 }
 
+/// 动态切换图片预览手势，不重载正文，避免阅读位置丢失。
+String readerImagePreviewModeScript(bool openOnLongPress) =>
+    '(function(){if(window.__nvSetLongPressPreview)'
+    'window.__nvSetLongPressPreview($openOnLongPress);})();';
+
 /// 恢复阅读位置：优先按 locator 精确定位，找不到时退回百分比。
 String readerRestoreScript(String? locator, double progression) {
   final target = locator == null ? 'null' : "'${_escapeJs(locator)}'";
@@ -124,6 +128,7 @@ String buildReaderChapterDocument({
   required ReaderTypography typography,
   required bool paged,
   required String readerScriptSource,
+  required String readerCssSource,
   String? fontDataUrl,
   bool imagePreviewOnLongPress = false,
 }) {
@@ -148,27 +153,8 @@ String buildReaderChapterDocument({
 
   final css = <String>[
     typography._variables,
-    'html,body{margin:0;padding:0;background:var(--nv-bg);color:var(--nv-fg)}',
-    'html,body{scrollbar-width:none}'
-        'html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}',
-    'body{font-family:$fontFamily;font-size:var(--nv-font);line-height:var(--nv-line);'
-        'word-break:break-word;overflow-wrap:break-word;-webkit-text-size-adjust:100%}',
-    // 段间距只由行高决定，和 Web 一致；额外的 margin 会让行高调到 1.0 也压不平。
-    'p{margin:0;padding:0;text-indent:var(--nv-indent)}',
-    'body>:last-child{margin-bottom:0!important}',
-    // 长按图片时 Chromium 会发起原生拖拽，拖出一张半透明缩略图，必须禁掉。
-    'img{max-width:100%;height:auto;-webkit-user-drag:none;user-drag:none}',
-    'table{width:100%;max-width:100%;table-layout:fixed;border-collapse:collapse;margin:0 0 .8em}',
-    'th,td{padding:0;vertical-align:top}',
-    'td>img,th>img{display:block;width:100%;max-width:100%;height:auto}',
-    'ruby rt{font-size:.5em;color:var(--nv-fg)}',
-    'a{color:inherit;text-decoration:none}',
-    // 点击热区遍布全屏，WebView 默认的点按高亮会在图片/链接上闪一下，
-    // 让人以为点一下就能预览（实际可能要长按），一律关掉。
-    '*{line-break:anywhere;-webkit-user-select:none!important;user-select:none!important;'
-        '-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}',
-    // 书源类名样式排在基础排版之后：`.center`/`.m0` 之类要能盖掉 `p` 的缩进。
-    readerContentCss,
+    'body{font-family:$fontFamily}',
+    readerCssSource,
     layoutCss,
   ].join();
 
