@@ -78,7 +78,7 @@ class _CommentThreadListState extends ConsumerState<CommentThreadList> {
         notification.metrics.maxScrollExtent - 480) {
       return false;
     }
-    final state = ref.read(commentThreadProvider(widget.target)).valueOrNull;
+    final state = ref.read(commentThreadProvider(widget.target)).value;
     if (state == null || state.loadingMore || !state.hasMore) return false;
     if (state.moreError != null) return false;
     ref.read(commentThreadProvider(widget.target).notifier).loadMore();
@@ -134,7 +134,7 @@ class _CommentThreadListState extends ConsumerState<CommentThreadList> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(commentThreadProvider(widget.target));
-    final state = async.valueOrNull;
+    final state = async.value;
 
     if (state == null) {
       final body = async.hasError

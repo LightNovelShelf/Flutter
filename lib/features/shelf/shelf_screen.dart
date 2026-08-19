@@ -88,7 +88,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
 
   /// 编辑一律落在草稿上；校验失败只弹横幅，草稿不动。
   void _applyMutation(ShelfDraft Function(ShelfDraft draft) apply) {
-    final snapshot = ref.read(shelfProvider).valueOrNull;
+    final snapshot = ref.read(shelfProvider).value;
     if (snapshot == null || _saving) return;
     try {
       final next = apply(_effectiveDraft(snapshot));
@@ -172,7 +172,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   /// 放弃草稿；有改动时先确认，返回是否已经放弃。
   Future<bool> _discard() async {
     if (_draft == null) return true;
-    final snapshot = ref.read(shelfProvider).valueOrNull;
+    final snapshot = ref.read(shelfProvider).value;
     if (snapshot != null && _isDirty(snapshot)) {
       final ok = await _confirm(
         title: '放弃修改',
@@ -294,7 +294,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
       };
 
   Future<void> _openManageSheet() async {
-    final snapshot = ref.read(shelfProvider).valueOrNull;
+    final snapshot = ref.read(shelfProvider).value;
     if (snapshot == null) return;
     final draft = _effectiveDraft(snapshot);
     final folders = _selectedFolders(draft);
@@ -356,7 +356,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   }
 
   Future<void> _renameFolder() async {
-    final snapshot = ref.read(shelfProvider).valueOrNull;
+    final snapshot = ref.read(shelfProvider).value;
     if (snapshot == null) return;
     final folders = _selectedFolders(_effectiveDraft(snapshot));
     if (folders.length != 1) return;
@@ -378,7 +378,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   }
 
   Future<void> _deleteFolders() async {
-    final snapshot = ref.read(shelfProvider).valueOrNull;
+    final snapshot = ref.read(shelfProvider).value;
     if (snapshot == null) return;
     final folders = _selectedFolders(_effectiveDraft(snapshot));
     if (folders.isEmpty) return;
@@ -400,7 +400,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   }
 
   Future<void> _moveBooks() async {
-    final snapshot = ref.read(shelfProvider).valueOrNull;
+    final snapshot = ref.read(shelfProvider).value;
     if (snapshot == null) return;
     final draft = _effectiveDraft(snapshot);
     final books = _selectedBooks(draft);
@@ -419,7 +419,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   }
 
   Future<void> _removeItems() async {
-    final snapshot = ref.read(shelfProvider).valueOrNull;
+    final snapshot = ref.read(shelfProvider).value;
     if (snapshot == null || _selected.isEmpty) return;
     final draft = _effectiveDraft(snapshot);
     final hasFolder = _selectedFolders(draft).isNotEmpty;
@@ -647,7 +647,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   Widget build(BuildContext context) {
     final authenticated = ref.watch(authSnapshotProvider).isAuthenticated;
     final async = ref.watch(shelfProvider);
-    final snapshot = async.valueOrNull;
+    final snapshot = async.value;
     final dirty = snapshot != null && _isDirty(snapshot);
     final draft = snapshot == null ? null : _effectiveDraft(snapshot);
     final title = _parents.isEmpty || draft == null

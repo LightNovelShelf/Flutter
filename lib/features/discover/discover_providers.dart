@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 
 import '../../core/network/api_error.dart';
 import '../../data/api/api_client.dart';
@@ -51,8 +52,8 @@ AppSettings watchContentSettings(Ref ref) {
   return ref.read(appSettingsProvider);
 }
 
-final AutoDisposeFutureProvider<List<BookListItem>> homeRankingProvider =
-    FutureProvider.autoDispose<List<BookListItem>>((ref) async {
+final FutureProvider<List<BookListItem>> homeRankingProvider =
+    FutureProvider<List<BookListItem>>((ref) async {
       final api = ref.watch(apiClientProvider);
       final period = ref.watch(
         appSettingsProvider.select((settings) => settings.homeRankType),
@@ -60,10 +61,10 @@ final AutoDisposeFutureProvider<List<BookListItem>> homeRankingProvider =
       final settings = watchContentSettings(ref);
       final items = await api.getRank(rankPeriodDays[period]!);
       return applyContentFilter(items, settings);
-    });
+    }, isAutoDispose: true);
 
-final AutoDisposeFutureProvider<List<BookListItem>> homeLatestBooksProvider =
-    FutureProvider.autoDispose<List<BookListItem>>((ref) async {
+final FutureProvider<List<BookListItem>> homeLatestBooksProvider =
+    FutureProvider<List<BookListItem>>((ref) async {
       final api = ref.watch(apiClientProvider);
       final settings = watchContentSettings(ref);
       final page = await api.getBookList(
@@ -75,10 +76,10 @@ final AutoDisposeFutureProvider<List<BookListItem>> homeLatestBooksProvider =
       );
       final filtered = applyContentFilter(page.items, settings);
       return filtered.take(_homePreviewCount).toList();
-    });
+    }, isAutoDispose: true);
 
-final AutoDisposeFutureProvider<List<BookListItem>> homeComicsProvider =
-    FutureProvider.autoDispose<List<BookListItem>>((ref) async {
+final FutureProvider<List<BookListItem>> homeComicsProvider =
+    FutureProvider<List<BookListItem>>((ref) async {
       final api = ref.watch(apiClientProvider);
       final page = await api.getComicList(
         page: 1,
@@ -87,22 +88,20 @@ final AutoDisposeFutureProvider<List<BookListItem>> homeComicsProvider =
       );
       // 漫画不参与内容过滤：后端没有对应分类信息。
       return page.items.map((item) => item.toBookListItem()).toList();
-    });
+    }, isAutoDispose: true);
 
-final AutoDisposeFutureProvider<OnlineInfo> onlineInfoProvider =
-    FutureProvider.autoDispose<OnlineInfo>((ref) async {
+final FutureProvider<OnlineInfo> onlineInfoProvider =
+    FutureProvider<OnlineInfo>((ref) async {
       final api = ref.watch(apiClientProvider);
       return api.getOnlineInfo();
-    });
+    }, isAutoDispose: true);
 
-final AutoDisposeFutureProvider<List<AnnouncementItem>>
-homeAnnouncementsProvider = FutureProvider.autoDispose<List<AnnouncementItem>>((
-  ref,
-) async {
-  final api = ref.watch(apiClientProvider);
-  final page = await api.getAnnouncementList(page: 1, size: 5);
-  return page.items;
-});
+final FutureProvider<List<AnnouncementItem>> homeAnnouncementsProvider =
+    FutureProvider<List<AnnouncementItem>>((ref) async {
+      final api = ref.watch(apiClientProvider);
+      final page = await api.getAnnouncementList(page: 1, size: 5);
+      return page.items;
+    }, isAutoDispose: true);
 
 /// 一次「可见页」拉取的结果：`page` 是实际消费到的后端页码。
 class FetchedBooks {
@@ -166,8 +165,11 @@ class PagedBooks {
 }
 
 /// 目录/榜单共用的分页状态机：refresh 保留旧数据，retry 清空重来。
-abstract class PagedBooksController<Arg>
-    extends AutoDisposeFamilyNotifier<PagedBooks, Arg> {
+abstract class PagedBooksController<Arg> extends Notifier<PagedBooks> {
+  PagedBooksController(this.arg);
+
+  final Arg arg;
+
   int _generation = 0;
   bool _disposed = false;
 
@@ -178,7 +180,7 @@ abstract class PagedBooksController<Arg>
   Future<FetchedBooks> fetchPage(int page);
 
   @override
-  PagedBooks build(Arg arg) {
+  PagedBooks build() {
     // build 在依赖变化时重跑，onDispose 跟着触发，所以每次都重置。
     _disposed = false;
     ref.onDispose(() => _disposed = true);
@@ -260,6 +262,8 @@ abstract class PagedBooksController<Arg>
 }
 
 class BookCatalogController extends PagedBooksController<BookListOrder> {
+  BookCatalogController(super.arg);
+
   @override
   void subscribe() {
     ref.watch(apiClientProvider);
@@ -303,6 +307,8 @@ class BookCatalogController extends PagedBooksController<BookListOrder> {
 }
 
 class ComicCatalogController extends PagedBooksController<ComicOrder> {
+  ComicCatalogController(super.arg);
+
   @override
   void subscribe() {
     ref.watch(apiClientProvider);
@@ -326,6 +332,8 @@ class ComicCatalogController extends PagedBooksController<ComicOrder> {
 
 /// 榜单接口一次返回完整列表，没有分页。
 class RankingController extends PagedBooksController<HomeRankType> {
+  RankingController(super.arg);
+
   @override
   void subscribe() {
     ref.watch(apiClientProvider);
@@ -345,33 +353,26 @@ class RankingController extends PagedBooksController<HomeRankType> {
   }
 }
 
-final AutoDisposeNotifierProviderFamily<
-  BookCatalogController,
-  PagedBooks,
-  BookListOrder
->
-bookCatalogProvider = NotifierProvider.autoDispose
-    .family<BookCatalogController, PagedBooks, BookListOrder>(
+final NotifierProviderFamily<BookCatalogController, PagedBooks, BookListOrder>
+bookCatalogProvider =
+    NotifierProvider.family<BookCatalogController, PagedBooks, BookListOrder>(
       BookCatalogController.new,
+      isAutoDispose: true,
     );
 
-final AutoDisposeNotifierProviderFamily<
-  ComicCatalogController,
-  PagedBooks,
-  ComicOrder
->
-comicCatalogProvider = NotifierProvider.autoDispose
-    .family<ComicCatalogController, PagedBooks, ComicOrder>(
+final NotifierProviderFamily<ComicCatalogController, PagedBooks, ComicOrder>
+comicCatalogProvider =
+    NotifierProvider.family<ComicCatalogController, PagedBooks, ComicOrder>(
       ComicCatalogController.new,
+      isAutoDispose: true,
     );
 
-final AutoDisposeNotifierProviderFamily<
-  RankingController,
-  PagedBooks,
-  HomeRankType
->
-rankingProvider = NotifierProvider.autoDispose
-    .family<RankingController, PagedBooks, HomeRankType>(RankingController.new);
+final NotifierProviderFamily<RankingController, PagedBooks, HomeRankType>
+rankingProvider =
+    NotifierProvider.family<RankingController, PagedBooks, HomeRankType>(
+      RankingController.new,
+      isAutoDispose: true,
+    );
 
 class PagedAnnouncements {
   const PagedAnnouncements({
@@ -421,8 +422,7 @@ class PagedAnnouncements {
   );
 }
 
-class AnnouncementCenterController
-    extends AutoDisposeNotifier<PagedAnnouncements> {
+class AnnouncementCenterController extends Notifier<PagedAnnouncements> {
   int _generation = 0;
   bool _disposed = false;
 
@@ -508,19 +508,15 @@ class AnnouncementCenterController
   bool _isStale(int generation) => _disposed || generation != _generation;
 }
 
-final AutoDisposeNotifierProvider<
-  AnnouncementCenterController,
-  PagedAnnouncements
->
+final NotifierProvider<AnnouncementCenterController, PagedAnnouncements>
 announcementCenterProvider =
-    NotifierProvider.autoDispose<
-      AnnouncementCenterController,
-      PagedAnnouncements
-    >(AnnouncementCenterController.new);
+    NotifierProvider<AnnouncementCenterController, PagedAnnouncements>(
+      AnnouncementCenterController.new,
+      isAutoDispose: true,
+    );
 
-final AutoDisposeFutureProviderFamily<AnnouncementItem, int>
-announcementDetailProvider = FutureProvider.autoDispose
-    .family<AnnouncementItem, int>((ref, id) async {
+final FutureProviderFamily<AnnouncementItem, int> announcementDetailProvider =
+    FutureProvider.family<AnnouncementItem, int>((ref, id) async {
       // 非法 id 直接短路，避免拿一条无关公告糊弄用户。
       if (id <= 0) {
         throw const ApiError('公告地址无效。', ApiErrorCategory.unknown);
@@ -532,4 +528,4 @@ announcementDetailProvider = FutureProvider.autoDispose
         throw const ApiError('公告地址无效。', ApiErrorCategory.unknown);
       }
       return detail;
-    });
+    }, isAutoDispose: true);

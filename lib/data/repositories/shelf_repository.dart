@@ -350,7 +350,7 @@ class ShelfController extends AsyncNotifier<ShelfSnapshot?> {
     final shelf = await _api.getBookShelf();
     final snapshot = await _hydrate(shelf.items, shelf.version);
     if (generation != _mutationGeneration) {
-      return state.valueOrNull ?? snapshot;
+      return state.value ?? snapshot;
     }
     return snapshot;
   }
@@ -373,7 +373,7 @@ class ShelfController extends AsyncNotifier<ShelfSnapshot?> {
         UserShelf(version: normalized.version, items: normalized.items),
       );
       final knownBooks = <int, BookListItem>{
-        for (final book in state.valueOrNull?.books ?? const <BookListItem>[])
+        for (final book in state.value?.books ?? const <BookListItem>[])
           book.id: book,
       };
       final missingIds = normalized.items
@@ -406,7 +406,7 @@ class ShelfController extends AsyncNotifier<ShelfSnapshot?> {
   }
 
   Future<bool> contains(int bookId) async {
-    final snapshot = state.valueOrNull;
+    final snapshot = state.value;
     if (snapshot != null) {
       return snapshot.items.any((item) => item.isBook && item.bookId == bookId);
     }

@@ -124,7 +124,7 @@ class HistoryController extends AsyncNotifier<HistoryState> {
       _guardedPage(indexed.novel, HistoryTab.novel),
       _guardedPage(indexed.comic, HistoryTab.comic),
     ]);
-    if (generation != _generation) return state.valueOrNull ?? indexed;
+    if (generation != _generation) return state.value ?? indexed;
     return HistoryState(novel: pages[0], comic: pages[1]);
   }
 
@@ -171,7 +171,7 @@ class HistoryController extends AsyncNotifier<HistoryState> {
   }
 
   Future<void> _appendPage(HistoryTab which) async {
-    final current = state.valueOrNull;
+    final current = state.value;
     if (current == null || current.clearing) return;
     final tab = current.tab(which);
     if (tab.loadingMore || !tab.hasMore) return;
@@ -199,12 +199,12 @@ class HistoryController extends AsyncNotifier<HistoryState> {
 
   /// 触底加载：出错后停下，等用户显式重试。
   Future<void> loadMore(HistoryTab which) async {
-    if (state.valueOrNull?.tab(which).error != null) return;
+    if (state.value?.tab(which).error != null) return;
     await _appendPage(which);
   }
 
   Future<void> retry(HistoryTab which) async {
-    final current = state.valueOrNull;
+    final current = state.value;
     if (current == null) return;
     state = AsyncValue<HistoryState>.data(
       current.withTab(which, current.tab(which).copyWith(clearError: true)),
@@ -214,7 +214,7 @@ class HistoryController extends AsyncNotifier<HistoryState> {
 
   /// 下拉刷新：重拉索引，旧网格留到新数据落地；清空过程中忽略。
   Future<void> reload() async {
-    if (state.valueOrNull?.clearing ?? false) return;
+    if (state.value?.clearing ?? false) return;
     _generation += 1;
     ref.invalidateSelf();
     await future;
@@ -222,7 +222,7 @@ class HistoryController extends AsyncNotifier<HistoryState> {
 
   /// 清空阅读历史；失败时抛出，由界面提示。
   Future<void> clear() async {
-    final current = state.valueOrNull;
+    final current = state.value;
     if (current == null || current.clearing) return;
     state = AsyncValue<HistoryState>.data(current.copyWith(clearing: true));
     try {

@@ -73,7 +73,7 @@ class _CommunityHomeScreenState extends ConsumerState<CommunityHomeScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(communityHomeProvider);
     final unread =
-        ref.watch(profileProvider).valueOrNull?.unreadNotificationCount ?? 0;
+        ref.watch(profileProvider).value?.unreadNotificationCount ?? 0;
     final home = state.home;
 
     return Scaffold(

@@ -17,7 +17,7 @@ class AnnouncementDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final detail = ref.watch(announcementDetailProvider(id));
-    final item = detail.valueOrNull;
+    final item = detail.value;
     final target = CommentTarget(type: CommentTargetType.announcement, id: id);
 
     final Widget header;

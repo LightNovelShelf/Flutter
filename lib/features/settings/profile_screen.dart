@@ -232,7 +232,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(profileProvider);
-    final profile = profileAsync.valueOrNull;
+    final profile = profileAsync.value;
     final loading = profileAsync.isLoading;
 
     return Scaffold(

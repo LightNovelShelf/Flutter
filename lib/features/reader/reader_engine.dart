@@ -125,6 +125,19 @@ class ReaderPositionWriteQueue<T> {
   }
 }
 
+/// WKWebView 把 `loadHtmlString(baseUrl: ...)` 当成一次主框架导航上报（Android 不会），
+/// 阅读器必须放行这一次，否则会把自己的正文拦掉、永远停在加载态。
+bool isReaderDocumentNavigation({
+  required String url,
+  required bool isMainFrame,
+  required String baseUrl,
+}) =>
+    isMainFrame && (url == baseUrl || url == '$baseUrl/');
+
+/// 正文里的外链一律不在阅读器内跳转。
+bool isReaderExternalNavigation(String url) =>
+    url.startsWith('http://') || url.startsWith('https://');
+
 int? getAdjacentChapterSortNum({
   required int sortNum,
   required int totalChapters,

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 
 import '../../core/network/api_error.dart';
 import '../../core/network/request_scheduler.dart';
@@ -11,14 +12,16 @@ String? readerConvertParam(ConvertType type) =>
     type == ConvertType.none ? null : type.name;
 
 /// 章节目录：阅读器与目录弹层共用一份数据。
-final AutoDisposeFutureProviderFamily<BookDetail, int> readerBookDetailProvider =
-    FutureProvider.autoDispose.family<BookDetail, int>(
+final FutureProviderFamily<BookDetail, int> readerBookDetailProvider =
+    FutureProvider.family<BookDetail, int>(
   (ref, bookId) => ref.watch(apiClientProvider).getBookInfo(bookId),
+  isAutoDispose: true,
 );
 
-final AutoDisposeFutureProviderFamily<ComicInfo, int> readerComicInfoProvider =
-    FutureProvider.autoDispose.family<ComicInfo, int>(
+final FutureProviderFamily<ComicInfo, int> readerComicInfoProvider =
+    FutureProvider.family<ComicInfo, int>(
   (ref, bookId) => ref.watch(apiClientProvider).getComicInfo(bookId),
+  isAutoDispose: true,
 );
 
 class ReaderChapterCacheKey {

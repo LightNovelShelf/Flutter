@@ -63,6 +63,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   String? _error;
   bool _documentReady = false;
   bool _chromeVisible = false;
+  bool _pendingDocumentNavigation = false;
 
   NovelContent? _content;
   List<NovelReaderBlock> _blocks = const <NovelReaderBlock>[];
@@ -103,12 +104,21 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) => unawaited(_applyRestore()),
-          // 正文里的外链一律不在阅读器内跳转。
-          onNavigationRequest: (request) =>
-              request.url.startsWith('http://') ||
-                  request.url.startsWith('https://')
-              ? NavigationDecision.prevent
-              : NavigationDecision.navigate,
+          // 文档自身的那次导航只放行一次，其余外链一律拦掉。
+          onNavigationRequest: (request) {
+            if (_pendingDocumentNavigation &&
+                isReaderDocumentNavigation(
+                  url: request.url,
+                  isMainFrame: request.isMainFrame,
+                  baseUrl: ServiceEndpoints.apiOrigin,
+                )) {
+              _pendingDocumentNavigation = false;
+              return NavigationDecision.navigate;
+            }
+            return isReaderExternalNavigation(request.url)
+                ? NavigationDecision.prevent
+                : NavigationDecision.navigate;
+          },
         ),
       );
     _lifecycle = AppLifecycleListener(
@@ -333,6 +343,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
       fontDataUrl: _fontDataUrl,
       imagePreviewOnLongPress: settings.readerImagePreviewOpenOnLongPress,
     );
+    _pendingDocumentNavigation = true;
     await _controller.setBackgroundColor(
       _backgroundColor(settings, Theme.of(context).colorScheme),
     );

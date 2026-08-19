@@ -207,7 +207,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _history() {
-    final history = ref.watch(searchHistoryProvider).valueOrNull;
+    final history = ref.watch(searchHistoryProvider).value;
     if (history == null || history.isEmpty) return const SizedBox.shrink();
     final text = Theme.of(context).textTheme;
     return Padding(
@@ -271,7 +271,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
 
     if (state.isIdle) {
-      final history = ref.watch(searchHistoryProvider).valueOrNull;
+      final history = ref.watch(searchHistoryProvider).value;
       if (history != null && history.isNotEmpty) {
         return const <Widget>[SliverToBoxAdapter(child: SizedBox.shrink())];
       }

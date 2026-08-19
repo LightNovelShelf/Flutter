@@ -55,7 +55,7 @@ class _AvatarSettingsScreenState extends ConsumerState<AvatarSettingsScreen> {
     super.initState();
     // 输入变化要驱动实时预览。
     _controller.addListener(_onInputChanged);
-    final profile = ref.read(profileProvider).valueOrNull;
+    final profile = ref.read(profileProvider).value;
     if (profile != null) _hydrate(profile);
   }
 
@@ -130,14 +130,14 @@ class _AvatarSettingsScreenState extends ConsumerState<AvatarSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     ref.listen<AsyncValue<UserProfile?>>(profileProvider, (_, next) {
-      final profile = next.valueOrNull;
+      final profile = next.value;
       if (profile != null && _hydratedProfileId != profile.id) {
         setState(() => _hydrate(profile));
       }
     });
 
     final profileAsync = ref.watch(profileProvider);
-    final profile = profileAsync.valueOrNull;
+    final profile = profileAsync.value;
 
     return Scaffold(
       appBar: AppBar(title: const Text('头像')),

@@ -11,7 +11,7 @@ class HomeShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final unread = ref.watch(profileProvider).valueOrNull?.unreadNotificationCount ?? 0;
+    final unread = ref.watch(profileProvider).value?.unreadNotificationCount ?? 0;
     return Scaffold(
       body: shell,
       bottomNavigationBar: NavigationBar(

@@ -185,7 +185,7 @@ class _AsyncSection<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final data = value.valueOrNull;
+    final data = value.value;
     final Widget content;
     if (data != null && !isEmpty(data)) {
       final error = value.error;

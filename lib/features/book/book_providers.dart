@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 
 import '../../core/network/api_error.dart';
 import '../../data/api/models.dart';
@@ -21,29 +22,31 @@ class BookDetailBundle {
 }
 
 /// autoDispose：书籍数量无上限，常驻缓存会一直涨。
-final AutoDisposeFutureProviderFamily<BookDetailBundle, BookDetailRequest>
-bookDetailProvider = FutureProvider.autoDispose
-    .family<BookDetailBundle, BookDetailRequest>((ref, request) async {
-      final api = ref.watch(apiClientProvider);
-      if (request.type == BookType.comic) {
-        final comic = await api.getComicInfo(request.id);
-        return BookDetailBundle(detail: comic.toBookDetail(), comic: comic);
-      }
-      return BookDetailBundle(detail: await api.getBookInfo(request.id));
-    });
+final FutureProviderFamily<BookDetailBundle, BookDetailRequest>
+bookDetailProvider = FutureProvider.family<BookDetailBundle, BookDetailRequest>(
+  (ref, request) async {
+    final api = ref.watch(apiClientProvider);
+    if (request.type == BookType.comic) {
+      final comic = await api.getComicInfo(request.id);
+      return BookDetailBundle(detail: comic.toBookDetail(), comic: comic);
+    }
+    return BookDetailBundle(detail: await api.getBookInfo(request.id));
+  },
+  isAutoDispose: true,
+);
 
-final AutoDisposeFutureProviderFamily<bool, int> bookInShelfProvider =
-    FutureProvider.autoDispose.family<bool, int>((ref, bookId) async {
+final FutureProviderFamily<bool, int> bookInShelfProvider =
+    FutureProvider.family<bool, int>((ref, bookId) async {
       final snapshot = await ref.watch(shelfProvider.future);
       if (snapshot == null) return false;
       return snapshot.items.any((item) => item.isBook && item.bookId == bookId);
-    });
+    }, isAutoDispose: true);
 
-final AutoDisposeFutureProviderFamily<ComicSeriesDetail, String>
-comicSeriesProvider = FutureProvider.autoDispose
-    .family<ComicSeriesDetail, String>(
+final FutureProviderFamily<ComicSeriesDetail, String> comicSeriesProvider =
+    FutureProvider.family<ComicSeriesDetail, String>(
       (ref, seriesTitle) =>
           ref.watch(apiClientProvider).getComicSeriesInfo(seriesTitle),
+      isAutoDispose: true,
     );
 
 /// 评论目标。漫画按系列聚合（`id` 恒为 0，靠 `seriesTitle` 定位），要值相等才能当 family 键。
@@ -127,8 +130,11 @@ String describeCommentError(Object error, {required String fallback}) {
   return fallback;
 }
 
-class CommentThreadController
-    extends AutoDisposeFamilyAsyncNotifier<CommentThreadState, CommentTarget> {
+class CommentThreadController extends AsyncNotifier<CommentThreadState> {
+  CommentThreadController(this.arg);
+
+  final CommentTarget arg;
+
   Future<CommentPage> _fetch(int page) => ref
       .read(apiClientProvider)
       .getComments(
@@ -139,7 +145,7 @@ class CommentThreadController
       );
 
   @override
-  Future<CommentThreadState> build(CommentTarget arg) async {
+  Future<CommentThreadState> build() async {
     final page = await _fetch(1);
     return CommentThreadState(
       items: page.items,
@@ -161,14 +167,14 @@ class CommentThreadController
   }
 
   Future<void> loadMore() async {
-    final current = state.valueOrNull;
+    final current = state.value;
     if (current == null || current.loadingMore || !current.hasMore) return;
     state = AsyncValue<CommentThreadState>.data(
       current.copyWith(loadingMore: true, clearMoreError: true),
     );
     try {
       final next = await _fetch(current.page + 1);
-      final latest = state.valueOrNull ?? current;
+      final latest = state.value ?? current;
       state = AsyncValue<CommentThreadState>.data(
         latest.copyWith(
           items: _merge(latest.items, next.items),
@@ -179,7 +185,7 @@ class CommentThreadController
         ),
       );
     } catch (error) {
-      final latest = state.valueOrNull ?? current;
+      final latest = state.value ?? current;
       state = AsyncValue<CommentThreadState>.data(
         latest.copyWith(
           loadingMore: false,
@@ -230,12 +236,14 @@ class CommentThreadController
   }
 }
 
-final AutoDisposeAsyncNotifierProviderFamily<
+final AsyncNotifierProviderFamily<
   CommentThreadController,
   CommentThreadState,
   CommentTarget
 >
-commentThreadProvider = AsyncNotifierProvider.autoDispose
-    .family<CommentThreadController, CommentThreadState, CommentTarget>(
-      CommentThreadController.new,
-    );
+commentThreadProvider =
+    AsyncNotifierProvider.family<
+      CommentThreadController,
+      CommentThreadState,
+      CommentTarget
+    >(CommentThreadController.new, isAutoDispose: true);

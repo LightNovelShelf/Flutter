@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
-import 'package:palette_generator/palette_generator.dart';
 
 import '../../app/theme/app_theme.dart';
 import '../../core/network/api_error.dart';
@@ -16,6 +15,7 @@ import '../../data/providers.dart';
 import '../../data/repositories/read_position_cache.dart';
 import '../../data/repositories/shelf_repository.dart';
 import '../../data/settings/app_settings.dart';
+import '../../shared/cover_seed.dart';
 import '../../shared/format.dart';
 import '../../shared/image_cache.dart';
 import '../../shared/image_sizing.dart';
@@ -96,17 +96,12 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
         cacheManager: appImageCacheManager,
       );
     }
-    PaletteGenerator.fromImageProvider(
+    resolveCoverSeedColor(
           provider,
           size: hasBlurHash ? const Size(32, 48) : const Size(96, 144),
-          maximumColorCount: 8,
         )
-        .then((palette) {
+        .then((color) {
           if (!mounted || _paletteKey != key) return;
-          final color =
-              palette.vibrantColor?.color ??
-              palette.dominantColor?.color ??
-              palette.mutedColor?.color;
           if (color == null) return;
           setState(() => _coverSeed = color);
         })
@@ -363,7 +358,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   Widget build(BuildContext context) {
     final settings = ref.watch(appSettingsProvider);
     final async = ref.watch(bookDetailProvider(_request));
-    final bundle = async.valueOrNull;
+    final bundle = async.value;
     if (bundle != null) {
       _syncPalette(
         coverUrl: bundle.detail.coverUrl,
@@ -558,7 +553,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     final hasChapters = detail.chapters.isNotEmpty;
     final resolvedInShelf =
         _shelfOverride ??
-        ref.watch(bookInShelfProvider(widget.id)).valueOrNull ??
+        ref.watch(bookInShelfProvider(widget.id)).value ??
         false;
     final continueTitle = currentIndex >= 0
         ? cleanChapterTitle(detail.chapters[currentIndex].title)

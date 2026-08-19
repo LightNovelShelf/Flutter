@@ -66,11 +66,11 @@ class SearchHistoryController extends AsyncNotifier<List<String>> {
   void add(String keyword) {
     final trimmed = keyword.trim();
     if (trimmed.isEmpty) return;
-    _apply(_normalize(<String>[trimmed, ...state.valueOrNull ?? <String>[]]));
+    _apply(_normalize(<String>[trimmed, ...state.value ?? <String>[]]));
   }
 
   void remove(String keyword) {
-    final current = state.valueOrNull;
+    final current = state.value;
     if (current == null) return;
     _apply(current.where((value) => value != keyword).toList());
   }

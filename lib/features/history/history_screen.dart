@@ -190,7 +190,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(historyProvider);
-    final data = async.valueOrNull;
+    final data = async.value;
     final media = MediaQuery.sizeOf(context);
     final layout = BookGridLayout.of(
       media.width,
