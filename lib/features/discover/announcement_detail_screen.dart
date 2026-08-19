@@ -4,6 +4,7 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
 
 import '../../data/api/models.dart';
 import '../../shared/format.dart';
+import '../../shared/widgets/image_preview.dart';
 import '../book/widgets/comment_thread.dart';
 import 'discover_providers.dart';
 
@@ -97,6 +98,7 @@ class _ArticleCard extends StatelessWidget {
               height: 25.6 / 16,
               color: colors.onSurface,
             ),
+            onTapImage: (metadata) => previewHtmlImage(context, metadata),
           ),
         ],
       ),

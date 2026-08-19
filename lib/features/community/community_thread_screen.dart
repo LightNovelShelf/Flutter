@@ -10,6 +10,7 @@ import '../../core/network/api_error.dart';
 import '../../data/api/api_client.dart';
 import '../../data/api/community_models.dart';
 import '../../data/providers.dart';
+import '../../shared/widgets/image_preview.dart';
 import 'community_providers.dart';
 import 'widgets/community_widgets.dart';
 
@@ -613,6 +614,8 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
                           color: colors.onSurface,
                         ),
                         onTapUrl: _openExternalUrl,
+                        onTapImage: (metadata) =>
+                            previewHtmlImage(context, metadata),
                       ),
                     ),
                   ],

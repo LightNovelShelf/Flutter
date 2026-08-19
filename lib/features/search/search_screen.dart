@@ -143,17 +143,25 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: <Widget>[
-                        for (final entry in _modeLabels.entries)
-                          ChoiceChip(
-                            label: Text(entry.value),
-                            selected: state.mode == entry.key,
-                            onSelected: (_) => controller.setMode(entry.key),
-                          ),
-                      ],
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: <Widget>[
+                          for (final entry in _modeLabels.entries) ...<Widget>[
+                            ChoiceChip(
+                              label: Text(
+                                entry.value,
+                                maxLines: 1,
+                                softWrap: false,
+                              ),
+                              selected: state.mode == entry.key,
+                              onSelected: (_) => controller.setMode(entry.key),
+                            ),
+                            if (entry.key != _modeLabels.keys.last)
+                              const SizedBox(width: 8),
+                          ],
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 10),
                     SegmentedButton<bool>(
@@ -319,19 +327,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     BookGridLayout layout, {
     required int itemCount,
     required Widget Function(BuildContext context, int index) builder,
-  }) =>
-      SliverPadding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: BookGridLayout.horizontalPadding,
-        ),
-        sliver: SliverGrid(
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: layout.columns,
-            crossAxisSpacing: BookGridLayout.columnGap,
-            mainAxisSpacing: BookGridLayout.rowGap,
-            childAspectRatio: layout.childAspectRatio,
-          ),
-          delegate: SliverChildBuilderDelegate(builder, childCount: itemCount),
-        ),
-      );
+  }) => SliverPadding(
+    padding: const EdgeInsets.symmetric(
+      horizontal: BookGridLayout.horizontalPadding,
+    ),
+    sliver: SliverGrid(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: layout.columns,
+        crossAxisSpacing: BookGridLayout.columnGap,
+        mainAxisSpacing: BookGridLayout.rowGap,
+        childAspectRatio: layout.childAspectRatio,
+      ),
+      delegate: SliverChildBuilderDelegate(builder, childCount: itemCount),
+    ),
+  );
 }

@@ -258,8 +258,17 @@ class BookSearchController extends Notifier<BookSearchState> {
     final comic = state.comic;
     final mode = state.mode;
 
+    // 换关键词/切模式/切小说漫画都会重跑第一页：清空旧结果，让骨架接手，
+    // 否则会拿着上一次的结果干等新数据。
     state = page == 1
-        ? state.copyWith(loading: true, loadingMore: false, clearError: true)
+        ? state.copyWith(
+            items: const <BookListItem>[],
+            page: 1,
+            totalPages: 1,
+            loading: true,
+            loadingMore: false,
+            clearError: true,
+          )
         : state.copyWith(loadingMore: true, clearError: true);
 
     try {

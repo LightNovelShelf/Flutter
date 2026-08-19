@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:palette_generator/palette_generator.dart';
 
 import '../../app/theme/app_theme.dart';
@@ -16,6 +18,7 @@ import '../../data/repositories/shelf_repository.dart';
 import '../../data/settings/app_settings.dart';
 import '../../shared/format.dart';
 import '../../shared/widgets/book_cover_image.dart';
+import '../../shared/widgets/image_preview.dart';
 import '../../shared/widgets/state_views.dart';
 import '../search/search_providers.dart';
 import 'book_providers.dart';
@@ -45,22 +48,37 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   bool _shelfBusy = false;
   bool? _shelfOverride;
   String? _shelfError;
-  String? _paletteUrl;
+  String? _paletteKey;
   Color? _coverSeed;
 
   BookDetailRequest get _request => (id: widget.id, type: widget.type);
 
-  /// 只在封面 URL 变化时取色，否则 build 会自激。
-  void _syncPalette(String coverUrl, bool enabled) {
-    if (!enabled || coverUrl.isEmpty || coverUrl == _paletteUrl) return;
-    _paletteUrl = coverUrl;
+  /// BlurHash 已经包含封面的低频色彩信息，优先用它取色，避免为主题额外下载原图。
+  void _syncPalette({
+    required String coverUrl,
+    required String? blurHash,
+    required bool enabled,
+  }) {
+    if (!enabled) return;
+    final hash = blurHash?.trim();
+    final hasBlurHash = hash != null && hash.isNotEmpty;
+    if (!hasBlurHash && coverUrl.isEmpty) return;
+
+    final key = hasBlurHash ? 'blur:$hash' : 'url:$coverUrl';
+    if (key == _paletteKey) return;
+    _paletteKey = key;
+    _coverSeed = null;
+
+    final ImageProvider<Object> provider = hasBlurHash
+        ? BlurHashImage(hash, decodingWidth: 32, decodingHeight: 48)
+        : CachedNetworkImageProvider(coverUrl);
     PaletteGenerator.fromImageProvider(
-          CachedNetworkImageProvider(coverUrl),
-          size: const Size(96, 144),
+          provider,
+          size: hasBlurHash ? const Size(32, 48) : const Size(96, 144),
           maximumColorCount: 8,
         )
         .then((palette) {
-          if (!mounted || _paletteUrl != coverUrl) return;
+          if (!mounted || _paletteKey != key) return;
           final color =
               palette.vibrantColor?.color ??
               palette.dominantColor?.color ??
@@ -323,13 +341,15 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     final async = ref.watch(bookDetailProvider(_request));
     final bundle = async.valueOrNull;
     if (bundle != null) {
-      _syncPalette(bundle.detail.coverUrl, settings.coverColorExtraction);
+      _syncPalette(
+        coverUrl: bundle.detail.coverUrl,
+        blurHash: bundle.detail.coverPlaceholder,
+        enabled: settings.coverColorExtraction,
+      );
     }
 
-    return AnimatedTheme(
+    return Theme(
       data: _theme(context, settings),
-      duration: const Duration(milliseconds: 600),
-      curve: Curves.easeInOut,
       child: Builder(
         builder: (themedContext) => Scaffold(
           body: async.when(
@@ -858,9 +878,20 @@ class _BookHero extends StatelessWidget {
                         size: 40,
                         color: colors.onSurfaceVariant,
                       )
-                    : BookCoverImage(
-                        url: detail.coverUrl,
-                        blurHash: detail.coverPlaceholder,
+                    : Builder(
+                        builder: (context) => GestureDetector(
+                          onTap: () => unawaited(
+                            showImagePreview(
+                              context,
+                              url: detail.coverUrl,
+                              sourceRect: globalRectOf(context),
+                            ),
+                          ),
+                          child: BookCoverImage(
+                            url: detail.coverUrl,
+                            blurHash: detail.coverPlaceholder,
+                          ),
+                        ),
                       ),
               ),
               const SizedBox(width: 16),

@@ -1,7 +1,5 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:photo_view/photo_view.dart';
 
 /// 阅读器悬浮工具栏：默认隐藏，点中间区域才出现，不挡正文。
 class ReaderChrome extends StatelessWidget {
@@ -428,57 +426,6 @@ class ReaderTapZoneLayer extends StatelessWidget {
           onToggleChrome();
         }
       },
-    ),
-  );
-}
-
-/// 全屏图片预览：捏合缩放，点击关闭。
-Future<void> showReaderImagePreview(BuildContext context, String url) =>
-    Navigator.of(context, rootNavigator: true).push<void>(
-      PageRouteBuilder<void>(
-        opaque: false,
-        barrierColor: Colors.black.withValues(alpha: 0.96),
-        pageBuilder: (context, _, _) => _ReaderImagePreview(url: url),
-      ),
-    );
-
-class _ReaderImagePreview extends StatelessWidget {
-  const _ReaderImagePreview({required this.url});
-
-  final String url;
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: Colors.transparent,
-    body: Stack(
-      children: <Widget>[
-        PhotoView(
-          imageProvider: CachedNetworkImageProvider(url),
-          backgroundDecoration: const BoxDecoration(color: Colors.transparent),
-          minScale: PhotoViewComputedScale.contained,
-          maxScale: PhotoViewComputedScale.covered * 6,
-          onTapUp: (context, _, _) => Navigator.of(context).pop(),
-          loadingBuilder: (context, _) => const Center(
-            child: CircularProgressIndicator(color: Colors.white),
-          ),
-          errorBuilder: (context, _, _) => const Center(
-            child: Text(
-              '图片加载失败',
-              style: TextStyle(color: Colors.white, fontSize: 14),
-            ),
-          ),
-        ),
-        Positioned(
-          top: MediaQuery.paddingOf(context).top + 8,
-          right: 8,
-          child: IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.close),
-            color: Colors.white,
-            tooltip: '关闭',
-          ),
-        ),
-      ],
     ),
   );
 }

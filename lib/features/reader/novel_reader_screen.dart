@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../core/network/api_error.dart';
@@ -13,6 +14,7 @@ import '../../data/providers.dart';
 import '../../data/repositories/read_position_cache.dart';
 import '../../data/settings/app_settings.dart';
 import '../../shared/format.dart';
+import '../../shared/widgets/image_preview.dart';
 import '../../shared/widgets/state_views.dart';
 import 'reader_engine.dart';
 import 'reader_font_cache.dart';
@@ -48,8 +50,10 @@ class NovelReaderScreen extends ConsumerStatefulWidget {
 class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   late final ApiClient _api;
   late final WebViewController _controller;
+  final GlobalKey _webViewKey = GlobalKey();
   late final ReaderPositionWriteQueue<ReaderRestorePosition> _positions;
   late final AppLifecycleListener _lifecycle;
+  late final Future<String> _readerScriptSource;
 
   late int _sortNum;
   late ReaderOpenPosition _openPosition;
@@ -83,6 +87,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     _sortNum = widget.sortNum;
     _openPosition = widget.openPosition;
     _api = ref.read(apiClientProvider);
+    _readerScriptSource = rootBundle.loadString('assets/js/novel_reader.js');
     _positions = ReaderPositionWriteQueue<ReaderRestorePosition>(
       _persistPosition,
       fingerprint: (position) => '${position.chapterId}:${position.position}',
@@ -306,6 +311,8 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   Future<void> _renderDocument() async {
     final content = _content;
     if (content == null) return;
+    final readerScriptSource = await _readerScriptSource;
+    if (!mounted) return;
     final settings = ref.read(appSettingsProvider);
     final paged = settings.readerViewMode == ReaderViewMode.paged;
     _renderedViewMode = settings.readerViewMode;
@@ -322,6 +329,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
       imageBaseUrl: ServiceEndpoints.apiOrigin,
       typography: _typography(settings),
       paged: paged,
+      readerScriptSource: readerScriptSource,
       fontDataUrl: _fontDataUrl,
       imagePreviewOnLongPress: settings.readerImagePreviewOpenOnLongPress,
     );
@@ -385,7 +393,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
       case 'footnote':
         _onFootnote(decoded['id']);
       case 'image':
-        _onImage(decoded['src']);
+        _onImage(decoded['src'], decoded['rect']);
     }
   }
 
@@ -444,14 +452,34 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     );
   }
 
-  void _onImage(Object? source) {
-    if (source is! String || source.isEmpty || !mounted) return;
-    final resolved = Uri.tryParse(source.replaceAll('&amp;', '&'));
-    if (resolved == null) return;
-    final url = resolved.hasScheme
-        ? resolved.toString()
-        : Uri.parse(ServiceEndpoints.apiOrigin).resolveUri(resolved).toString();
-    unawaited(showReaderImagePreview(context, url));
+  void _onImage(Object? source, Object? rect) {
+    if (source is! String || !mounted) return;
+    final url = resolvePreviewImageUrl(source);
+    if (url == null) return;
+    unawaited(
+      showImagePreview(context, url: url, sourceRect: _webViewRect(rect)),
+    );
+  }
+
+  /// WebView 内的 CSS 像素与 Flutter 逻辑像素同尺度（viewport initial-scale=1），
+  /// 只需补上 WebView 自身在屏幕上的偏移，就能拿到图片的全局矩形做动画起点。
+  Rect? _webViewRect(Object? rect) {
+    if (rect is! Map) return null;
+    final x = rect['x'];
+    final y = rect['y'];
+    final width = rect['w'];
+    final height = rect['h'];
+    if (x is! num || y is! num || width is! num || height is! num) return null;
+    if (width <= 0 || height <= 0) return null;
+    final host = _webViewKey.currentContext;
+    final origin = host == null ? null : globalRectOf(host)?.topLeft;
+    if (origin == null) return null;
+    return Rect.fromLTWH(
+      origin.dx + x.toDouble(),
+      origin.dy + y.toDouble(),
+      width.toDouble(),
+      height.toDouble(),
+    );
   }
 
   Future<void> _openChapter(int sortNum, ReaderOpenPosition position) async {
@@ -534,7 +562,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
         children: <Widget>[
           Positioned.fill(
             top: readerTopInset,
-            child: WebViewWidget(controller: _controller),
+            child: WebViewWidget(key: _webViewKey, controller: _controller),
           ),
           if (!_documentReady)
             const IgnorePointer(

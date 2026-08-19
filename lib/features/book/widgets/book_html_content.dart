@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../shared/widgets/image_preview.dart';
+
 final RegExp _scriptOrStyle = RegExp(
   r'<(script|style)[^>]*>[\s\S]*?<\/\1>',
   caseSensitive: false,
@@ -186,6 +188,9 @@ class BookHtmlContent extends StatelessWidget {
         }
         return styles;
       },
+      onTapImage: preview
+          ? null
+          : (metadata) => previewHtmlImage(context, metadata),
       onTapUrl: (url) async {
         final uri = Uri.tryParse(url);
         if (uri == null) return false;

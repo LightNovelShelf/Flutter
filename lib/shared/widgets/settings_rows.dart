@@ -9,12 +9,12 @@ class SettingsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListView.separated(
-        controller: controller,
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
-        itemCount: children.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 20),
-        itemBuilder: (_, index) => children[index],
-      );
+    controller: controller,
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
+    itemCount: children.length,
+    separatorBuilder: (_, _) => const SizedBox(height: 20),
+    itemBuilder: (_, index) => children[index],
+  );
 }
 
 /// 一个设置分组：标题 + 圆角 22 的行容器。
@@ -39,19 +39,26 @@ class SettingsSection extends StatelessWidget {
               style: text.titleMedium?.copyWith(color: colors.onSurfaceVariant),
             ),
           ),
-        ClipRRect(
+        Material(
+          color: colors.surfaceContainer,
           borderRadius: BorderRadius.circular(22),
-          child: ColoredBox(
-            color: colors.surfaceContainer,
-            child: Column(
-              children: <Widget>[
-                for (var index = 0; index < children.length; index += 1) ...<Widget>[
-                  if (index > 0)
-                    Divider(height: 1, thickness: 1, color: colors.outlineVariant),
-                  children[index],
-                ],
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: <Widget>[
+              for (
+                var index = 0;
+                index < children.length;
+                index += 1
+              ) ...<Widget>[
+                if (index > 0)
+                  Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: colors.outlineVariant,
+                  ),
+                children[index],
               ],
-            ),
+            ],
           ),
         ),
       ],
@@ -187,12 +194,12 @@ class SettingsToggleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SettingsRow(
-        title: title,
-        description: description,
-        icon: icon,
-        onTap: () => onChanged(!value),
-        trailing: Switch(value: value, onChanged: onChanged),
-      );
+    title: title,
+    description: description,
+    icon: icon,
+    onTap: () => onChanged(!value),
+    trailing: Switch(value: value, onChanged: onChanged),
+  );
 }
 
 class SettingsPickerRow<T> extends StatelessWidget {
@@ -244,10 +251,7 @@ class SettingsPickerRow<T> extends StatelessWidget {
                     ),
                   ),
                   for (final option in options)
-                    RadioListTile<T>(
-                      value: option.$1,
-                      title: Text(option.$2),
-                    ),
+                    RadioListTile<T>(value: option.$1, title: Text(option.$2)),
                   const SizedBox(height: 8),
                 ],
               ),
@@ -319,9 +323,7 @@ class SettingsSliderRow extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       '$description · ${format(value)}',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
+                      style: Theme.of(context).textTheme.bodyMedium
                           ?.copyWith(color: colors.onSurfaceVariant),
                     ),
                   ],
