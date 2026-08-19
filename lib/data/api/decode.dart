@@ -1,0 +1,159 @@
+import '../../core/network/api_error.dart';
+
+const String blurHashBase83 =
+    '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#\$%*+,-.:;=?@[]^_{|}~';
+
+Map<String, dynamic> asRecord(Object? value, String name) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) return value.cast<String, dynamic>();
+  throw ApiError('服务端返回了无效的 $name。', ApiErrorCategory.server);
+}
+
+Map<String, dynamic>? asRecordOrNull(Object? value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) return value.cast<String, dynamic>();
+  return null;
+}
+
+List<dynamic> asArray(Object? value, String name) {
+  if (value is List) return value;
+  throw ApiError('服务端返回了无效的 $name。', ApiErrorCategory.server);
+}
+
+String asString(Object? value) {
+  if (value is String && value.isNotEmpty) return value;
+  throw const ApiError('服务端返回了无效的文本字段。', ApiErrorCategory.server);
+}
+
+String asStringOrEmpty(Object? value) => value is String ? value : '';
+
+String? asNullableString(Object? value) {
+  if (value == null || value == '') return null;
+  return asString(value);
+}
+
+num _asNum(Object? value) => value as num;
+
+int asInt(Object? value, [int? fallback]) {
+  if (value is num && value.isFinite) return value.toInt();
+  if (value is String) {
+    final parsed = int.tryParse(value);
+    if (parsed != null) return parsed;
+  }
+  if (fallback != null) return fallback;
+  throw const ApiError('服务端返回了无效的数字字段。', ApiErrorCategory.server);
+}
+
+int? asNullableInt(Object? value) => value == null ? null : asInt(value);
+
+double asDouble(Object? value, [double? fallback]) {
+  if (value is num && value.isFinite) return _asNum(value).toDouble();
+  if (fallback != null) return fallback;
+  throw const ApiError('服务端返回了无效的数字字段。', ApiErrorCategory.server);
+}
+
+bool asBool(Object? value, [bool? fallback]) {
+  if (value is bool) return value;
+  if (fallback != null) return fallback;
+  throw const ApiError('服务端返回了无效的布尔字段。', ApiErrorCategory.server);
+}
+
+/// 服务端给 ISO8601 字符串；解析失败回落到当前时间，别让一个坏字段挂掉整页。
+DateTime asDate(Object? value) {
+  final text = asString(value);
+  return DateTime.tryParse(text)?.toLocal() ?? DateTime.now();
+}
+
+DateTime? asNullableDate(Object? value) {
+  if (value == null || value == '') return null;
+  final text = value is String ? value : value.toString();
+  return DateTime.tryParse(text)?.toLocal();
+}
+
+List<String> decodeStringList(Object? value) {
+  if (value is! List) return const <String>[];
+  return value.whereType<String>().where((item) => item.isNotEmpty).toList();
+}
+
+List<int> decodeIntList(Object? value, String name) =>
+    asArray(value, name).map(asInt).toList();
+
+List<T> decodeOptionalList<T>(
+  Object? value,
+  String name,
+  T Function(Object? item) decode,
+) {
+  if (value == null) return <T>[];
+  return asArray(value, name).map(decode).toList();
+}
+
+int _decodeBase83(String value) {
+  var result = 0;
+  for (final character in value.split('')) {
+    final digit = blurHashBase83.indexOf(character);
+    if (digit < 0) return 0;
+    result = result * 83 + digit;
+  }
+  return result;
+}
+
+/// 不是完整可用的 BlurHash 就返回 null。
+String? normalizeBlurHash(Object? value) {
+  if (value is! String || value.length < 6) return null;
+  for (final character in value.split('')) {
+    if (!blurHashBase83.contains(character)) return null;
+  }
+  final sizeFlag = _decodeBase83(value[0]);
+  final componentCount = (sizeFlag ~/ 9 + 1) * (sizeFlag % 9 + 1);
+  return value.length == 4 + 2 * componentCount ? value : null;
+}
+
+class _RawQueryValue {
+  const _RawQueryValue(this.rawValue, this.value, this.valueStart, this.valueEnd);
+
+  final String rawValue;
+  final String value;
+  final int valueStart;
+  final int valueEnd;
+}
+
+/// 从原始 URL 文本里取查询值：封面 placeholder 带未转义的 base83 字符
+/// （`+`、`#`），标准 URL 解析会破坏它们。
+_RawQueryValue? _extractRawQueryValue(String rawUrl, String key) {
+  final queryStart = rawUrl.indexOf('?');
+  if (queryStart < 0) return null;
+  var pairStart = queryStart + 1;
+  while (pairStart <= rawUrl.length) {
+    final pairEndCandidate = rawUrl.indexOf('&', pairStart);
+    final pairEnd = pairEndCandidate < 0 ? rawUrl.length : pairEndCandidate;
+    final separator = rawUrl.indexOf('=', pairStart);
+    if (separator >= pairStart &&
+        separator < pairEnd &&
+        rawUrl.substring(pairStart, separator) == key) {
+      final valueStart = separator + 1;
+      final rawValue = rawUrl.substring(valueStart, pairEnd);
+      final encoded = rawValue.replaceAll('+', '%2B');
+      final value = encoded.replaceAllMapped(
+        RegExp(r'%([0-9A-Fa-f]{2})'),
+        (match) => String.fromCharCode(int.parse(match.group(1)!, radix: 16)),
+      );
+      return _RawQueryValue(rawValue, value, valueStart, pairEnd);
+    }
+    if (pairEndCandidate < 0) break;
+    pairStart = pairEnd + 1;
+  }
+  return null;
+}
+
+String? extractBlurHashPlaceholder(String value) =>
+    normalizeBlurHash(_extractRawQueryValue(value, 'placeholder')?.value);
+
+/// 修复旧封面 URL：未转义的 `#` 会把后续签名参数变成 fragment。
+String normalizeCoverUrl(String value) {
+  final placeholder = _extractRawQueryValue(value, 'placeholder');
+  if (placeholder == null || !placeholder.rawValue.contains('#')) return value;
+  final repaired = placeholder.rawValue.replaceAll('#', '%23');
+  return value.substring(0, placeholder.valueStart) +
+      repaired +
+      value.substring(placeholder.valueEnd);
+}
