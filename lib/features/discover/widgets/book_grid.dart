@@ -13,7 +13,9 @@ void openBookDetail(BuildContext context, BookListItem book) {
     'type': isComic ? 'Comic' : 'Novel',
     if (isComic) 'seriesTitle': book.seriesTitle ?? book.title,
   };
-  context.push(Uri(path: '/book/${book.id}', queryParameters: query).toString());
+  context.push(
+    Uri(path: '/book/${book.id}', queryParameters: query).toString(),
+  );
 }
 
 /// 目录/榜单共用的网格：下拉刷新 + 触底加载 + 骨架/空/错误态。
@@ -70,6 +72,7 @@ class BookGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final windowHeight = MediaQuery.sizeOf(context).height;
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: LayoutBuilder(
@@ -85,7 +88,12 @@ class BookGrid extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                     sliver: SliverToBoxAdapter(child: header),
                   ),
-                ..._contentSlivers(context, layout, windowHeight),
+                ..._contentSlivers(
+                  context,
+                  layout,
+                  windowHeight,
+                  devicePixelRatio,
+                ),
               ],
             ),
           );
@@ -98,6 +106,7 @@ class BookGrid extends StatelessWidget {
     BuildContext context,
     BookGridLayout layout,
     double windowHeight,
+    double devicePixelRatio,
   ) {
     if (books.isEmpty) {
       if (loading) {
@@ -127,36 +136,37 @@ class BookGrid extends StatelessWidget {
       ];
     }
 
-    final placeholders =
-        loadingMore ? layout.loadMorePlaceholderCount(books.length) : 0;
+    final memCacheWidth = (layout.tileWidth * devicePixelRatio).ceil();
+    final memCacheHeight =
+        (layout.tileWidth / BookGridLayout.coverAspectRatio * devicePixelRatio)
+            .ceil();
     return <Widget>[
       SliverPadding(
         padding: _gridPadding,
-        sliver: SliverGrid.builder(
+        sliver: SliverGrid(
           gridDelegate: _delegate(layout),
-          itemCount: books.length + placeholders,
-          itemBuilder: (context, index) {
-            if (index >= books.length) return const BookGridSkeletonTile();
-            final book = books[index];
-            return BookCoverGridItem.fromBook(
-              book,
-              rank: showRank ? index + 1 : null,
-              onTap: () => onOpen(book),
-            );
-          },
+          delegate: _BookGridChildDelegate(
+            books: books,
+            onOpen: onOpen,
+            showRank: showRank,
+            memCacheWidth: memCacheWidth,
+            memCacheHeight: memCacheHeight,
+          ),
         ),
       ),
       SliverPadding(
         padding: const EdgeInsets.only(bottom: 40),
         sliver: SliverToBoxAdapter(
-          // 不分页的列表（榜单）没有底部状态可言，只留下边距。
           child: onLoadMore == null
               ? const SizedBox(height: 8)
-              : ListFooterStatus(
-                  loading: false,
-                  hasMore: hasMore || loadingMore,
-                  error: loadMoreError,
-                  onRetry: onLoadMore,
+              : SizedBox(
+                  height: 58,
+                  child: ListFooterStatus(
+                    loading: loadingMore,
+                    hasMore: hasMore,
+                    error: loadMoreError,
+                    onRetry: onLoadMore,
+                  ),
                 ),
         ),
       ),
@@ -189,22 +199,33 @@ class BookGridPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, constraints) {
-          // 父级已经扣掉内边距，这里不再重复扣。
-          final layout =
-              BookGridLayout.of(constraints.maxWidth, horizontalPadding: 0);
-          final visible = books.take(layout.columns * maxRows).toList();
-          return _gridRows(
-            layout: layout,
-            itemCount: visible.length,
-            itemBuilder: (index) => BookCoverGridItem.fromBook(
-              visible[index],
-              rank: showRank ? index + 1 : null,
-              onTap: () => onOpen(visible[index]),
-            ),
-          );
-        },
+    builder: (context, constraints) {
+      // 父级已经扣掉内边距，这里不再重复扣。
+      final layout = BookGridLayout.of(
+        constraints.maxWidth,
+        horizontalPadding: 0,
       );
+      final visible = books.take(layout.columns * maxRows).toList();
+      final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+      final memCacheWidth = (layout.tileWidth * devicePixelRatio).ceil();
+      final memCacheHeight =
+          (layout.tileWidth /
+                  BookGridLayout.coverAspectRatio *
+                  devicePixelRatio)
+              .ceil();
+      return _gridRows(
+        layout: layout,
+        itemCount: visible.length,
+        itemBuilder: (index) => BookCoverGridItem.fromBook(
+          visible[index],
+          rank: showRank ? index + 1 : null,
+          memCacheWidth: memCacheWidth,
+          memCacheHeight: memCacheHeight,
+          onTap: () => onOpen(visible[index]),
+        ),
+      );
+    },
+  );
 }
 
 /// 首页分区的网格骨架：固定行数。
@@ -215,16 +236,59 @@ class BookGridPreviewSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, constraints) {
-          final layout =
-              BookGridLayout.of(constraints.maxWidth, horizontalPadding: 0);
-          return _gridRows(
-            layout: layout,
-            itemCount: layout.columns * rows,
-            itemBuilder: (_) => const BookGridSkeletonTile(),
-          );
-        },
+    builder: (context, constraints) {
+      final layout = BookGridLayout.of(
+        constraints.maxWidth,
+        horizontalPadding: 0,
       );
+      return _gridRows(
+        layout: layout,
+        itemCount: layout.columns * rows,
+        itemBuilder: (_) => const BookGridSkeletonTile(),
+      );
+    },
+  );
+}
+
+/// 分页状态变化时复用现有子节点；只有书籍数据或卡片尺寸变化才重建网格项。
+///
+/// `SliverGrid.builder` 每次父级 build 都会创建一个默认必定重建的 delegate。
+/// 加载下一页开始时书籍未变，不应让屏内所有封面再次走 build/layout。
+class _BookGridChildDelegate extends SliverChildBuilderDelegate {
+  _BookGridChildDelegate({
+    required this.books,
+    required this.onOpen,
+    required this.showRank,
+    required this.memCacheWidth,
+    required this.memCacheHeight,
+  }) : super(
+         (context, index) {
+           final book = books[index];
+           return BookCoverGridItem.fromBook(
+             book,
+             key: ValueKey<int>(book.id),
+             rank: showRank ? index + 1 : null,
+             memCacheWidth: memCacheWidth,
+             memCacheHeight: memCacheHeight,
+             onTap: () => onOpen(book),
+           );
+         },
+         childCount: books.length,
+         addAutomaticKeepAlives: false,
+       );
+
+  final List<BookListItem> books;
+  final void Function(BookListItem book) onOpen;
+  final bool showRank;
+  final int memCacheWidth;
+  final int memCacheHeight;
+
+  @override
+  bool shouldRebuild(covariant _BookGridChildDelegate oldDelegate) =>
+      !identical(books, oldDelegate.books) ||
+      showRank != oldDelegate.showRank ||
+      memCacheWidth != oldDelegate.memCacheWidth ||
+      memCacheHeight != oldDelegate.memCacheHeight;
 }
 
 /// 手动按行摆放，保证残行的卡片仍然左对齐且与整行同宽。

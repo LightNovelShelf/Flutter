@@ -138,23 +138,6 @@ class _CommunityHomeScreenState extends ConsumerState<CommunityHomeScreen> {
               padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
               sliver: SliverToBoxAdapter(child: _Footer(state: state)),
             ),
-            if (home != null && home.hotThreads.isNotEmpty)
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
-                sliver: SliverToBoxAdapter(
-                  child: CommunityHotThreadsPanel(
-                    items: home.hotThreads,
-                    onOpen: (id) => context.push('/community/thread/$id'),
-                  ),
-                ),
-              ),
-            if (home != null && home.activeUsers.isNotEmpty)
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
-                sliver: SliverToBoxAdapter(
-                  child: CommunityActiveUsersPanel(users: home.activeUsers),
-                ),
-              ),
             const SliverToBoxAdapter(child: SizedBox(height: 96)),
           ],
         ),

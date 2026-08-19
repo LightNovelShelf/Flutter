@@ -42,7 +42,6 @@ class BookDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
-  bool _introExpanded = false;
   bool _shelfBusy = false;
   bool? _shelfOverride;
   String? _shelfError;
@@ -56,19 +55,22 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     if (!enabled || coverUrl.isEmpty || coverUrl == _paletteUrl) return;
     _paletteUrl = coverUrl;
     PaletteGenerator.fromImageProvider(
-      CachedNetworkImageProvider(coverUrl),
-      size: const Size(96, 144),
-      maximumColorCount: 8,
-    ).then((palette) {
-      if (!mounted || _paletteUrl != coverUrl) return;
-      final color = palette.vibrantColor?.color ??
-          palette.dominantColor?.color ??
-          palette.mutedColor?.color;
-      if (color == null) return;
-      setState(() => _coverSeed = color);
-    }).catchError((Object _) {
-      // 取色失败沿用应用主题。
-    });
+          CachedNetworkImageProvider(coverUrl),
+          size: const Size(96, 144),
+          maximumColorCount: 8,
+        )
+        .then((palette) {
+          if (!mounted || _paletteUrl != coverUrl) return;
+          final color =
+              palette.vibrantColor?.color ??
+              palette.dominantColor?.color ??
+              palette.mutedColor?.color;
+          if (color == null) return;
+          setState(() => _coverSeed = color);
+        })
+        .catchError((Object _) {
+          // 取色失败沿用应用主题。
+        });
   }
 
   ThemeData _theme(BuildContext context, AppSettings settings) {
@@ -110,7 +112,9 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
       _shelfOverride = !inShelf;
     });
     try {
-      final result = await ref.read(shelfProvider.notifier).toggleBook(widget.id);
+      final result = await ref
+          .read(shelfProvider.notifier)
+          .toggleBook(widget.id);
       if (!mounted) return;
       setState(() {
         _shelfBusy = false;
@@ -153,11 +157,9 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   }
 
   void _searchTag(String tag, bool isComic) {
-    ref.read(bookSearchProvider.notifier).seed(
-          query: tag,
-          mode: BookSearchMode.tags,
-          comic: isComic,
-        );
+    ref
+        .read(bookSearchProvider.notifier)
+        .seed(query: tag, mode: BookSearchMode.tags, comic: isComic);
     context.go('/search');
   }
 
@@ -176,13 +178,17 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
               children: <Widget>[
                 Row(
                   children: <Widget>[
-                    Icon(Icons.account_circle_outlined,
-                        size: 22, color: colors.primary),
+                    Icon(
+                      Icons.account_circle_outlined,
+                      size: 22,
+                      color: colors.primary,
+                    ),
                     const SizedBox(width: 10),
                     Text(
                       '上传者信息',
-                      style: text.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: text.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
@@ -205,14 +211,16 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                                 : '未知上传者',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: text.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w700),
+                            style: text.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             user == null ? '没有上传者资料' : '书籍上传者',
-                            style: text.bodySmall
-                                ?.copyWith(color: colors.onSurfaceVariant),
+                            style: text.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                            ),
                           ),
                         ],
                       ),
@@ -230,21 +238,26 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Icon(Icons.badge_outlined,
-                            size: 20, color: colors.primary),
+                        Icon(
+                          Icons.badge_outlined,
+                          size: 20,
+                          color: colors.primary,
+                        ),
                         const SizedBox(width: 12),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
                             Text(
                               'UID',
-                              style: text.labelSmall
-                                  ?.copyWith(color: colors.onSurfaceVariant),
+                              style: text.labelSmall?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
                             ),
                             SelectableText(
                               '${user.id}',
-                              style: text.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w600),
+                              style: text.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
@@ -257,6 +270,50 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
           ),
         );
       },
+    );
+  }
+
+  void _showIntroduction(BuildContext context, BookDetail detail) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.7,
+        minChildSize: 0.4,
+        maxChildSize: 1,
+        snap: true,
+        snapSizes: const <double>[0.7, 1],
+        builder: (sheetContext, controller) {
+          final colors = Theme.of(sheetContext).colorScheme;
+          return ListView(
+            controller: controller,
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 48),
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Icon(Icons.subject, size: 22, color: colors.primary),
+                  const SizedBox(width: 10),
+                  const Text(
+                    '简介',
+                    style: TextStyle(
+                      fontSize: 17,
+                      height: 22 / 17,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              BookHtmlContent(
+                html: detail.introduction,
+                textColor: colors.onSurfaceVariant,
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -297,7 +354,9 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     final position = ReadPositionCache.merge(widget.id, detail.readPosition);
     final currentIndex = position == null
         ? -1
-        : detail.chapters.indexWhere((chapter) => chapter.id == position.chapterId);
+        : detail.chapters.indexWhere(
+            (chapter) => chapter.id == position.chapterId,
+          );
 
     return CustomScrollView(
       slivers: <Widget>[
@@ -371,17 +430,16 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
               _actions(context, bundle, currentIndex),
               if (detail.introduction.trim().isNotEmpty)
                 _introduction(context, detail),
-              if (detail.classification.tags.isNotEmpty)
-                _tags(context, bundle),
+              if (detail.classification.tags.isNotEmpty) _tags(context, bundle),
               const SizedBox(height: 24),
               _updateStrip(context, detail),
               const SizedBox(height: 24),
               Text(
                 '章节',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: colors.onSurfaceVariant,
-                      letterSpacing: 0.5,
-                    ),
+                  color: colors.onSurfaceVariant,
+                  letterSpacing: 0.5,
+                ),
               ),
               const SizedBox(height: 4),
             ]),
@@ -411,28 +469,28 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   Widget _stats(BuildContext context, BookDetail detail) {
     final colors = Theme.of(context).colorScheme;
     Widget chip(IconData icon, String label) => Container(
-          height: 26,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            color: colors.surfaceContainerHighest.withValues(alpha: 0.71),
-            borderRadius: BorderRadius.circular(8),
+      height: 26,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.71),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 14, color: colors.onSurfaceVariant),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: colors.onSurfaceVariant,
+            ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Icon(icon, size: 14, color: colors.onSurfaceVariant),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        );
+        ],
+      ),
+    );
 
     return Wrap(
       spacing: 8,
@@ -454,7 +512,8 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     final colors = Theme.of(context).colorScheme;
     final detail = bundle.detail;
     final hasChapters = detail.chapters.isNotEmpty;
-    final resolvedInShelf = _shelfOverride ??
+    final resolvedInShelf =
+        _shelfOverride ??
         ref.watch(bookInShelfProvider(widget.id)).valueOrNull ??
         false;
     final continueTitle = currentIndex >= 0
@@ -489,7 +548,9 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                           ? const SizedBox(
                               width: 22,
                               height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2.4),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.4,
+                              ),
                             )
                           : Icon(
                               resolvedInShelf
@@ -517,9 +578,9 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                   ),
                   onPressed: hasChapters
                       ? () => _openReader(
-                            bundle,
-                            currentIndex >= 0 ? currentIndex + 1 : 1,
-                          )
+                          bundle,
+                          currentIndex >= 0 ? currentIndex + 1 : 1,
+                        )
                       : null,
                   icon: const Icon(Icons.play_arrow, size: 22),
                   label: Text(
@@ -554,7 +615,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     final clampable = !htmlHasRuby(detail.introduction);
     final content = BookHtmlContent(
       html: detail.introduction,
-      preview: !_introExpanded,
+      preview: clampable,
       textColor: colors.onSurfaceVariant,
     );
     return Padding(
@@ -564,13 +625,11 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
         children: <Widget>[
           Text(
             '简介',
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: colors.onSurfaceVariant,
-                  letterSpacing: 0.5,
-                ),
+            style: Theme.of(context).textTheme.labelLarge
+                ?.copyWith(color: colors.onSurfaceVariant, letterSpacing: 0.5),
           ),
           const SizedBox(height: 8),
-          if (_introExpanded || !clampable)
+          if (!clampable)
             content
           else
             ClipRect(
@@ -585,14 +644,14 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                 ),
               ),
             ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: () =>
-                  setState(() => _introExpanded = !_introExpanded),
-              child: Text(_introExpanded ? '收起' : '展开'),
+          if (clampable)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () => _showIntroduction(context, detail),
+                child: const Text('展开'),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -613,6 +672,11 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
           for (final tag in tags)
             ActionChip(
               label: Text(tag),
+              labelStyle: const TextStyle(fontSize: 13, height: 18 / 13),
+              labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              visualDensity: const VisualDensity(horizontal: -2, vertical: -4),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               onPressed: () => _searchTag(tag, bundle.isComic),
             ),
         ],
@@ -789,8 +853,11 @@ class _BookHero extends StatelessWidget {
                   ],
                 ),
                 child: detail.coverUrl.isEmpty
-                    ? Icon(Icons.menu_book_outlined,
-                        size: 40, color: colors.onSurfaceVariant)
+                    ? Icon(
+                        Icons.menu_book_outlined,
+                        size: 40,
+                        color: colors.onSurfaceVariant,
+                      )
                     : BookCoverImage(
                         url: detail.coverUrl,
                         blurHash: detail.coverPlaceholder,

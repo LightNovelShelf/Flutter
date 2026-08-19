@@ -65,11 +65,15 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   Map<String, String> _notes = const <String, String>{};
   String? _fontDataUrl;
   int _totalChapters = 0;
+  int _currentPage = 0;
+  int _totalPages = 0;
 
   String? _restoreLocator;
   double _restoreProgression = 0;
   String _currentLocator = '';
   double _progression = 0;
+  Color? _webViewBackground;
+  Color? _webViewForeground;
 
   ReaderViewMode? _renderedViewMode;
 
@@ -85,6 +89,8 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     );
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setVerticalScrollBarEnabled(false)
+      ..setHorizontalScrollBarEnabled(false)
       ..addJavaScriptChannel(
         readerBridgeChannel,
         onMessageReceived: _onBridgeMessage,
@@ -95,15 +101,37 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
           // 正文里的外链一律不在阅读器内跳转。
           onNavigationRequest: (request) =>
               request.url.startsWith('http://') ||
-                      request.url.startsWith('https://')
-                  ? NavigationDecision.prevent
-                  : NavigationDecision.navigate,
+                  request.url.startsWith('https://')
+              ? NavigationDecision.prevent
+              : NavigationDecision.navigate,
         ),
       );
     _lifecycle = AppLifecycleListener(
       onPause: () => unawaited(_positions.flush()),
     );
     unawaited(_load());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final settings = ref.read(appSettingsProvider);
+    final colors = Theme.of(context).colorScheme;
+    final background = _backgroundColor(settings, colors);
+    final foreground = _foregroundColor(settings, colors);
+    if (background == _webViewBackground && foreground == _webViewForeground) {
+      return;
+    }
+    _webViewBackground = background;
+    _webViewForeground = foreground;
+    unawaited(_controller.setBackgroundColor(background));
+    if (_content != null) {
+      unawaited(
+        _controller.runJavaScript(
+          readerTypographyScript(_typography(settings)),
+        ),
+      );
+    }
   }
 
   @override
@@ -131,19 +159,13 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
       _loading = true;
       _error = null;
       _documentReady = false;
+      _currentPage = 0;
+      _totalPages = 0;
     });
 
     final settings = ref.read(appSettingsProvider);
     final convert = readerConvertParam(settings.convertType);
     try {
-      // 章节总数只在首次进入时取一次，翻章不必重复拉整本目录。
-      final total = _totalChapters > 0
-          ? _totalChapters
-          : (await ref.read(readerBookDetailProvider(widget.bookId).future))
-              .chapters
-              .length;
-      if (!mounted || version != _requestVersion) return;
-
       final cache = ref.read(readerChapterCacheProvider);
       final key = ReaderChapterCacheKey(
         bookId: widget.bookId,
@@ -151,7 +173,8 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
         convert: convert,
       );
       // 只有翻章打开时才吃预加载：恢复进度必须拿到服务端最新的 ReadPosition。
-      final content = (_openPosition == ReaderOpenPosition.saved
+      final content =
+          (_openPosition == ReaderOpenPosition.saved
               ? null
               : cache.take(key)) ??
           await _api.getNovelContent(
@@ -160,6 +183,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
             convert: convert,
           );
       if (!mounted || version != _requestVersion) return;
+      final total = content.chapter.chapterTitles.length;
 
       final fontDataUrl = await ReaderFontCache.load(
         content.chapter.fontUrl,
@@ -229,21 +253,19 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
         );
         if (restore == null || restore.position.isEmpty) return (null, 0);
         final index = findReaderBlockIndex(blocks, restore.position);
-        return (
-          restore.position,
-          blocks.isEmpty ? 0 : index / blocks.length,
-        );
+        return (restore.position, blocks.isEmpty ? 0 : index / blocks.length);
     }
   }
 
-  Future<void> _preload(String? convert, int window) =>
-      ref.read(readerPreloaderProvider).run(
-            bookId: widget.bookId,
-            sortNum: _sortNum,
-            totalChapters: _totalChapters,
-            window: window,
-            convert: convert,
-          );
+  Future<void> _preload(String? convert, int window) => ref
+      .read(readerPreloaderProvider)
+      .run(
+        bookId: widget.bookId,
+        sortNum: _sortNum,
+        totalChapters: _totalChapters,
+        window: window,
+        convert: convert,
+      );
 
   String _describe(Object error) {
     if (error is ApiError) return error.message;
@@ -271,8 +293,12 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
       fontSize: settings.fontSize,
       lineHeight: settings.readerLineHeight,
       sidePadding: settings.readerSidePadding,
-      topPadding: padding.top + 12,
-      bottomPadding: padding.bottom + 12,
+      topPadding:
+          (settings.readerViewMode == ReaderViewMode.scroll ? 0 : padding.top) +
+          12,
+      bottomPadding:
+          padding.bottom +
+          (settings.readerViewMode == ReaderViewMode.paged ? 56 : 12),
       firstLineIndent: settings.readerFirstLineIndent,
     );
   }
@@ -283,7 +309,13 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     final settings = ref.read(appSettingsProvider);
     final paged = settings.readerViewMode == ReaderViewMode.paged;
     _renderedViewMode = settings.readerViewMode;
-    if (mounted) setState(() => _documentReady = false);
+    if (mounted) {
+      setState(() {
+        _documentReady = false;
+        _currentPage = 0;
+        _totalPages = 0;
+      });
+    }
     final document = buildReaderChapterDocument(
       blocks: _blocks,
       fallbackHtml: content.chapter.content,
@@ -317,16 +349,18 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     if (previous.readerViewMode != next.readerViewMode &&
         next.readerViewMode != _renderedViewMode) {
       // 换分页方式要重排文档，先把当前位置钉住再重建。
-      _restoreLocator = _currentLocator.isEmpty ? _restoreLocator : _currentLocator;
+      _restoreLocator = _currentLocator.isEmpty
+          ? _restoreLocator
+          : _currentLocator;
       _restoreProgression = _progression;
       unawaited(_renderDocument());
       return;
     }
-    final typographyChanged = previous.fontSize != next.fontSize ||
+    final typographyChanged =
+        previous.fontSize != next.fontSize ||
         previous.readerLineHeight != next.readerLineHeight ||
         previous.readerSidePadding != next.readerSidePadding ||
-        previous.readerFirstLineIndent != next.readerFirstLineIndent ||
-        previous.oledBlack != next.oledBlack;
+        previous.readerFirstLineIndent != next.readerFirstLineIndent;
     if (!typographyChanged) return;
     unawaited(
       _controller.runJavaScript(readerTypographyScript(_typography(next))),
@@ -360,8 +394,19 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     if (chapter == null || !mounted) return;
     final locator = payload['locator'];
     final progression = payload['progression'];
+    final page = payload['page'];
+    final pages = payload['pages'];
     if (locator is String && locator.isNotEmpty) _currentLocator = locator;
     if (progression is num) _progression = progression.toDouble();
+    final nextPage = page is num ? page.toInt() : 0;
+    final nextPages = pages is num ? pages.toInt() : 0;
+    final pageChanged = nextPage != _currentPage || nextPages != _totalPages;
+    if (pageChanged || _chromeVisible) {
+      setState(() {
+        _currentPage = nextPage;
+        _totalPages = nextPages;
+      });
+    }
     if (_currentLocator.isEmpty) return;
 
     final position = ReaderRestorePosition(
@@ -378,7 +423,6 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
       ),
     );
     _positions.schedule(position);
-    if (_chromeVisible) setState(() {});
   }
 
   void _onTap(Map<String, dynamic> payload) {
@@ -396,11 +440,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     final note = id is String ? _notes[id] : null;
     if (note == null || note.isEmpty || !mounted) return;
     unawaited(
-      showReaderFootnoteSheet(
-        context,
-        html: note,
-        fontDataUrl: _fontDataUrl,
-      ),
+      showReaderFootnoteSheet(context, html: note, fontDataUrl: _fontDataUrl),
     );
   }
 
@@ -453,6 +493,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
       bookId: widget.bookId,
       currentSortNum: _sortNum,
       comic: false,
+      novelChapterTitles: _content?.chapter.chapterTitles ?? const <String>[],
     );
     if (selection == null) return;
     await _openChapter(selection.sortNum, selection.openPosition);
@@ -474,18 +515,27 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     final colors = Theme.of(context).colorScheme;
     final background = _backgroundColor(settings, colors);
     final foreground = _foregroundColor(settings, colors);
+    final readerTopInset = settings.readerViewMode == ReaderViewMode.scroll
+        ? MediaQuery.paddingOf(context).top
+        : 0.0;
 
     final Widget body;
     if (_error != null) {
       body = Center(
-        child: ErrorStateView(message: _error!, onRetry: () => unawaited(_load())),
+        child: ErrorStateView(
+          message: _error!,
+          onRetry: () => unawaited(_load()),
+        ),
       );
     } else if (_loading) {
       body = const Center(child: CircularProgressIndicator());
     } else {
       body = Stack(
         children: <Widget>[
-          Positioned.fill(child: WebViewWidget(controller: _controller)),
+          Positioned.fill(
+            top: readerTopInset,
+            child: WebViewWidget(controller: _controller),
+          ),
           if (!_documentReady)
             const IgnorePointer(
               child: Center(child: CircularProgressIndicator()),
@@ -499,6 +549,22 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
       body: Stack(
         children: <Widget>[
           Positioned.fill(child: body),
+          if (settings.readerViewMode == ReaderViewMode.paged &&
+              _documentReady &&
+              _currentPage > 0 &&
+              _totalPages > 0)
+            Positioned(
+              right: 16,
+              bottom: MediaQuery.paddingOf(context).bottom + 16,
+              child: ReaderStatusPills(
+                visible: !_chromeVisible,
+                foregroundColor: foreground,
+                currentChapter: _sortNum,
+                totalChapters: _totalChapters,
+                currentPage: _currentPage,
+                totalPages: _totalPages,
+              ),
+            ),
           ReaderChrome(
             visible: _chromeVisible,
             title: _title,

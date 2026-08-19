@@ -15,11 +15,19 @@ class BookCoverImage extends StatefulWidget {
     required this.url,
     this.blurHash,
     this.fit = BoxFit.cover,
+    this.filterQuality = FilterQuality.medium,
+    this.memCacheWidth,
+    this.memCacheHeight,
   });
 
   final String url;
   final String? blurHash;
   final BoxFit fit;
+  final FilterQuality filterQuality;
+
+  /// 列表缩略图应传入实际物理像素尺寸，避免把原始大图完整解码进内存。
+  final int? memCacheWidth;
+  final int? memCacheHeight;
 
   /// 解码尺寸：够撑满一张封面缩略图，又不至于让解码变重。
   static const int _blurHashWidth = 32;
@@ -33,8 +41,9 @@ class BookCoverImage extends StatefulWidget {
   static String cacheKeyFor(String url) {
     final Uri? uri = Uri.tryParse(url);
     if (uri == null) return url;
-    final Map<String, String> query = Map<String, String>.of(uri.queryParameters)
-      ..remove('placeholder');
+    final Map<String, String> query = Map<String, String>.of(
+      uri.queryParameters,
+    )..remove('placeholder');
     // `replace(fragment: '')` 会留下一个尾部 `#`，用 removeFragment 才干净。
     return uri
         .replace(queryParameters: query.isEmpty ? null : query)
@@ -82,6 +91,8 @@ class _BookCoverImageState extends State<BookCoverImage> {
     final ColorScheme colors = Theme.of(context).colorScheme;
     if (blurHash != null && blurHash.isNotEmpty) {
       return Image(
+        width: double.infinity,
+        height: double.infinity,
         image: BlurHashImage(
           blurHash,
           decodingWidth: BookCoverImage._blurHashWidth,
@@ -131,14 +142,25 @@ class _BookCoverImageState extends State<BookCoverImage> {
             imageUrl: widget.url,
             cacheKey: cacheKey,
             fit: widget.fit,
-            fadeInDuration:
-                wasRevealed ? Duration.zero : const Duration(milliseconds: 200),
+            width: double.infinity,
+            height: double.infinity,
+            memCacheWidth: widget.memCacheWidth,
+            memCacheHeight: widget.memCacheHeight,
+            fadeInDuration: wasRevealed
+                ? Duration.zero
+                : const Duration(milliseconds: 200),
             // 占位层由外层 Stack 负责，这里不能再淡出一层，否则中途露底。
             fadeOutDuration: Duration.zero,
             placeholder: (context, _) => const SizedBox.expand(),
             imageBuilder: (context, provider) {
               _markRevealed(cacheKey);
-              return Image(image: provider, fit: widget.fit);
+              return Image(
+                image: provider,
+                fit: widget.fit,
+                filterQuality: widget.filterQuality,
+                width: double.infinity,
+                height: double.infinity,
+              );
             },
             errorWidget: (context, _, _) {
               // 第一次失败后自动重试一次，其余交给手动重试。
@@ -168,18 +190,18 @@ class _RetryOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          const ColoredBox(color: Color(0x26000000)),
-          Center(
-            child: IconButton(
-              onPressed: onRetry,
-              icon: const Icon(Icons.image_not_supported_outlined),
-              color: Colors.white70,
-              iconSize: 26,
-              tooltip: '重新加载封面',
-            ),
-          ),
-        ],
-      );
+    fit: StackFit.expand,
+    children: <Widget>[
+      const ColoredBox(color: Color(0x26000000)),
+      Center(
+        child: IconButton(
+          onPressed: onRetry,
+          icon: const Icon(Icons.image_not_supported_outlined),
+          color: Colors.white70,
+          iconSize: 26,
+          tooltip: '重新加载封面',
+        ),
+      ),
+    ],
+  );
 }

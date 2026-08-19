@@ -22,6 +22,8 @@ class BookCoverGridItem extends StatelessWidget {
     this.level,
     this.interiorLevel,
     this.rank,
+    this.memCacheWidth,
+    this.memCacheHeight,
     this.onTap,
     this.onLongPress,
     this.selected = false,
@@ -34,16 +36,18 @@ class BookCoverGridItem extends StatelessWidget {
     super.key,
     this.rank,
     this.onTap,
+    this.memCacheWidth,
+    this.memCacheHeight,
     this.onLongPress,
     this.selected = false,
     this.sorting = false,
     this.overlayLabel,
-  })  : title = book.title,
-        coverUrl = book.coverUrl,
-        coverPlaceholder = book.coverPlaceholder,
-        category = book.category,
-        level = book.level,
-        interiorLevel = book.interiorLevel;
+  }) : title = book.title,
+       coverUrl = book.coverUrl,
+       coverPlaceholder = book.coverPlaceholder,
+       category = book.category,
+       level = book.level,
+       interiorLevel = book.interiorLevel;
 
   final String title;
   final String coverUrl;
@@ -51,6 +55,8 @@ class BookCoverGridItem extends StatelessWidget {
   final BookCategory? category;
   final int? level;
   final int? interiorLevel;
+  final int? memCacheWidth;
+  final int? memCacheHeight;
   final int? rank;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
@@ -62,7 +68,10 @@ class BookCoverGridItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final categoryBadge = resolveCategoryBadge(category);
-    final levelBadge = resolveLevelBadge(level: level, interiorLevel: interiorLevel);
+    final levelBadge = resolveLevelBadge(
+      level: level,
+      interiorLevel: interiorLevel,
+    );
     final rankValue = rank;
 
     return InkWell(
@@ -82,9 +91,20 @@ class BookCoverGridItem extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: <Widget>[
-                    BookCoverImage(url: coverUrl, blurHash: coverPlaceholder),
+                    BookCoverImage(
+                      url: coverUrl,
+                      blurHash: coverPlaceholder,
+                      // 滚动中的高频封面细节需要更稳定的亚像素重采样。
+                      filterQuality: FilterQuality.high,
+                      memCacheWidth: memCacheWidth,
+                      memCacheHeight: memCacheHeight,
+                    ),
                     if (levelBadge != null)
-                      Positioned(top: 0, right: 0, child: LevelBadge(spec: levelBadge)),
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: LevelBadge(spec: levelBadge),
+                      ),
                     if (categoryBadge != null)
                       Positioned(
                         bottom: 0,
@@ -96,8 +116,10 @@ class BookCoverGridItem extends StatelessWidget {
                         top: 0,
                         left: 0,
                         child: Container(
-                          constraints:
-                              const BoxConstraints(minWidth: 28, minHeight: 28),
+                          constraints: const BoxConstraints(
+                            minWidth: 28,
+                            minHeight: 28,
+                          ),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 4,
@@ -121,15 +143,22 @@ class BookCoverGridItem extends StatelessWidget {
                       const ColoredBox(
                         color: Color(0xB8D9475D),
                         child: Center(
-                          child: Icon(Icons.check, size: 34, color: Colors.white),
+                          child: Icon(
+                            Icons.check,
+                            size: 34,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     if (sorting && !selected)
                       const ColoredBox(
                         color: Color(0x7A000000),
                         child: Center(
-                          child: Icon(Icons.drag_indicator,
-                              size: 36, color: Colors.white),
+                          child: Icon(
+                            Icons.drag_indicator,
+                            size: 36,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     if (overlayLabel != null)
@@ -193,15 +222,15 @@ class BookGridSkeletonTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = Theme.of(context).colorScheme.surfaceContainerHighest;
     Widget bar(double widthFactor) => FractionallySizedBox(
-          widthFactor: widthFactor,
-          child: Container(
-            height: 13,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        );
+      widthFactor: widthFactor,
+      child: Container(
+        height: 13,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
 
     return Column(
       mainAxisSize: MainAxisSize.min,

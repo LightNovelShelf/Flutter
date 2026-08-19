@@ -6,16 +6,44 @@ Future<void> showReaderFootnoteSheet(
   BuildContext context, {
   required String html,
   String? fontDataUrl,
-}) =>
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useRootNavigator: true,
-      builder: (context) => SizedBox(
+}) => showModalBottomSheet<void>(
+  context: context,
+  backgroundColor: Colors.transparent,
+  showDragHandle: false,
+  isScrollControlled: true,
+  useRootNavigator: true,
+  builder: (context) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: colors.surfaceContainerLow,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(
         height: MediaQuery.sizeOf(context).height * 0.55,
-        child: _ReaderFootnoteSheet(html: html, fontDataUrl: fontDataUrl),
+        child: Column(
+          children: <Widget>[
+            SizedBox(
+              height: 24,
+              child: Center(
+                child: Container(
+                  width: 32,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: _ReaderFootnoteSheet(html: html, fontDataUrl: fontDataUrl),
+            ),
+          ],
+        ),
       ),
     );
+  },
+);
 
 class _ReaderFootnoteSheet extends StatefulWidget {
   const _ReaderFootnoteSheet({required this.html, this.fontDataUrl});
@@ -29,7 +57,9 @@ class _ReaderFootnoteSheet extends StatefulWidget {
 
 class _ReaderFootnoteSheetState extends State<_ReaderFootnoteSheet> {
   late final WebViewController _controller = WebViewController()
-    ..setJavaScriptMode(JavaScriptMode.disabled);
+    ..setJavaScriptMode(JavaScriptMode.disabled)
+    ..setVerticalScrollBarEnabled(false)
+    ..setHorizontalScrollBarEnabled(false);
   bool _loaded = false;
   String? _document;
 
@@ -37,21 +67,24 @@ class _ReaderFootnoteSheetState extends State<_ReaderFootnoteSheet> {
     final fontFace = widget.fontDataUrl == null
         ? ''
         : "@font-face{font-family:'ChapterFont';font-display:block;"
-            'src:url(${widget.fontDataUrl});}';
+              'src:url(${widget.fontDataUrl});}';
     final family = widget.fontDataUrl == null
         ? "'PingFang SC','Noto Sans SC',sans-serif"
         : "'ChapterFont','PingFang SC','Noto Sans SC',sans-serif";
     return '<!DOCTYPE html><html><head><meta charset="utf-8" />'
         '<meta name="viewport" content="width=device-width, initial-scale=1.0, '
         'maximum-scale=1.0, user-scalable=no" /><style>$fontFace'
-        'html,body{margin:0;padding:0;background:${_hex(colors.surface)};'
+        'html,body{margin:0;padding:0;background:${_hex(colors.surfaceContainerLow)};'
         'color:${_hex(colors.onSurface)}}'
+        'html,body{scrollbar-width:none}'
+        'html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}'
         'body{font-family:$family;font-size:16px;line-height:1.7;'
         'word-break:break-word;overflow-wrap:break-word}'
+        'body *{background-color:transparent!important}'
         'p{margin:0 0 .8em}'
         'ol,ul{margin:0 0 .8em;padding:0;list-style-position:inside}'
         'img{max-width:100%;height:auto}'
-        '*{-webkit-user-select:none!important;user-select:none!important}'
+        '*{line-break:anywhere;-webkit-user-select:none!important;user-select:none!important}'
         '</style></head><body>${widget.html}</body></html>';
   }
 
@@ -63,9 +96,8 @@ class _ReaderFootnoteSheetState extends State<_ReaderFootnoteSheet> {
     super.didChangeDependencies();
     final document = _buildDocument(Theme.of(context).colorScheme);
     if (document == _document) return;
-    _document = document;
     _controller
-      ..setBackgroundColor(Theme.of(context).colorScheme.surface)
+      ..setBackgroundColor(Theme.of(context).colorScheme.surfaceContainerLow)
       ..loadHtmlString(document).then((_) {
         if (mounted) setState(() => _loaded = true);
       });
@@ -81,7 +113,11 @@ class _ReaderFootnoteSheetState extends State<_ReaderFootnoteSheet> {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Icon(Icons.sticky_note_2_outlined, size: 22, color: colors.primary),
+              Icon(
+                Icons.sticky_note_2_outlined,
+                size: 22,
+                color: colors.primary,
+              ),
               const SizedBox(width: 10),
               Text(
                 '注释',
@@ -101,8 +137,7 @@ class _ReaderFootnoteSheetState extends State<_ReaderFootnoteSheet> {
                   opacity: _loaded ? 1 : 0,
                   child: WebViewWidget(controller: _controller),
                 ),
-                if (!_loaded)
-                  const Center(child: CircularProgressIndicator()),
+                if (!_loaded) const Center(child: CircularProgressIndicator()),
               ],
             ),
           ),

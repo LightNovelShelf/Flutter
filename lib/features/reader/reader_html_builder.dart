@@ -70,7 +70,8 @@ class ReaderTypography {
   final double bottomPadding;
   final bool firstLineIndent;
 
-  String get _variables => ':root{'
+  String get _variables =>
+      ':root{'
       '--nv-bg:$backgroundColor;'
       '--nv-fg:$textColor;'
       '--nv-font:${fontSize.toStringAsFixed(1)}px;'
@@ -95,8 +96,10 @@ String readerTypographyScript(ReaderTypography typography) {
     '--nv-indent': typography.firstLineIndent ? '2em' : '0',
   };
   final assignments = style.entries
-      .map((entry) =>
-          "document.documentElement.style.setProperty('${entry.key}','${entry.value}');")
+      .map(
+        (entry) =>
+            "document.documentElement.style.setProperty('${entry.key}','${entry.value}');",
+      )
       .join();
   return '(function(){$assignments'
       'if(window.__nvReflow)window.__nvReflow();})();';
@@ -114,10 +117,8 @@ String readerRestoreScript(String? locator, double progression) {
 String readerTurnScript(int direction) =>
     '(function(){if(window.__nvTurn)window.__nvTurn($direction);})();';
 
-String _escapeJs(String value) => value
-    .replaceAll('\\', '\\\\')
-    .replaceAll("'", "\\'")
-    .replaceAll('\n', ' ');
+String _escapeJs(String value) =>
+    value.replaceAll('\\', '\\\\').replaceAll("'", "\\'").replaceAll('\n', ' ');
 
 String buildReaderChapterDocument({
   required List<NovelReaderBlock> blocks,
@@ -131,7 +132,7 @@ String buildReaderChapterDocument({
   final fontFace = fontDataUrl == null
       ? ''
       : "@font-face{font-family:'ChapterFont';font-display:block;"
-          'src:url($fontDataUrl);font-style:normal;font-weight:400}';
+            'src:url($fontDataUrl);font-style:normal;font-weight:400}';
   final fontFamily = fontDataUrl == null
       ? "'PingFang SC','Noto Sans SC',sans-serif"
       : "'ChapterFont','PingFang SC','Noto Sans SC',sans-serif";
@@ -139,17 +140,19 @@ String buildReaderChapterDocument({
   final layoutCss = paged
       // 多列容器放在 html 上：上下内边距会作用到每一列，放在 body 上只有首尾列生效。
       ? 'html{position:relative;width:100%;max-width:100%;height:100vh;'
-          'max-height:100vh;margin:0!important;'
-          'padding:var(--nv-top) 0 var(--nv-bottom)!important;box-sizing:border-box;'
-          'column-width:100vw;column-gap:0;column-fill:auto;overflow-y:hidden}'
-          'body{width:100%;max-width:100%;margin:0 auto!important;box-sizing:border-box;'
-          'padding:0 var(--nv-hpad)}'
-          'html,body{touch-action:none}'
+            'max-height:100vh;margin:0!important;'
+            'padding:var(--nv-top) 0 var(--nv-bottom)!important;box-sizing:border-box;'
+            'column-width:100vw;column-gap:0;column-fill:auto;overflow-y:hidden}'
+            'body{width:100%;max-width:100%;margin:0 auto!important;box-sizing:border-box;'
+            'padding:0 var(--nv-hpad)}'
+            'html,body{touch-action:none}'
       : 'body{padding:var(--nv-top) var(--nv-hpad) var(--nv-bottom)}';
 
   final css = <String>[
     typography._variables,
     'html,body{margin:0;padding:0;background:var(--nv-bg);color:var(--nv-fg)}',
+    'html,body{scrollbar-width:none}'
+        'html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}',
     'body{font-family:$fontFamily;font-size:var(--nv-font);line-height:var(--nv-line);'
         'word-break:break-word;overflow-wrap:break-word;-webkit-text-size-adjust:100%}',
     'p{margin:0 0 .8em;text-indent:var(--nv-indent)}',
@@ -160,7 +163,7 @@ String buildReaderChapterDocument({
     'td>img,th>img{display:block;width:100%;max-width:100%;height:auto}',
     'ruby rt{font-size:.5em;color:var(--nv-fg)}',
     'a{color:inherit;text-decoration:none}',
-    '*{-webkit-user-select:none!important;user-select:none!important;'
+    '*{line-break:anywhere;-webkit-user-select:none!important;user-select:none!important;'
         '-webkit-touch-callout:none}',
     layoutCss,
   ].join();
@@ -181,7 +184,8 @@ String _readerScript({
   required bool paged,
   required bool imagePreviewOnLongPress,
 }) {
-  final flags = 'var paged=$paged;var longPressPreview=$imagePreviewOnLongPress;';
+  final flags =
+      'var paged=$paged;var longPressPreview=$imagePreviewOnLongPress;';
   return '<script>(function(){$flags$_readerScriptBody})();</script>';
 }
 
@@ -200,7 +204,10 @@ function inset(name){
   var value=parseFloat(raw);
   return isNaN(value)?0:value;
 }
-function pageWidth(){return Math.max(1,scroller().clientWidth||window.innerWidth||1);}
+function pageWidth(){
+  var width=document.documentElement.getBoundingClientRect().width;
+  return Math.max(1,width||scroller().clientWidth||window.innerWidth||1);
+}
 function maxScrollX(){var el=scroller();return Math.max(0,(el.scrollWidth||0)-(el.clientWidth||0));}
 function maxScrollY(){var el=scroller();return Math.max(0,(el.scrollHeight||0)-(window.innerHeight||0));}
 function progression(){
@@ -301,12 +308,9 @@ function initImages(){
 }
 
 var stablePage=0;
-var animating=false;
-var animTimer=null;
-function scrollToLeft(left,animated){
+function scrollToLeft(left){
   var el=scroller();
-  animating=animated;
-  el.scrollTo({left:Math.max(0,Math.min(maxScrollX(),left)),behavior:animated?'smooth':'auto'});
+  el.scrollLeft=Math.max(0,Math.min(maxScrollX(),left));
 }
 function turn(direction){
   if(paged){
@@ -315,8 +319,8 @@ function turn(direction){
     var target=stablePage+direction;
     if(target<0||target>maxPage)return false;
     stablePage=target;
-    scrollToLeft(target*width,true);
-    setTimeout(function(){report(true);},220);
+    scrollToLeft(target*width);
+    report(true);
     return true;
   }
   var viewport=Math.max(1,window.innerHeight-inset('--nv-top')-inset('--nv-bottom'));
@@ -324,8 +328,8 @@ function turn(direction){
   var limit=maxScrollY();
   if(direction>0&&current>=limit-1)return false;
   if(direction<0&&current<=1)return false;
-  window.scrollTo({top:Math.max(0,Math.min(limit,current+direction*viewport)),behavior:'smooth'});
-  setTimeout(function(){report(true);},220);
+  window.scrollTo({top:Math.max(0,Math.min(limit,current+direction*viewport)),behavior:'auto'});
+  report(true);
   return true;
 }
 window.__nvTurn=function(direction){
@@ -347,7 +351,7 @@ window.__nvRestore=function(locator,ratio){
     }
     left=Math.round(left/width)*width;
     stablePage=Math.round(left/width);
-    scrollToLeft(left,false);
+    scrollToLeft(left);
   }else if(node){
     var top=node.getBoundingClientRect().top+(window.pageYOffset||0)-inset('--nv-top');
     window.scrollTo({top:Math.max(0,top),behavior:'auto'});
@@ -361,15 +365,6 @@ function initPaged(){
   var el=scroller();
   stablePage=Math.round((el.scrollLeft||0)/pageWidth())||0;
   el.addEventListener('scroll',function(){
-    if(animating){
-      clearTimeout(animTimer);
-      // 平滑滚动过程中的中间值不能更新页码，否则连续两次点击会停在半页上。
-      animTimer=setTimeout(function(){
-        animating=false;
-        stablePage=Math.round((el.scrollLeft||0)/pageWidth());
-      },120);
-      return;
-    }
     stablePage=Math.round((el.scrollLeft||0)/pageWidth());
   },{passive:true});
 
@@ -409,8 +404,8 @@ function initPaged(){
     }
     var maxPage=Math.max(0,Math.round(maxScrollX()/width));
     stablePage=Math.max(0,Math.min(maxPage,targetPage));
-    scrollToLeft(stablePage*width,true);
-    setTimeout(function(){report(true);},220);
+    scrollToLeft(stablePage*width);
+    report(true);
   },{passive:true});
 }
 
