@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightnovel/data/api/models.dart';
 import 'package:lightnovel/features/shelf/widgets/shelf_folder_tile.dart';
-import 'package:lightnovel/shared/widgets/book_cover_image.dart';
+import 'package:lightnovel/shared/widgets/book_image.dart';
 
 BookListItem _book(int id) => BookListItem(
   id: id,
@@ -43,7 +43,7 @@ void main() {
       );
 
       final tileTop = tester.getTopLeft(find.byType(ShelfFolderTile)).dy;
-      final covers = find.byType(BookCoverImage);
+      final covers = find.byType(BookImage);
       expect(covers, findsNWidgets(count));
       expect(tester.getTopLeft(covers.first).dy, tileTop + 10);
       if (count == 2) {

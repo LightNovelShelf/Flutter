@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/api/models.dart';
 import '../../../data/providers.dart';
 import '../../../shared/format.dart';
+import '../../../shared/image_cache.dart';
 import '../../../shared/widgets/state_views.dart';
 import '../book_providers.dart';
 
@@ -419,6 +420,7 @@ class CommentAvatar extends StatelessWidget {
             ? fallback
             : CachedNetworkImage(
                 imageUrl: url,
+                cacheManager: appImageCacheManager,
                 width: size,
                 height: size,
                 fit: BoxFit.cover,

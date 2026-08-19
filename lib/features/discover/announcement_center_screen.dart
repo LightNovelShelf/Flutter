@@ -19,17 +19,35 @@ const Map<String, String> _htmlEntities = <String, String>{
   '&amp;': '&',
 };
 
-/// 去标签、压空白，截断到 80 字符。
+const int _summaryRuneLimit = 80;
+
+final Map<String, String> _summaryCache = <String, String>{};
+
+/// 去标签、压空白，截断到 80 字符。结果按原文缓存：列表卡片每次 build 都会调一次，
+/// 几 KB 正文跑 8 遍 `replaceAll` 的分配量足够在滚动中触发 minor GC。
 String announcementSummary(String contentHtml) {
+  final String? cached = _summaryCache[contentHtml];
+  if (cached != null) return cached;
+  if (_summaryCache.length >= 200) _summaryCache.clear();
+  return _summaryCache[contentHtml] = _buildSummary(contentHtml);
+}
+
+String _buildSummary(String contentHtml) {
   var text = contentHtml.replaceAll(_htmlTagPattern, ' ');
   for (final entry in _htmlEntities.entries) {
     text = text.replaceAll(entry.key, entry.value);
   }
   text = text.replaceAll(_whitespacePattern, ' ').trim();
-  final runes = text.runes.toList();
-  if (runes.length <= 80) return text;
-  return '${String.fromCharCodes(runes.take(80))}…';
+  // 数到第 81 个 rune 就够判断截断，不必整段 rune 化。
+  final RuneIterator runes = text.runes.iterator;
+  var count = 0;
+  while (count <= _summaryRuneLimit && runes.moveNext()) {
+    count += 1;
+  }
+  if (count <= _summaryRuneLimit) return text;
+  return '${text.substring(0, runes.rawIndex)}…';
 }
+
 class AnnouncementCenterScreen extends ConsumerWidget {
   const AnnouncementCenterScreen({super.key});
 

@@ -8,6 +8,7 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
 import 'package:photo_view/photo_view.dart';
 
 import '../../data/api/endpoints.dart';
+import '../image_cache.dart';
 
 /// 取组件当前在屏幕上的矩形，作为预览动画的起点/终点。
 Rect? globalRectOf(BuildContext context) {
@@ -163,7 +164,10 @@ class _ImagePreviewState extends State<_ImagePreview>
         onVerticalDragUpdate: _onDragUpdate,
         onVerticalDragEnd: _onDragEnd,
         child: PhotoView(
-          imageProvider: CachedNetworkImageProvider(widget.url),
+          imageProvider: CachedNetworkImageProvider(
+            widget.url,
+            cacheManager: appImageCacheManager,
+          ),
           backgroundDecoration: const BoxDecoration(color: Colors.transparent),
           minScale: PhotoViewComputedScale.contained,
           maxScale: PhotoViewComputedScale.covered * 6,

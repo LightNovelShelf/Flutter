@@ -4,13 +4,16 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
 
-/// 封面加载：BlurHash 占位 → 网络图淡入；失败自动重试一次并提供手动重试。
+import '../image_cache.dart';
+
+/// 站内图片统一入口（封面、漫画整页）：BlurHash 占位 → 网络图淡入；失败自动重试
+/// 一次并提供手动重试。
 ///
 /// 占位层始终铺在网络图下面，等网络图完全不透明才被盖住。交给
 /// `CachedNetworkImage.placeholder` 的话，它会边淡入边把占位层淡出，中途两层
 /// 都半透明，背景透上来就是一次可见的闪烁。
-class BookCoverImage extends StatefulWidget {
-  const BookCoverImage({
+class BookImage extends StatefulWidget {
+  const BookImage({
     super.key,
     required this.url,
     this.blurHash,
@@ -18,6 +21,10 @@ class BookCoverImage extends StatefulWidget {
     this.filterQuality = FilterQuality.medium,
     this.memCacheWidth,
     this.memCacheHeight,
+    this.aspectRatio = _coverAspectRatio,
+    this.fadeInDuration = const Duration(milliseconds: 200),
+    this.fallbackIcon = Icons.menu_book_outlined,
+    this.errorBuilder,
   });
 
   final String url;
@@ -29,40 +36,63 @@ class BookCoverImage extends StatefulWidget {
   final int? memCacheWidth;
   final int? memCacheHeight;
 
-  /// 解码尺寸：够撑满一张封面缩略图，又不至于让解码变重。
-  static const int _blurHashWidth = 32;
-  static const int _blurHashHeight = 48;
+  /// 图片自身的高宽比，只用来决定 BlurHash 的解码尺寸；默认按封面比例。
+  final double aspectRatio;
+
+  final Duration fadeInDuration;
+
+  /// 没有 BlurHash 时画在底色上的图标；传 null 只留底色。
+  final IconData? fallbackIcon;
+
+  /// 自动重试也失败后的兜底 UI，默认是盖在占位层上的小重试按钮。
+  final Widget Function(BuildContext context, VoidCallback retry)? errorBuilder;
+
+  static const double _coverAspectRatio = 1.5;
+
+  /// BlurHash 解码是纯 Dart 的双重余弦求和，开销正比于像素数：32×48 单张要 0.8~2.0ms，
+  /// 一屏封面滚进来就吃穿 11.1ms 预算。4×3 分量的 hash 在 16 宽采样仍在奈奎斯特之上。
+  static const int blurHashWidth = 16;
+  static const int _blurHashMaxHeight = 64;
   static const int _revealedCapacity = 256;
 
-  /// 进程级已展示过的封面，命中后跳过淡入动画（滚回去不再重播）。
+  /// 进程级已展示过的图片，命中后跳过淡入动画（滚回去、翻回去不再重播）。
   /// `LinkedHashSet` 保序，命中时重新插入即为 LRU。
   static final LinkedHashSet<String> _revealed = LinkedHashSet<String>();
 
+  /// 缓存键剥掉 `placeholder` 与 `t`：两者都不影响图片字节，同一张图从不同接口拿到
+  /// 的地址可能带不同参数（甚至没有），带进键里就会重复下载、重复占容量。
   static String cacheKeyFor(String url) {
     final Uri? uri = Uri.tryParse(url);
     if (uri == null) return url;
     final Map<String, String> query = Map<String, String>.of(
       uri.queryParameters,
-    )..remove('placeholder');
-    // `replace(fragment: '')` 会留下一个尾部 `#`，用 removeFragment 才干净。
-    return uri
-        .replace(queryParameters: query.isEmpty ? null : query)
-        .removeFragment()
-        .toString();
+    )
+      ..remove('placeholder')
+      ..remove('t');
+    // `replace(queryParameters: null)` 是「保持原查询」而不是清空，空查询只能自己构造；
+    // 顺带把 fragment 丢掉。
+    return Uri(
+      scheme: uri.scheme,
+      userInfo: uri.userInfo,
+      host: uri.host,
+      port: uri.hasPort ? uri.port : null,
+      path: uri.path,
+      queryParameters: query.isEmpty ? null : query,
+    ).toString();
   }
 
   static void clearRevealCache() => _revealed.clear();
 
   @override
-  State<BookCoverImage> createState() => _BookCoverImageState();
+  State<BookImage> createState() => _BookImageState();
 }
 
-class _BookCoverImageState extends State<BookCoverImage> {
+class _BookImageState extends State<BookImage> {
   int _attempt = 0;
   bool _failed = false;
 
   @override
-  void didUpdateWidget(covariant BookCoverImage oldWidget) {
+  void didUpdateWidget(covariant BookImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.url != widget.url) {
       _attempt = 0;
@@ -70,14 +100,14 @@ class _BookCoverImageState extends State<BookCoverImage> {
     }
   }
 
-  /// 记录已展示过的封面。放在帧后执行：build 期间不改全局状态。
+  /// 记录已展示过的图片。放在帧后执行：build 期间不改全局状态。
   void _markRevealed(String cacheKey) {
-    if (BookCoverImage._revealed.contains(cacheKey)) return;
+    if (BookImage._revealed.contains(cacheKey)) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final LinkedHashSet<String> revealed = BookCoverImage._revealed;
+      final LinkedHashSet<String> revealed = BookImage._revealed;
       revealed.remove(cacheKey);
       revealed.add(cacheKey);
-      while (revealed.length > BookCoverImage._revealedCapacity) {
+      while (revealed.length > BookImage._revealedCapacity) {
         revealed.remove(revealed.first);
       }
     });
@@ -95,26 +125,28 @@ class _BookCoverImageState extends State<BookCoverImage> {
         height: double.infinity,
         image: BlurHashImage(
           blurHash,
-          decodingWidth: BookCoverImage._blurHashWidth,
-          decodingHeight: BookCoverImage._blurHashHeight,
+          decodingWidth: BookImage.blurHashWidth,
+          decodingHeight: (BookImage.blurHashWidth * widget.aspectRatio)
+              .round()
+              .clamp(1, BookImage._blurHashMaxHeight),
         ),
-        fit: BoxFit.cover,
+        // 占位层跟真图用同一个 fit，两层才不会错位。
+        fit: widget.fit,
         gaplessPlayback: true,
-        // 解码完成前铺卡片底色，而不是包默认的蓝灰色。
+        // 解码完成前铺容器底色，而不是包默认的蓝灰色。
         frameBuilder: (context, child, frame, _) => frame == null
             ? ColoredBox(color: colors.surfaceContainerHighest)
             : child,
       );
     }
+    final IconData? icon = widget.fallbackIcon;
     return ColoredBox(
       color: colors.surfaceContainerHighest,
-      child: Center(
-        child: Icon(
-          Icons.menu_book_outlined,
-          size: 28,
-          color: colors.onSurfaceVariant,
-        ),
-      ),
+      child: icon == null
+          ? null
+          : Center(
+              child: Icon(icon, size: 28, color: colors.onSurfaceVariant),
+            ),
     );
   }
 
@@ -122,33 +154,27 @@ class _BookCoverImageState extends State<BookCoverImage> {
   Widget build(BuildContext context) {
     if (widget.url.isEmpty) return _placeholder(context);
 
-    final String cacheKey = BookCoverImage.cacheKeyFor(widget.url);
-    final bool wasRevealed = BookCoverImage._revealed.contains(cacheKey);
+    final String cacheKey = BookImage.cacheKeyFor(widget.url);
+    final bool wasRevealed = BookImage._revealed.contains(cacheKey);
 
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
         _placeholder(context),
         if (_failed)
-          _RetryOverlay(
-            onRetry: () => setState(() {
-              _failed = false;
-              _attempt += 1;
-            }),
-          )
+          (widget.errorBuilder ?? _defaultErrorBuilder)(context, _retry)
         else
           CachedNetworkImage(
             key: ValueKey<String>('$cacheKey#$_attempt'),
             imageUrl: widget.url,
             cacheKey: cacheKey,
+            cacheManager: appImageCacheManager,
             fit: widget.fit,
             width: double.infinity,
             height: double.infinity,
             memCacheWidth: widget.memCacheWidth,
             memCacheHeight: widget.memCacheHeight,
-            fadeInDuration: wasRevealed
-                ? Duration.zero
-                : const Duration(milliseconds: 200),
+            fadeInDuration: wasRevealed ? Duration.zero : widget.fadeInDuration,
             // 占位层由外层 Stack 负责，这里不能再淡出一层，否则中途露底。
             fadeOutDuration: Duration.zero,
             placeholder: (context, _) => const SizedBox.expand(),
@@ -181,6 +207,14 @@ class _BookCoverImageState extends State<BookCoverImage> {
       ],
     );
   }
+
+  void _retry() => setState(() {
+    _failed = false;
+    _attempt += 1;
+  });
+
+  static Widget _defaultErrorBuilder(BuildContext context, VoidCallback retry) =>
+      _RetryOverlay(onRetry: retry);
 }
 
 class _RetryOverlay extends StatelessWidget {
@@ -199,7 +233,7 @@ class _RetryOverlay extends StatelessWidget {
           icon: const Icon(Icons.image_not_supported_outlined),
           color: Colors.white70,
           iconSize: 26,
-          tooltip: '重新加载封面',
+          tooltip: '重新加载',
         ),
       ),
     ],

@@ -1,13 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-// ignore: depend_on_referenced_packages
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../data/providers.dart';
-import '../../shared/widgets/book_cover_image.dart';
+import '../../shared/image_cache.dart';
+import '../../shared/widgets/book_image.dart';
 import '../../shared/widgets/settings_rows.dart';
 import 'settings_screen.dart';
 
@@ -31,11 +30,11 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
     if (_clearingImages) return;
     _clearingImages = true;
     try {
-      BookCoverImage.clearRevealCache();
+      BookImage.clearRevealCache();
       PaintingBinding.instance.imageCache
         ..clear()
         ..clearLiveImages();
-      await DefaultCacheManager().emptyCache();
+      await appImageCacheManager.emptyCache();
       if (!mounted) return;
       await showSettingsAlert(
         context: context,

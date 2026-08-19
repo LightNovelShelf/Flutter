@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../data/api/models.dart';
-import '../../../shared/widgets/book_cover_image.dart';
+import '../../../shared/widgets/book_image.dart';
 
 @immutable
 class _TrackSpec {
@@ -329,7 +329,7 @@ class _CoverCard extends StatelessWidget {
                 child: ColoredBox(color: colors.surfaceContainerHighest),
               ),
             )
-          : BookCoverImage(
+          : BookImage(
               url: item.coverUrl,
               blurHash: item.coverPlaceholder,
             ),

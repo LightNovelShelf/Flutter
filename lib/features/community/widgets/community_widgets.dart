@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../data/api/community_models.dart';
+import '../../../shared/image_cache.dart';
 import '../community_providers.dart';
 
 /// 精选星标用固定的琥珀色，不随主题走。
@@ -108,6 +109,7 @@ class _CommunityAvatarState extends State<CommunityAvatar> {
               )
             : CachedNetworkImage(
                 imageUrl: url,
+                cacheManager: appImageCacheManager,
                 fit: BoxFit.cover,
                 placeholder: (_, _) =>
                     ColoredBox(color: colors.surfaceContainerHighest),

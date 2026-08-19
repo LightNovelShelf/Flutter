@@ -17,7 +17,8 @@ import '../../data/repositories/read_position_cache.dart';
 import '../../data/repositories/shelf_repository.dart';
 import '../../data/settings/app_settings.dart';
 import '../../shared/format.dart';
-import '../../shared/widgets/book_cover_image.dart';
+import '../../shared/image_cache.dart';
+import '../../shared/widgets/book_image.dart';
 import '../../shared/widgets/image_preview.dart';
 import '../../shared/widgets/state_views.dart';
 import '../search/search_providers.dart';
@@ -71,7 +72,10 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
 
     final ImageProvider<Object> provider = hasBlurHash
         ? BlurHashImage(hash, decodingWidth: 32, decodingHeight: 48)
-        : CachedNetworkImageProvider(coverUrl);
+        : CachedNetworkImageProvider(
+            coverUrl,
+            cacheManager: appImageCacheManager,
+          );
     PaletteGenerator.fromImageProvider(
           provider,
           size: hasBlurHash ? const Size(32, 48) : const Size(96, 144),
@@ -830,7 +834,7 @@ class _BookHero extends StatelessWidget {
             imageFilter: ui.ImageFilter.blur(sigmaX: 28, sigmaY: 28),
             child: Opacity(
               opacity: 0.65,
-              child: BookCoverImage(
+              child: BookImage(
                 url: detail.coverUrl,
                 blurHash: detail.coverPlaceholder,
               ),
@@ -887,7 +891,7 @@ class _BookHero extends StatelessWidget {
                               sourceRect: globalRectOf(context),
                             ),
                           ),
-                          child: BookCoverImage(
+                          child: BookImage(
                             url: detail.coverUrl,
                             blurHash: detail.coverPlaceholder,
                           ),

@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightnovel/shared/widgets/book_cover_image.dart';
+import 'package:lightnovel/shared/widgets/book_image.dart';
 
 /// 封面「BlurHash → 真实封面」过渡的结构不变量。
 ///
@@ -12,6 +12,9 @@ void main() {
   const String hash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj';
   const String url = 'https://img.example/cover.webp?placeholder=abc&t=sig';
 
+  // 进程级 reveal 缓存会让后续用例拿到 Duration.zero 的淡入，逐个用例清掉。
+  setUp(BookImage.clearRevealCache);
+
   Future<void> pumpCover(WidgetTester tester) async {
     await tester.pumpWidget(
       const MaterialApp(
@@ -19,7 +22,7 @@ void main() {
           body: SizedBox(
             width: 120,
             height: 180,
-            child: BookCoverImage(
+            child: BookImage(
               url: url,
               blurHash: hash,
               filterQuality: FilterQuality.high,
@@ -86,7 +89,7 @@ void main() {
           body: SizedBox(
             width: 120,
             height: 180,
-            child: BookCoverImage(url: url),
+            child: BookImage(url: url),
           ),
         ),
       ),
@@ -96,10 +99,64 @@ void main() {
     expect(find.byIcon(Icons.menu_book_outlined), findsOneWidget);
   });
 
-  testWidgets('封面地址去掉 placeholder 参数后作为缓存键', (WidgetTester tester) async {
+  testWidgets('漫画整页用法：占位层与真图同 fit，按图片比例解码，无图标兜底', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 200,
+            height: 300,
+            child: BookImage(
+              url: url,
+              blurHash: hash,
+              fit: BoxFit.contain,
+              aspectRatio: 1200 / 800,
+              fadeInDuration: const Duration(milliseconds: 80),
+              fallbackIcon: null,
+              errorBuilder: (context, retry) => const Text('重试'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final Image placeholder = tester.widget<Image>(blurHashLayer());
+    expect(placeholder.fit, BoxFit.contain);
+    expect(placeholder.gaplessPlayback, isTrue);
+    final BlurHashImage provider = placeholder.image as BlurHashImage;
+    expect(provider.decodingWidth, BookImage.blurHashWidth);
+    expect(provider.decodingHeight, (BookImage.blurHashWidth * 1.5).round());
+
+    final CachedNetworkImage image = tester.widget<CachedNetworkImage>(
+      networkImageLayer(),
+    );
+    expect(image.fit, BoxFit.contain);
+    expect(image.fadeInDuration, const Duration(milliseconds: 80));
+    expect(image.fadeOutDuration, Duration.zero);
+    expect(find.byIcon(Icons.menu_book_outlined), findsNothing);
+  });
+
+  testWidgets('封面地址去掉 placeholder 和 t 参数后作为缓存键', (WidgetTester tester) async {
     expect(
-      BookCoverImage.cacheKeyFor(url),
-      'https://img.example/cover.webp?t=sig',
+      BookImage.cacheKeyFor(url),
+      'https://img.example/cover.webp',
+    );
+  });
+
+  testWidgets('同一张图带不同签名参数命中同一个缓存键', (WidgetTester tester) async {
+    expect(
+      BookImage.cacheKeyFor('https://img.example/cover.webp?t=other'),
+      BookImage.cacheKeyFor(url),
+    );
+  });
+
+  testWidgets('保留其它查询参数', (WidgetTester tester) async {
+    expect(
+      BookImage.cacheKeyFor('https://img.example/cover.webp?w=200&t=sig'),
+      'https://img.example/cover.webp?w=200',
     );
   });
 }

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../data/api/models.dart';
 import '../book_badges.dart';
 import '../layout/book_grid_layout.dart';
-import 'book_cover_image.dart';
+import 'book_image.dart';
 
 const List<Color> _rankBadgeColors = <Color>[
   Color(0xFFFFD700),
@@ -91,7 +91,7 @@ class BookCoverGridItem extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: <Widget>[
-                    BookCoverImage(
+                    BookImage(
                       url: coverUrl,
                       blurHash: coverPlaceholder,
                       // 滚动中的高频封面细节需要更稳定的亚像素重采样。

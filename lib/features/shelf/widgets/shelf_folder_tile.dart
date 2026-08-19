@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../data/api/models.dart';
 import '../../../shared/layout/book_grid_layout.dart';
-import '../../../shared/widgets/book_cover_image.dart';
+import '../../../shared/widgets/book_image.dart';
 
 /// 书架文件夹卡片：与书籍卡片同尺寸，内含书籍按 2×2 排列。
 class ShelfFolderTile extends StatelessWidget {
@@ -63,7 +63,7 @@ class ShelfFolderTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                     child: ColoredBox(
                       color: colors.surfaceContainerHigh,
-                      child: BookCoverImage(
+                      child: BookImage(
                         url: book.coverUrl,
                         blurHash: book.coverPlaceholder,
                       ),

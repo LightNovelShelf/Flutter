@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
@@ -15,10 +14,13 @@ import '../../data/api/models.dart';
 import '../../data/providers.dart';
 import '../../data/repositories/read_position_cache.dart';
 import '../../data/settings/app_settings.dart';
+import '../../shared/image_cache.dart';
+import '../../shared/widgets/book_image.dart';
 import '../../shared/widgets/state_views.dart';
 import 'reader_engine.dart';
 import 'reader_open_position.dart';
 import 'reader_providers.dart';
+import 'widgets/comic_retry_tile.dart';
 import 'widgets/reader_chapter_sheet.dart';
 import 'widgets/reader_chrome.dart';
 import 'widgets/reader_settings_sheet.dart';
@@ -61,7 +63,6 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
 
   final Set<int> _loadingBatches = <int>{};
   final Set<int> _failedBatches = <int>{};
-  final Map<int, int> _imageAttempts = <int, int>{};
 
   PageController? _pageController;
   ScrollController? _scrollController;
@@ -110,7 +111,6 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
       _error = null;
       _loadingBatches.clear();
       _failedBatches.clear();
-      _imageAttempts.clear();
     });
     try {
       // 章节列表只在首次进入时取一次；换章时服务端进度已不适用，直接从第一页开始。
@@ -294,8 +294,15 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
       final image = _slots[index].image;
       if (image == null) continue;
       unawaited(
-        precacheImage(CachedNetworkImageProvider(image.url), context)
-            .catchError((Object _) {}),
+        precacheImage(
+          CachedNetworkImageProvider(
+            image.url,
+            // 必须和 `BookImage` 用同一个缓存键，否则预取的字节它命不中。
+            cacheKey: BookImage.cacheKeyFor(image.url),
+            cacheManager: appImageCacheManager,
+          ),
+          context,
+        ).catchError((Object _) {}),
       );
     }
   }
@@ -437,7 +444,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
     if (image == null) {
       final skip = getComicPageBatchStart(index, _slots.length, _batchSize);
       if (_failedBatches.contains(skip)) {
-        return _RetryTile(
+        return ComicRetryTile(
           width: width,
           height: height,
           onRetry: () => unawaited(_ensureBatch(index, retry: true)),
@@ -452,24 +459,21 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
         ),
       );
     }
-    final attempt = _imageAttempts[index] ?? 0;
-    return CachedNetworkImage(
-      key: ValueKey<String>('${image.url}#$attempt'),
-      imageUrl: image.url,
+    return SizedBox(
       width: width,
       height: height,
-      fit: BoxFit.contain,
-      fadeInDuration: const Duration(milliseconds: 80),
-      placeholder: (context, _) => image.placeholder.isEmpty
-          ? ColoredBox(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            )
-          : BlurHash(hash: image.placeholder),
-      errorWidget: (context, _, _) => _RetryTile(
-        width: width,
-        height: height,
-        onRetry: () =>
-            setState(() => _imageAttempts[index] = attempt + 1),
+      child: BookImage(
+        url: image.url,
+        blurHash: image.placeholder,
+        fit: BoxFit.contain,
+        aspectRatio: _aspect(index),
+        fadeInDuration: const Duration(milliseconds: 80),
+        fallbackIcon: null,
+        errorBuilder: (context, retry) => ComicRetryTile(
+          width: width,
+          height: height,
+          onRetry: retry,
+        ),
       ),
     );
   }
@@ -620,44 +624,6 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
                 : null,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _RetryTile extends StatelessWidget {
-  const _RetryTile({
-    required this.width,
-    required this.height,
-    required this.onRetry,
-  });
-
-  final double width;
-  final double height;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return SizedBox(
-      width: width,
-      height: height,
-      child: Material(
-        color: colors.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(4),
-        child: InkWell(
-          onTap: onRetry,
-          child: Center(
-            child: Text(
-              '加载失败，点击重试',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: colors.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

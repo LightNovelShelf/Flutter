@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../../shared/image_cache.dart';
+
 /// 圆形头像：无地址或加载失败时回退到用户名首字母，用户名为空时回退到人形图标。
 class ProfileAvatar extends StatelessWidget {
   const ProfileAvatar({
@@ -46,6 +48,7 @@ class ProfileAvatar extends StatelessWidget {
               ? fallback
               : CachedNetworkImage(
                   imageUrl: trimmedUrl,
+                  cacheManager: appImageCacheManager,
                   fit: BoxFit.cover,
                   width: size,
                   height: size,

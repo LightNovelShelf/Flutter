@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/network/api_error.dart';
 import '../../data/api/models.dart';
 import '../../shared/format.dart';
-import '../../shared/widgets/book_cover_image.dart';
+import '../../shared/widgets/book_image.dart';
 import '../../shared/widgets/state_views.dart';
 import 'book_providers.dart';
 
@@ -114,7 +114,7 @@ class _VolumeRow extends StatelessWidget {
                             color: colors.onSurfaceVariant,
                           ),
                         )
-                      : BookCoverImage(
+                      : BookImage(
                           url: volume.coverUrl,
                           blurHash: volume.coverPlaceholder,
                         ),
