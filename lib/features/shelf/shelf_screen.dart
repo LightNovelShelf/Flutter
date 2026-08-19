@@ -509,6 +509,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
       } else {
         tile = BookCoverGridItem.fromBook(
           book,
+          coverHeight: tileWidth / BookGridLayout.coverAspectRatio,
           selected: selected,
           sorting: sorting,
           onTap: () => _mode == _ShelfMode.select

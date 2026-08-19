@@ -116,6 +116,7 @@ class _VolumeRow extends StatelessWidget {
                         )
                       : BookImage(
                           url: volume.coverUrl,
+                          displayHeight: 72,
                           blurHash: volume.coverPlaceholder,
                         ),
                 ),

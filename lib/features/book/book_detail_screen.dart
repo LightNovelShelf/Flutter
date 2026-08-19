@@ -18,6 +18,8 @@ import '../../data/repositories/shelf_repository.dart';
 import '../../data/settings/app_settings.dart';
 import '../../shared/format.dart';
 import '../../shared/image_cache.dart';
+import '../../shared/image_sizing.dart';
+import '../../shared/layout/book_grid_layout.dart';
 import '../../shared/widgets/book_image.dart';
 import '../../shared/widgets/image_preview.dart';
 import '../../shared/widgets/state_views.dart';
@@ -27,6 +29,13 @@ import 'widgets/book_html_content.dart';
 import 'widgets/comment_thread.dart';
 
 const double _heroHeight = 280;
+
+/// 详情页封面的显示高度。模糊底图、主封面、取色三处共用它，好让三者算出同一个
+/// 尺寸档、同一个缓存键 —— 整页只下载并解码一张封面。
+///
+/// 主封面外层容器固定 100×150，是三者里唯一对清晰度有要求的，所以按它定档。
+/// 改这里之前先确认三处仍然共用，否则会静默退化成多次下载。
+const double _coverDisplayHeight = 150;
 const double _collapsedIntroHeight = 90;
 
 class BookDetailScreen extends ConsumerStatefulWidget {
@@ -70,12 +79,23 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     _paletteKey = key;
     _coverSeed = null;
 
-    final ImageProvider<Object> provider = hasBlurHash
-        ? BlurHashImage(hash, decodingWidth: 32, decodingHeight: 48)
-        : CachedNetworkImageProvider(
-            coverUrl,
-            cacheManager: appImageCacheManager,
-          );
+    // 取色本身只要 96×144，但刻意跟主封面要同一档：那张图整页反正都要下，
+    // 复用它等于零额外请求，比单独要一张最小档更省。
+    final ImageProvider<Object> provider;
+    if (hasBlurHash) {
+      provider = BlurHashImage(hash, decodingWidth: 32, decodingHeight: 48);
+    } else {
+      final sized = sizedImageUrl(
+        coverUrl,
+        logicalHeight: _coverDisplayHeight,
+        devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+      );
+      provider = CachedNetworkImageProvider(
+        sized,
+        cacheKey: BookImage.cacheKeyFor(sized),
+        cacheManager: appImageCacheManager,
+      );
+    }
     PaletteGenerator.fromImageProvider(
           provider,
           size: hasBlurHash ? const Size(32, 48) : const Size(96, 144),
@@ -834,8 +854,11 @@ class _BookHero extends StatelessWidget {
             imageFilter: ui.ImageFilter.blur(sigmaX: 28, sigmaY: 28),
             child: Opacity(
               opacity: 0.65,
+              // 28px 高斯模糊后细节全失，本可以只要最小档；但主封面那张整页反正
+              // 都要下，跟它同档就能直接复用，多下一张最小档反而更亏。
               child: BookImage(
                 url: detail.coverUrl,
+                displayHeight: _coverDisplayHeight,
                 blurHash: detail.coverPlaceholder,
               ),
             ),
@@ -862,8 +885,8 @@ class _BookHero extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: <Widget>[
               Container(
-                width: 100,
-                height: 150,
+                width: _coverDisplayHeight * BookGridLayout.coverAspectRatio,
+                height: _coverDisplayHeight,
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
@@ -893,6 +916,7 @@ class _BookHero extends StatelessWidget {
                           ),
                           child: BookImage(
                             url: detail.coverUrl,
+                            displayHeight: _coverDisplayHeight,
                             blurHash: detail.coverPlaceholder,
                           ),
                         ),

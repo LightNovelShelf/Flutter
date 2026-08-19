@@ -153,7 +153,11 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           itemCount: tab.items.length,
           itemBuilder: (_, index) {
             final book = tab.items[index];
-            return BookCoverGridItem.fromBook(book, onTap: () => _openBook(book));
+            return BookCoverGridItem.fromBook(
+              book,
+              coverHeight: layout.coverHeight,
+              onTap: () => _openBook(book),
+            );
           },
         ),
       ),

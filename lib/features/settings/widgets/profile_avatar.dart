@@ -44,6 +44,7 @@ class ProfileAvatar extends StatelessWidget {
       child: ClipOval(
         child: ColoredBox(
           color: colors.surfaceContainerHighest,
+          // 头像不走图床，没有尺寸参数可用，只能整张取。
           child: trimmedUrl.isEmpty
               ? fallback
               : CachedNetworkImage(

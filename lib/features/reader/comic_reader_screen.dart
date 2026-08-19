@@ -15,6 +15,7 @@ import '../../data/providers.dart';
 import '../../data/repositories/read_position_cache.dart';
 import '../../data/settings/app_settings.dart';
 import '../../shared/image_cache.dart';
+import '../../shared/image_sizing.dart';
 import '../../shared/widgets/book_image.dart';
 import '../../shared/widgets/state_views.dart';
 import 'reader_engine.dart';
@@ -293,12 +294,18 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
     for (final index in plan) {
       final image = _slots[index].image;
       if (image == null) continue;
+      // 必须和 `BookImage` 落到同一个尺寸档，否则 URL 与缓存键都对不上，
+      // 预取的字节一个字节都命不中。
+      final url = sizedImageUrl(
+        image.url,
+        logicalHeight: _pageHeight(index),
+        devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+      );
       unawaited(
         precacheImage(
           CachedNetworkImageProvider(
-            image.url,
-            // 必须和 `BookImage` 用同一个缓存键，否则预取的字节它命不中。
-            cacheKey: BookImage.cacheKeyFor(image.url),
+            url,
+            cacheKey: BookImage.cacheKeyFor(url),
             cacheManager: appImageCacheManager,
           ),
           context,
@@ -346,6 +353,14 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
     final size = MediaQuery.sizeOf(context);
     return getContinuousComicContentWidth(size.width, size.height);
   }
+
+  /// 当前模式下整页的宽度。翻页模式铺满屏宽，连续模式按内容宽收窄。
+  double _pageWidth() => _mode == ReaderViewMode.paged
+      ? MediaQuery.sizeOf(context).width
+      : _continuousWidth();
+
+  /// 整页高度。展示与预取都走这里，尺寸档才不会分叉。
+  double _pageHeight(int index) => _pageWidth() * _aspect(index);
 
   double _offsetForPage(int page) {
     if (!mounted) return 0;
@@ -464,6 +479,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
       height: height,
       child: BookImage(
         url: image.url,
+        displayHeight: height,
         blurHash: image.placeholder,
         fit: BoxFit.contain,
         aspectRatio: _aspect(index),

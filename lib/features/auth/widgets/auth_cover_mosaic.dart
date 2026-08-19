@@ -331,6 +331,7 @@ class _CoverCard extends StatelessWidget {
             )
           : BookImage(
               url: item.coverUrl,
+              displayHeight: height,
               blurHash: item.coverPlaceholder,
             ),
     );

@@ -17,13 +17,12 @@ class BookCoverGridItem extends StatelessWidget {
     super.key,
     required this.title,
     required this.coverUrl,
+    required this.coverHeight,
     this.coverPlaceholder,
     this.category,
     this.level,
     this.interiorLevel,
     this.rank,
-    this.memCacheWidth,
-    this.memCacheHeight,
     this.onTap,
     this.onLongPress,
     this.selected = false,
@@ -34,10 +33,9 @@ class BookCoverGridItem extends StatelessWidget {
   BookCoverGridItem.fromBook(
     BookListItem book, {
     super.key,
+    required this.coverHeight,
     this.rank,
     this.onTap,
-    this.memCacheWidth,
-    this.memCacheHeight,
     this.onLongPress,
     this.selected = false,
     this.sorting = false,
@@ -55,8 +53,9 @@ class BookCoverGridItem extends StatelessWidget {
   final BookCategory? category;
   final int? level;
   final int? interiorLevel;
-  final int? memCacheWidth;
-  final int? memCacheHeight;
+
+  /// 封面在网格里的高度（逻辑像素），一般是 `layout.tileWidth * 1.5`。
+  final double coverHeight;
   final int? rank;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
@@ -93,11 +92,10 @@ class BookCoverGridItem extends StatelessWidget {
                   children: <Widget>[
                     BookImage(
                       url: coverUrl,
+                      displayHeight: coverHeight,
                       blurHash: coverPlaceholder,
                       // 滚动中的高频封面细节需要更稳定的亚像素重采样。
                       filterQuality: FilterQuality.high,
-                      memCacheWidth: memCacheWidth,
-                      memCacheHeight: memCacheHeight,
                     ),
                     if (levelBadge != null)
                       Positioned(

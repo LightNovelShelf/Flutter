@@ -65,6 +65,7 @@ class ShelfFolderTile extends StatelessWidget {
                       color: colors.surfaceContainerHigh,
                       child: BookImage(
                         url: book.coverUrl,
+                        displayHeight: (slotWidth * 1.5).roundToDouble(),
                         blurHash: book.coverPlaceholder,
                       ),
                     ),

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
 
 import '../image_cache.dart';
+import '../image_sizing.dart';
 
 /// 站内图片统一入口（封面、漫画整页）：BlurHash 占位 → 网络图淡入；失败自动重试
 /// 一次并提供手动重试。
@@ -16,11 +17,10 @@ class BookImage extends StatefulWidget {
   const BookImage({
     super.key,
     required this.url,
+    required this.displayHeight,
     this.blurHash,
     this.fit = BoxFit.cover,
     this.filterQuality = FilterQuality.medium,
-    this.memCacheWidth,
-    this.memCacheHeight,
     this.aspectRatio = _coverAspectRatio,
     this.fadeInDuration = const Duration(milliseconds: 200),
     this.fallbackIcon = Icons.menu_book_outlined,
@@ -28,13 +28,15 @@ class BookImage extends StatefulWidget {
   });
 
   final String url;
+
+  /// 图片在布局里占据的高度（逻辑像素）。必填：按 DPR 折算后取 256 的档位，作为
+  /// `height` 查询参数向图床要对应尺寸的图。解码尺寸不再由客户端二次限制 ——
+  /// 到手的字节已经是服务端缩好的。
+  final double displayHeight;
+
   final String? blurHash;
   final BoxFit fit;
   final FilterQuality filterQuality;
-
-  /// 列表缩略图应传入实际物理像素尺寸，避免把原始大图完整解码进内存。
-  final int? memCacheWidth;
-  final int? memCacheHeight;
 
   /// 图片自身的高宽比，只用来决定 BlurHash 的解码尺寸；默认按封面比例。
   final double aspectRatio;
@@ -154,7 +156,14 @@ class _BookImageState extends State<BookImage> {
   Widget build(BuildContext context) {
     if (widget.url.isEmpty) return _placeholder(context);
 
-    final String cacheKey = BookImage.cacheKeyFor(widget.url);
+    final int bucket = imageHeightBucketFor(
+      widget.displayHeight,
+      MediaQuery.devicePixelRatioOf(context),
+    );
+    final String url = withImageHeight(widget.url, bucket);
+    // `cacheKeyFor` 只剥 `placeholder`/`t`，`height` 保留在键里 —— 每档一份缓存，
+    // 正是 256 步进要的效果。
+    final String cacheKey = BookImage.cacheKeyFor(url);
     final bool wasRevealed = BookImage._revealed.contains(cacheKey);
 
     return Stack(
@@ -166,14 +175,12 @@ class _BookImageState extends State<BookImage> {
         else
           CachedNetworkImage(
             key: ValueKey<String>('$cacheKey#$_attempt'),
-            imageUrl: widget.url,
+            imageUrl: url,
             cacheKey: cacheKey,
             cacheManager: appImageCacheManager,
             fit: widget.fit,
             width: double.infinity,
             height: double.infinity,
-            memCacheWidth: widget.memCacheWidth,
-            memCacheHeight: widget.memCacheHeight,
             fadeInDuration: wasRevealed ? Duration.zero : widget.fadeInDuration,
             // 占位层由外层 Stack 负责，这里不能再淡出一层，否则中途露底。
             fadeOutDuration: Duration.zero,

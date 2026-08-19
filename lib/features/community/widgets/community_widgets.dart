@@ -107,6 +107,7 @@ class _CommunityAvatarState extends State<CommunityAvatar> {
                   ),
                 ),
               )
+            // 头像不走图床，没有尺寸参数可用，只能整张取。
             : CachedNetworkImage(
                 imageUrl: url,
                 cacheManager: appImageCacheManager,

@@ -416,6 +416,7 @@ class CommentAvatar extends StatelessWidget {
       child: SizedBox(
         width: size,
         height: size,
+        // 头像不走图床，没有尺寸参数可用，只能整张取。
         child: url.isEmpty
             ? fallback
             : CachedNetworkImage(

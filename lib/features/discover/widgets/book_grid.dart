@@ -72,7 +72,6 @@ class BookGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final windowHeight = MediaQuery.sizeOf(context).height;
-    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: LayoutBuilder(
@@ -88,12 +87,7 @@ class BookGrid extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                     sliver: SliverToBoxAdapter(child: header),
                   ),
-                ..._contentSlivers(
-                  context,
-                  layout,
-                  windowHeight,
-                  devicePixelRatio,
-                ),
+                ..._contentSlivers(context, layout, windowHeight),
               ],
             ),
           );
@@ -106,7 +100,6 @@ class BookGrid extends StatelessWidget {
     BuildContext context,
     BookGridLayout layout,
     double windowHeight,
-    double devicePixelRatio,
   ) {
     if (books.isEmpty) {
       if (loading) {
@@ -136,10 +129,6 @@ class BookGrid extends StatelessWidget {
       ];
     }
 
-    final memCacheWidth = (layout.tileWidth * devicePixelRatio).ceil();
-    final memCacheHeight =
-        (layout.tileWidth / BookGridLayout.coverAspectRatio * devicePixelRatio)
-            .ceil();
     return <Widget>[
       SliverPadding(
         padding: _gridPadding,
@@ -149,8 +138,7 @@ class BookGrid extends StatelessWidget {
             books: books,
             onOpen: onOpen,
             showRank: showRank,
-            memCacheWidth: memCacheWidth,
-            memCacheHeight: memCacheHeight,
+            coverHeight: layout.coverHeight,
           ),
         ),
       ),
@@ -206,21 +194,13 @@ class BookGridPreview extends StatelessWidget {
         horizontalPadding: 0,
       );
       final visible = books.take(layout.columns * maxRows).toList();
-      final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
-      final memCacheWidth = (layout.tileWidth * devicePixelRatio).ceil();
-      final memCacheHeight =
-          (layout.tileWidth /
-                  BookGridLayout.coverAspectRatio *
-                  devicePixelRatio)
-              .ceil();
       return _gridRows(
         layout: layout,
         itemCount: visible.length,
         itemBuilder: (index) => BookCoverGridItem.fromBook(
           visible[index],
+          coverHeight: layout.coverHeight,
           rank: showRank ? index + 1 : null,
-          memCacheWidth: memCacheWidth,
-          memCacheHeight: memCacheHeight,
           onTap: () => onOpen(visible[index]),
         ),
       );
@@ -259,8 +239,7 @@ class _BookGridChildDelegate extends SliverChildBuilderDelegate {
     required this.books,
     required this.onOpen,
     required this.showRank,
-    required this.memCacheWidth,
-    required this.memCacheHeight,
+    required this.coverHeight,
   }) : super(
          (context, index) {
            final book = books[index];
@@ -268,8 +247,7 @@ class _BookGridChildDelegate extends SliverChildBuilderDelegate {
              book,
              key: ValueKey<int>(book.id),
              rank: showRank ? index + 1 : null,
-             memCacheWidth: memCacheWidth,
-             memCacheHeight: memCacheHeight,
+             coverHeight: coverHeight,
              onTap: () => onOpen(book),
            );
          },
@@ -280,15 +258,13 @@ class _BookGridChildDelegate extends SliverChildBuilderDelegate {
   final List<BookListItem> books;
   final void Function(BookListItem book) onOpen;
   final bool showRank;
-  final int memCacheWidth;
-  final int memCacheHeight;
+  final double coverHeight;
 
   @override
   bool shouldRebuild(covariant _BookGridChildDelegate oldDelegate) =>
       !identical(books, oldDelegate.books) ||
       showRank != oldDelegate.showRank ||
-      memCacheWidth != oldDelegate.memCacheWidth ||
-      memCacheHeight != oldDelegate.memCacheHeight;
+      coverHeight != oldDelegate.coverHeight;
 }
 
 /// 手动按行摆放，保证残行的卡片仍然左对齐且与整行同宽。

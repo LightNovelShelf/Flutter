@@ -16,6 +16,8 @@ void main() {
   setUp(BookImage.clearRevealCache);
 
   Future<void> pumpCover(WidgetTester tester) async {
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -24,10 +26,9 @@ void main() {
             height: 180,
             child: BookImage(
               url: url,
+              displayHeight: 180,
               blurHash: hash,
               filterQuality: FilterQuality.high,
-              memCacheWidth: 360,
-              memCacheHeight: 540,
             ),
           ),
         ),
@@ -64,7 +65,7 @@ void main() {
     expect(imageIndex, greaterThan(placeholderIndex));
   });
 
-  testWidgets('网络图单层淡入，按物理尺寸缓存并使用高质量采样', (WidgetTester tester) async {
+  testWidgets('网络图单层淡入，按尺寸档请求图床并使用高质量采样', (WidgetTester tester) async {
     await pumpCover(tester);
 
     final CachedNetworkImage image = tester.widget<CachedNetworkImage>(
@@ -72,8 +73,11 @@ void main() {
     );
     expect(image.fadeOutDuration, Duration.zero);
     expect(image.fadeInDuration, const Duration(milliseconds: 200));
-    expect(image.memCacheWidth, 360);
-    expect(image.memCacheHeight, 540);
+    // 180dp × dpr 3 = 540px，就近取档落到 512。
+    expect(image.imageUrl, contains('height=512'));
+    // 解码尺寸不再由客户端限制：到手的字节已经是服务端缩好的。
+    expect(image.memCacheWidth, isNull);
+    expect(image.memCacheHeight, isNull);
     final Widget rendered = image.imageBuilder!(
       tester.element(networkImageLayer()),
       const AssetImage('unused'),
@@ -89,7 +93,7 @@ void main() {
           body: SizedBox(
             width: 120,
             height: 180,
-            child: BookImage(url: url),
+            child: BookImage(url: url, displayHeight: 180),
           ),
         ),
       ),
@@ -110,6 +114,7 @@ void main() {
             height: 300,
             child: BookImage(
               url: url,
+              displayHeight: 300,
               blurHash: hash,
               fit: BoxFit.contain,
               aspectRatio: 1200 / 800,
@@ -158,5 +163,52 @@ void main() {
       BookImage.cacheKeyFor('https://img.example/cover.webp?w=200&t=sig'),
       'https://img.example/cover.webp?w=200',
     );
+  });
+
+  testWidgets('同一张图同一显示高度，缓存键与展示无关 —— 详情页三处才能复用一次请求', (
+    WidgetTester tester,
+  ) async {
+    tester.view.devicePixelRatio = 3.5;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: <Widget>[
+              // 详情页模糊底图：铺满、cover、不同淡入时长。
+              SizedBox(
+                width: 400,
+                height: 280,
+                child: BookImage(
+                  url: url,
+                  displayHeight: 150,
+                  fadeInDuration: Duration(milliseconds: 80),
+                ),
+              ),
+              // 详情页主封面：100×150、默认参数。
+              SizedBox(
+                width: 100,
+                height: 150,
+                child: BookImage(
+                  url: url,
+                  displayHeight: 150,
+                  filterQuality: FilterQuality.high,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final List<CachedNetworkImage> images = tester
+        .widgetList<CachedNetworkImage>(networkImageLayer())
+        .toList();
+    expect(images, hasLength(2));
+    // 布局尺寸、fit、淡入时长都不同，但只要显示高度同档，就是同一次请求。
+    expect(images[0].imageUrl, images[1].imageUrl);
+    expect(images[0].cacheKey, images[1].cacheKey);
+    expect(images[0].imageUrl, contains('height=512'));
   });
 }

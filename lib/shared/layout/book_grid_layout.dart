@@ -41,10 +41,13 @@ class BookGridLayout {
     );
   }
 
-  double get tileHeight => tileWidth * 1.5 + titleBoxHeight;
+  /// 封面区高度（不含标题区），也是向图床请求尺寸档的依据。
+  double get coverHeight => tileWidth / coverAspectRatio;
+
+  double get tileHeight => coverHeight + titleBoxHeight;
 
   /// 骨架屏单块高度：封面 + 7 间距 + 两条 13 高的文本占位 + 4 间距。
-  double get skeletonTileHeight => tileWidth * 1.5 + 7 + 13 + 4 + 13;
+  double get skeletonTileHeight => coverHeight + 7 + 13 + 4 + 13;
 
   int skeletonCount(double windowHeight, {double headerOffset = 110}) {
     final rows = math.max(

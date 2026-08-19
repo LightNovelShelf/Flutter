@@ -308,7 +308,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         builder: (context, index) {
           if (index >= state.items.length) return const BookGridSkeletonTile();
           final item = state.items[index];
-          return BookCoverGridItem.fromBook(item, onTap: () => _openBook(item));
+          return BookCoverGridItem.fromBook(
+            item,
+            coverHeight: layout.coverHeight,
+            onTap: () => _openBook(item),
+          );
         },
       ),
       if (state.error != null)
