@@ -87,23 +87,27 @@ List<T> decodeOptionalList<T>(
   return asArray(value, name).map(decode).toList();
 }
 
-int _decodeBase83(String value) {
-  var result = 0;
-  for (final character in value.split('')) {
-    final digit = blurHashBase83.indexOf(character);
-    if (digit < 0) return 0;
-    result = result * 83 + digit;
+/// 码位 → base83 数位；非法字符是 -1。每条书目都要校验一次 BlurHash。
+final List<int> _base83Digits = () {
+  final table = List<int>.filled(128, -1);
+  for (var i = 0; i < blurHashBase83.length; i++) {
+    table[blurHashBase83.codeUnitAt(i)] = i;
   }
-  return result;
+  return table;
+}();
+
+int _base83DigitAt(String value, int index) {
+  final code = value.codeUnitAt(index);
+  return code < 128 ? _base83Digits[code] : -1;
 }
 
 /// 不是完整可用的 BlurHash 就返回 null。
 String? normalizeBlurHash(Object? value) {
   if (value is! String || value.length < 6) return null;
-  for (final character in value.split('')) {
-    if (!blurHashBase83.contains(character)) return null;
+  for (var i = 0; i < value.length; i++) {
+    if (_base83DigitAt(value, i) < 0) return null;
   }
-  final sizeFlag = _decodeBase83(value[0]);
+  final sizeFlag = _base83DigitAt(value, 0);
   final componentCount = (sizeFlag ~/ 9 + 1) * (sizeFlag % 9 + 1);
   return value.length == 4 + 2 * componentCount ? value : null;
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -30,31 +31,42 @@ Future<Color?> resolveCoverSeedColor(
 /// `rawRgba` 是四字节一像素；全透明像素不参与统计。
 /// 所有颜色都不适合当 seed 时（例如纯灰阶封面），退回出现最多的那个，
 /// 而不是 `Score` 内置的 Google Blue 兜底色。
+///
+/// 量化是 k-means，96×144 的封面就有上万像素，整段跑在 [Isolate.run] 上：
+/// 入参是 [Uint8List]，出参只有一个 ARGB 整数。
 Future<Color?> seedColorFromRawRgba(
   Uint8List bytes, {
   int maximumColorCount = 8,
 }) async {
-  final pixels = <int>[];
+  final argb = await Isolate.run(
+    () => _seedArgbFromRawRgba(bytes, maximumColorCount),
+  );
+  return argb == null ? null : Color(argb);
+}
+
+Future<int?> _seedArgbFromRawRgba(Uint8List bytes, int maximumColorCount) async {
+  // 预分配到像素数上限，避免 growable List 一路扩容重分配。
+  final packed = Uint32List(bytes.length ~/ 4);
+  var count = 0;
   for (var i = 0; i + 3 < bytes.length; i += 4) {
     final alpha = bytes[i + 3];
     if (alpha == 0) continue;
-    pixels.add(
-      (alpha << 24) | (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2],
-    );
+    packed[count++] =
+        (alpha << 24) | (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2];
   }
-  if (pixels.isEmpty) return null;
+  if (count == 0) return null;
 
   final quantized = await QuantizerCelebi().quantize(
-    pixels,
+    Uint32List.sublistView(packed, 0, count),
     maximumColorCount,
   );
   final counts = quantized.colorToCount;
   if (counts.isEmpty) return null;
   final best = Score.score(counts, desired: 1).first;
   // Score 的返回值取自输入色；不在输入里说明它落到了内置兜底色。
-  if (counts.containsKey(best)) return Color(best);
+  if (counts.containsKey(best)) return best;
   final dominant = counts.entries.reduce((a, b) => b.value > a.value ? b : a);
-  return Color(dominant.key);
+  return dominant.key;
 }
 
 Future<ui.Image> _decodeScaled(ImageProvider<Object> provider, Size size) {

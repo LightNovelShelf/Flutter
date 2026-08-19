@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -66,8 +67,8 @@ Object? unwrapSignalRResponse(Object? value) {
 
 Object? _decompress(Object? value) {
   if (value is! String) return value;
-  // 服务端 `UseGzip` 后 byte[] 在 JSON 协议下是 base64 文本；普通字符串原样返回。
-  late final List<int> bytes;
+  // `UseGzip` 后 byte[] 在 JSON 协议下是 base64 文本；普通字符串原样返回。
+  late final Uint8List bytes;
   try {
     bytes = base64Decode(value);
   } catch (_) {
@@ -75,11 +76,18 @@ Object? _decompress(Object? value) {
   }
   if (bytes.length < 2 || bytes[0] != 0x1f || bytes[1] != 0x8b) return value;
   try {
-    return jsonDecode(utf8.decode(gzip.decode(bytes)));
+    return _inflateJson(bytes);
   } catch (error) {
     throw ApiError('服务端返回了无效的压缩响应。', ApiErrorCategory.server, cause: error);
   }
 }
+
+/// 融合解码：`utf8.decoder.fuse(json.decoder)` 直接吃 UTF-8 字节，
+/// 省掉整份正文的 String 中间体。
+final Converter<List<int>, Object?> _utf8Json =
+    const Utf8Decoder().fuse<Object?>(const JsonDecoder());
+
+Object? _inflateJson(Uint8List bytes) => _utf8Json.convert(gzip.decode(bytes));
 
 enum BookSearchMode { fuzzy, exact, title, author, name, tags }
 

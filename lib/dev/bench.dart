@@ -1,7 +1,12 @@
 import 'dart:convert';
 import 'dart:developer';
+import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_blurhash/flutter_blurhash.dart';
+
+import '../data/api/decode.dart';
+import '../shared/cover_seed.dart';
 
 /// 真机方法级基准台。只在 `lib/main_bench.dart` 入口里注册，正式包不会引用到这里。
 ///
@@ -69,6 +74,43 @@ void _consume(Object? value) {
 
 const String _hash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj';
 
+/// 造一份形状接近书目列表响应的 JSON，再 gzip，用来量解码链路。
+Uint8List _gzippedPayload(int entries) {
+  final list = <Map<String, Object?>>[
+    for (var i = 0; i < entries; i++)
+      <String, Object?>{
+        'Id': i,
+        'Title': '测试书名第$i卷 —— 很长的标题用来撑出真实的字节数',
+        'Author': '作者$i',
+        'Cover': 'https://example.invalid/cover/$i.jpg',
+        'BlurHash': _hash,
+        'Tags': <String>['轻小说', '奇幻', '日常'],
+        'Intro': '简介' * 40,
+      },
+  ];
+  return Uint8List.fromList(gzip.encode(utf8.encode(jsonEncode(list))));
+}
+
+final Converter<List<int>, Object?> _utf8Json =
+    const Utf8Decoder().fuse<Object?>(const JsonDecoder());
+
+Object? _inflateJson(Uint8List bytes) => _utf8Json.convert(gzip.decode(bytes));
+
+final Uint8List _payloadSmall = _gzippedPayload(12);
+final Uint8List _payloadLarge = _gzippedPayload(400);
+
+/// 96×144 的封面像素，取色链路的真实规模。
+final Uint8List _coverPixels = () {
+  final bytes = Uint8List(96 * 144 * 4);
+  for (var i = 0; i < bytes.length; i += 4) {
+    bytes[i] = (i * 7) & 0xff;
+    bytes[i + 1] = (i * 13) & 0xff;
+    bytes[i + 2] = (i * 29) & 0xff;
+    bytes[i + 3] = 0xff;
+  }
+  return bytes;
+}();
+
 final Map<String, Future<void> Function()> _cases =
     <String, Future<void> Function()>{
   // 封面占位图解码：改动前 32×48，改动后 16×24。实测 1502µs vs 378µs。
@@ -76,4 +118,11 @@ final Map<String, Future<void> Function()> _cases =
       _consume(await blurHashDecode(blurHash: _hash, width: 32, height: 48)),
   'blurhash_16x24': () async =>
       _consume(await blurHashDecode(blurHash: _hash, width: 16, height: 24)),
+  // BlurHash 校验：每条书目解析都要跑一次。
+  'base83_normalize': () async => _consume(normalizeBlurHash(_hash)),
+  // 解压 + 解析：gzip 响应的解码链路。
+  'inflate_small': () async => _consume(_inflateJson(_payloadSmall)),
+  'inflate_large': () async => _consume(_inflateJson(_payloadLarge)),
+  // 封面取色：量化是 k-means，跑在后台 isolate 上。
+  'coverseed': () async => _consume(await seedColorFromRawRgba(_coverPixels)),
 };
