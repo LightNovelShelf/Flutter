@@ -31,7 +31,6 @@ dependencies:
   cached_network_image: ^3.4.1
   # 直接用它配置纯 Dart 的缓存元数据仓库，避开 sqflite platform channel
   flutter_cache_manager: ^3.4.1
-  flutter_blurhash: ^0.9.1
   photo_view: ^0.15.0
   # 封面取色。palette_generator 已被官方 discontinued，直接用 Flutter 自己
   # 依赖的这套 Material 3 量化/打分算法；版本必须与 flutter SDK 的 pin 一致。
@@ -44,11 +43,12 @@ dependencies:
   # 其它
   crypto: ^3.0.6
   intl: ^0.20.2
-  collection: ^1.19.0
   dynamic_color: ^1.7.0
   package_info_plus: ^10.2.1
   url_launcher: ^6.3.1
-  archive: ^4.1.0
+  ffi: ^2.1.4
+  code_assets: ^1.2.1
+  hooks: ^2.0.2
 
 dev_dependencies:
   flutter_test:

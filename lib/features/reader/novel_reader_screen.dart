@@ -28,8 +28,8 @@ import 'widgets/reader_settings_sheet.dart';
 
 /// 小说阅读器。
 ///
-/// 正文的字形被服务端混淆过，必须配合章节自带的 WOFF2 才能读；Flutter 无法加载
-/// WOFF2，所以正文交给 WebView 的 `@font-face` 渲染，翻页与排版都用 CSS 完成，
+/// 正文字形被服务端混淆过，必须配合章节自带字体才能读；Android 会先把 WOFF2
+/// 转成 TTF，再交给 WebView 的 `@font-face` 渲染。翻页与排版都用 CSS 完成，
 /// Dart 侧只负责取数、定位换算与进度保存。
 class NovelReaderScreen extends ConsumerStatefulWidget {
   const NovelReaderScreen({

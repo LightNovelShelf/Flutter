@@ -5,7 +5,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_blurhash/flutter_blurhash.dart';
+
+import '../../shared/widgets/blurhash_image.dart';
 
 import '../../app/theme/app_theme.dart';
 import '../../core/network/api_error.dart';

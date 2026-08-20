@@ -1,30 +1,36 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
+import 'woff2.dart';
 import '../../data/api/endpoints.dart';
 
-/// 正文字形被混淆过，只有配套的 WOFF2 才认得。Flutter 的 `FontLoader` 不吃 WOFF2，
-/// 字体只能以 `data:` URL 注入 WebView 的 `@font-face`。
+/// 正文字形被混淆过，只有配套字体才认得。Android 先通过 libwoff2 转成 TTF，
+/// 再以内嵌字体注入 WebView；其它平台继续直接使用 WebView 支持的 WOFF2。
 class ReaderFontCache {
   const ReaderFontCache._();
 
   static const String _directoryName = 'reader-fonts';
-  static final Map<String, Future<String>> _inflight = <String, Future<String>>{};
+  static final Map<String, Future<String>> _inflight =
+      <String, Future<String>>{};
 
   /// 相对地址按 API 源站补全；空地址表示该章节不用字体。
   static String? resolveFontUrl(String? fontUrl) {
     final value = fontUrl?.trim() ?? '';
     if (value.isEmpty) return null;
-    if (value.startsWith('http://') || value.startsWith('https://')) return value;
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return value;
+    }
     return '${ServiceEndpoints.apiOrigin}${value.startsWith('/') ? '' : '/'}$value';
   }
 
-  /// 返回可直接写进 `@font-face` 的 `data:font/woff2;base64,...`。
-  /// 无字体返回 null；下载或校验失败抛异常，调用方转错误态。
+  /// 返回可直接写进 `@font-face` 的字体 `data:` URL。
+  /// 无字体返回 null；下载、校验或转换失败抛异常，调用方转错误态。
   static Future<String?> load(
     String? fontUrl, {
     bool cacheEnabled = true,
@@ -37,10 +43,14 @@ class ReaderFontCache {
     if (pending != null) return pending;
     // 回调不能返回值：`Map.remove` 会把正在完成的那个 Future 返回出去，
     // `whenComplete` 就会等自己，永久挂起。
-    final request = _load(url, cacheEnabled: cacheEnabled, cacheLimit: cacheLimit)
-        .whenComplete(() {
-      _inflight.remove(url);
-    });
+    final request =
+        _load(
+          url,
+          cacheEnabled: cacheEnabled,
+          cacheLimit: cacheLimit,
+        ).whenComplete(() {
+          _inflight.remove(url);
+        });
     _inflight[url] = request;
     return request;
   }
@@ -53,19 +63,25 @@ class ReaderFontCache {
     final file = cacheEnabled ? await _cacheFile(url) : null;
     if (file != null && file.existsSync()) {
       final bytes = await file.readAsBytes();
-      final mime = _fontMime(bytes);
+      final prepared = await _prepare(bytes);
+      final mime = _fontMime(prepared);
       if (mime != null) {
-        final url = _dataUrl(mime, bytes);
-        return url;
+        if (!identical(prepared, bytes)) {
+          await file.writeAsBytes(prepared, flush: true);
+        }
+        return _dataUrl(mime, prepared);
       }
       await file.delete();
     }
 
     final response = await http.get(Uri.parse(url));
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw HttpException('章节字体下载失败（${response.statusCode}）。', uri: Uri.parse(url));
+      throw HttpException(
+        '章节字体下载失败（${response.statusCode}）。',
+        uri: Uri.parse(url),
+      );
     }
-    final bytes = response.bodyBytes;
+    final bytes = await _prepare(response.bodyBytes);
     final mime = _fontMime(bytes);
     if (mime == null) throw const FormatException('章节字体格式无法识别。');
 
@@ -88,10 +104,7 @@ class ReaderFontCache {
   /// 超出上限时按最后修改时间淘汰最旧的字体文件。
   static Future<void> _trim(Directory directory, int limit) async {
     if (limit <= 0) return;
-    final files = directory
-        .listSync()
-        .whereType<File>()
-        .toList()
+    final files = directory.listSync().whereType<File>().toList()
       ..sort(
         (left, right) =>
             left.statSync().modified.compareTo(right.statSync().modified),
@@ -108,10 +121,18 @@ class ReaderFontCache {
   static String _dataUrl(String mime, List<int> bytes) =>
       'data:$mime;base64,${base64Encode(bytes)}';
 
+  static Future<Uint8List> _prepare(Uint8List bytes) {
+    if (_fontMime(bytes) != 'font/woff2') {
+      return Future<Uint8List>.value(bytes);
+    }
+    return Isolate.run(() => decodeWoff2(bytes));
+  }
+
   /// 用魔数判断字体类型，避免把 HTML 错误页当成字体注入。
   static String? _fontMime(List<int> bytes) {
     if (bytes.length < 4) return null;
-    final magic = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
+    final magic =
+        (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
     return switch (magic) {
       0x774F4632 => 'font/woff2',
       0x774F4646 => 'font/woff',

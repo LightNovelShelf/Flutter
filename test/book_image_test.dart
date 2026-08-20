@@ -1,7 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lightnovel/shared/widgets/blurhash_image.dart';
 import 'package:lightnovel/shared/widgets/book_image.dart';
 
 /// 封面「BlurHash → 真实封面」过渡的结构不变量。
@@ -12,8 +14,19 @@ void main() {
   const String hash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj';
   const String url = 'https://img.example/cover.webp?placeholder=abc&t=sig';
 
-  // 进程级 reveal 缓存会让后续用例拿到 Duration.zero 的淡入，逐个用例清掉。
-  setUp(BookImage.clearRevealCache);
+  setUp(() {
+    BookImage.clearRevealCache();
+    debugBlurHashPixelDecoder = (_, {required width, required height}) =>
+        Uint8List.fromList(List<int>.filled(width * height * 4, 255));
+  });
+  tearDown(() => debugBlurHashPixelDecoder = null);
+
+  test('Native Assets 查表解码 RGBA 像素', () {
+    debugBlurHashPixelDecoder = null;
+    final pixels = decodeBlurHash(hash, width: 16, height: 24);
+    expect(pixels, hasLength(16 * 24 * 4));
+    expect(pixels.sublist(0, 4), <int>[135, 164, 177, 255]);
+  });
 
   Future<void> pumpCover(WidgetTester tester) async {
     tester.view.devicePixelRatio = 3;
@@ -103,9 +116,7 @@ void main() {
     expect(find.byIcon(Icons.menu_book_outlined), findsOneWidget);
   });
 
-  testWidgets('漫画整页用法：占位层与真图同 fit，按图片比例解码，无图标兜底', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('漫画整页用法：占位层与真图同 fit，按图片比例解码，无图标兜底', (WidgetTester tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -145,10 +156,7 @@ void main() {
   });
 
   testWidgets('封面地址去掉 placeholder 和 t 参数后作为缓存键', (WidgetTester tester) async {
-    expect(
-      BookImage.cacheKeyFor(url),
-      'https://img.example/cover.webp',
-    );
+    expect(BookImage.cacheKeyFor(url), 'https://img.example/cover.webp');
   });
 
   testWidgets('同一张图带不同签名参数命中同一个缓存键', (WidgetTester tester) async {

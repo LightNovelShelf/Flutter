@@ -1,0 +1,33 @@
+FROM ubuntu:24.04 AS linux-build
+ARG DEBIAN_FRONTEND=noninteractive
+ARG LN_ARCH
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates cmake g++ git ninja-build && \
+    rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY . .
+RUN cmake -S . -B build/container-linux -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DLN_OUTPUT_DIR=/out/linux/${LN_ARCH} && \
+    cmake --build build/container-linux --parallel
+
+FROM scratch AS linux
+COPY --from=linux-build /out/ /
+
+FROM ubuntu:24.04 AS windows-build
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates cmake git mingw-w64 ninja-build && \
+    rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY . .
+RUN cmake -S . -B build/container-windows -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_SYSTEM_NAME=Windows \
+    -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
+    -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ \
+    -DLN_OUTPUT_DIR=/out/windows/x64 && \
+    cmake --build build/container-windows --parallel
+
+FROM scratch AS windows
+COPY --from=windows-build /out/ /

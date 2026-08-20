@@ -2,7 +2,8 @@ import 'dart:collection';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_blurhash/flutter_blurhash.dart';
+
+import 'blurhash_image.dart';
 
 import '../image_cache.dart';
 import '../image_sizing.dart';
@@ -51,8 +52,8 @@ class BookImage extends StatefulWidget {
 
   static const double _coverAspectRatio = 1.5;
 
-  /// BlurHash 解码是纯 Dart 的双重余弦求和，开销正比于像素数：32×48 单张要 0.8~2.0ms，
-  /// 一屏封面滚进来就吃穿 11.1ms 预算。4×3 分量的 hash 在 16 宽采样仍在奈奎斯特之上。
+  /// Android 用 C++ 查表解码，避免在 UI isolate 里逐像素计算余弦。16 像素宽仍能
+  /// 覆盖 4×3 分量 hash 的有效频率。
   static const int blurHashWidth = 16;
   static const int _blurHashMaxHeight = 64;
   static const int _revealedCapacity = 256;
@@ -66,11 +67,10 @@ class BookImage extends StatefulWidget {
   static String cacheKeyFor(String url) {
     final Uri? uri = Uri.tryParse(url);
     if (uri == null) return url;
-    final Map<String, String> query = Map<String, String>.of(
-      uri.queryParameters,
-    )
-      ..remove('placeholder')
-      ..remove('t');
+    final Map<String, String> query =
+        Map<String, String>.of(uri.queryParameters)
+          ..remove('placeholder')
+          ..remove('t');
     // `replace(queryParameters: null)` 是「保持原查询」而不是清空，空查询只能自己构造；
     // 顺带把 fragment 丢掉。
     return Uri(
@@ -115,9 +115,7 @@ class _BookImageState extends State<BookImage> {
     });
   }
 
-  /// 用 `BlurHashImage` 而不是 `BlurHash` 组件：后者解码完成前先画一块
-  /// `Colors.blueGrey`，且每次挂载都重新异步解码 —— 列表滚动时就是一片片色块闪。
-  /// ImageProvider 走 ImageCache，同一个 hash 只解一次，重新挂载即时可画。
+  /// ImageProvider 走 ImageCache，同一个 hash 只解一次；像素由本机查表解码。
   Widget _placeholder(BuildContext context) {
     final String? blurHash = widget.blurHash;
     final ColorScheme colors = Theme.of(context).colorScheme;
@@ -146,9 +144,7 @@ class _BookImageState extends State<BookImage> {
       color: colors.surfaceContainerHighest,
       child: icon == null
           ? null
-          : Center(
-              child: Icon(icon, size: 28, color: colors.onSurfaceVariant),
-            ),
+          : Center(child: Icon(icon, size: 28, color: colors.onSurfaceVariant)),
     );
   }
 
@@ -220,8 +216,10 @@ class _BookImageState extends State<BookImage> {
     _attempt += 1;
   });
 
-  static Widget _defaultErrorBuilder(BuildContext context, VoidCallback retry) =>
-      _RetryOverlay(onRetry: retry);
+  static Widget _defaultErrorBuilder(
+    BuildContext context,
+    VoidCallback retry,
+  ) => _RetryOverlay(onRetry: retry);
 }
 
 class _RetryOverlay extends StatelessWidget {

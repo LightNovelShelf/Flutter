@@ -3,7 +3,7 @@ import 'dart:developer';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter_blurhash/flutter_blurhash.dart';
+import '../shared/widgets/blurhash_image.dart';
 
 import '../data/api/decode.dart';
 import '../shared/cover_seed.dart';
@@ -17,7 +17,10 @@ import '../shared/cover_seed.dart';
 ///   ext.lightnovel.bench                              → 列出所有用例
 ///   ext.lightnovel.bench?case=X&iterations=N&rounds=R → 跑用例
 void registerBenchExtension() {
-  registerExtension('ext.lightnovel.bench', (String method, Map<String, String> params) async {
+  registerExtension('ext.lightnovel.bench', (
+    String method,
+    Map<String, String> params,
+  ) async {
     final String? name = params['case'];
     if (name == null) {
       return ServiceExtensionResponse.result(
@@ -91,8 +94,8 @@ Uint8List _gzippedPayload(int entries) {
   return Uint8List.fromList(gzip.encode(utf8.encode(jsonEncode(list))));
 }
 
-final Converter<List<int>, Object?> _utf8Json =
-    const Utf8Decoder().fuse<Object?>(const JsonDecoder());
+final Converter<List<int>, Object?> _utf8Json = const Utf8Decoder()
+    .fuse<Object?>(const JsonDecoder());
 
 Object? _inflateJson(Uint8List bytes) => _utf8Json.convert(gzip.decode(bytes));
 
@@ -113,16 +116,17 @@ final Uint8List _coverPixels = () {
 
 final Map<String, Future<void> Function()> _cases =
     <String, Future<void> Function()>{
-  // 封面占位图解码：改动前 32×48，改动后 16×24。实测 1502µs vs 378µs。
-  'blurhash_32x48': () async =>
-      _consume(await blurHashDecode(blurHash: _hash, width: 32, height: 48)),
-  'blurhash_16x24': () async =>
-      _consume(await blurHashDecode(blurHash: _hash, width: 16, height: 24)),
-  // BlurHash 校验：每条书目解析都要跑一次。
-  'base83_normalize': () async => _consume(normalizeBlurHash(_hash)),
-  // 解压 + 解析：gzip 响应的解码链路。
-  'inflate_small': () async => _consume(_inflateJson(_payloadSmall)),
-  'inflate_large': () async => _consume(_inflateJson(_payloadLarge)),
-  // 封面取色：量化是 k-means，跑在后台 isolate 上。
-  'coverseed': () async => _consume(await seedColorFromRawRgba(_coverPixels)),
-};
+      // 封面占位图本机查表解码。
+      'blurhash_32x48': () async =>
+          _consume(decodeBlurHash(_hash, width: 32, height: 48)),
+      'blurhash_16x24': () async =>
+          _consume(decodeBlurHash(_hash, width: 16, height: 24)),
+      // BlurHash 校验：每条书目解析都要跑一次。
+      'base83_normalize': () async => _consume(normalizeBlurHash(_hash)),
+      // 解压 + 解析：gzip 响应的解码链路。
+      'inflate_small': () async => _consume(_inflateJson(_payloadSmall)),
+      'inflate_large': () async => _consume(_inflateJson(_payloadLarge)),
+      // 封面取色：量化是 k-means，跑在后台 isolate 上。
+      'coverseed': () async =>
+          _consume(await seedColorFromRawRgba(_coverPixels)),
+    };
