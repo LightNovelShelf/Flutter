@@ -41,3 +41,18 @@ jobs:
           name: lightnovel-shelf-debug
           path: build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 7
+
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.0
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter build ios --release --no-codesign

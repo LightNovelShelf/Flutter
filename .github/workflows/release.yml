@@ -1,4 +1,4 @@
-name: Android Release
+name: Release
 
 on:
   push:
@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
+  android:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -55,18 +55,62 @@ jobs:
           flutter build apk --release --split-per-abi
           flutter build appbundle --release
 
+      - name: 收集产物
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/*-release.apk dist/
+          cp build/app/outputs/bundle/release/app-release.aab dist/
+
       - uses: actions/upload-artifact@v5
         with:
-          name: lightnovel-shelf-${{ github.ref_name }}
-          path: |
-            build/app/outputs/flutter-apk/*-release.apk
-            build/app/outputs/bundle/release/app-release.aab
+          name: lightnovel-shelf-${{ github.ref_name }}-android
+          path: dist
           retention-days: 30
+
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.0
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # 无 Apple 开发者账号，只出未签名 IPA，供自签工具安装。
+      - run: flutter build ios --release --no-codesign
+
+      - name: 打包 IPA
+        run: |
+          mkdir -p dist/Payload
+          cp -R build/ios/iphoneos/Runner.app dist/Payload/
+          cd dist
+          zip -qry "lightnovel-shelf-${{ github.ref_name }}-unsigned.ipa" Payload
+          rm -rf Payload
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: lightnovel-shelf-${{ github.ref_name }}-ios
+          path: dist
+          retention-days: 30
+
+  publish:
+    needs: [android, ios]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: lightnovel-shelf-${{ github.ref_name }}-*
+          merge-multiple: true
+          path: dist
 
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           fail_on_unmatched_files: true
-          files: |
-            build/app/outputs/flutter-apk/*-release.apk
-            build/app/outputs/bundle/release/app-release.aab
+          files: dist/*
