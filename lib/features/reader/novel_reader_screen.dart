@@ -1,36 +1,32 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../core/network/api_error.dart';
 import '../../data/api/api_client.dart';
-import '../../data/api/endpoints.dart';
 import '../../data/api/models.dart';
 import '../../data/providers.dart';
 import '../../data/repositories/read_position_cache.dart';
 import '../../data/settings/app_settings.dart';
 import '../../shared/format.dart';
-import '../../shared/widgets/image_preview.dart';
 import '../../shared/widgets/state_views.dart';
+import 'reader_content_style.dart';
 import 'reader_engine.dart';
 import 'reader_font_cache.dart';
-import 'reader_html_builder.dart';
 import 'reader_open_position.dart';
 import 'reader_providers.dart';
 import 'widgets/reader_chapter_sheet.dart';
 import 'widgets/reader_chrome.dart';
+import 'widgets/reader_content_view.dart';
 import 'widgets/reader_footnote_sheet.dart';
 import 'widgets/reader_settings_sheet.dart';
 
 /// 小说阅读器。
 ///
-/// 正文字形被服务端混淆过，必须配合章节自带字体才能读；Android 会先把 WOFF2
-/// 转成 TTF，再交给 WebView 的 `@font-face` 渲染。翻页与排版都用 CSS 完成，
-/// Dart 侧只负责取数、定位换算与进度保存。
+/// 正文字形被服务端混淆过，必须配合章节自带字体才能读：WOFF2 先经 libwoff2 转成
+/// TTF，再注册进 Flutter 引擎，正文由 [ReaderContentView] 原生渲染。Dart 侧负责
+/// 取数、定位换算与进度保存。
 class NovelReaderScreen extends ConsumerStatefulWidget {
   const NovelReaderScreen({
     super.key,
@@ -49,12 +45,8 @@ class NovelReaderScreen extends ConsumerStatefulWidget {
 
 class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   late final ApiClient _api;
-  late final WebViewController _controller;
-  final GlobalKey _webViewKey = GlobalKey();
   late final ReaderPositionWriteQueue<ReaderRestorePosition> _positions;
   late final AppLifecycleListener _lifecycle;
-  late final Future<String> _readerScriptSource;
-  late final Future<String> _readerCssSource;
 
   late int _sortNum;
   late ReaderOpenPosition _openPosition;
@@ -62,14 +54,13 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   int _requestVersion = 0;
   bool _loading = true;
   String? _error;
-  bool _documentReady = false;
+  bool _contentReady = false;
   bool _chromeVisible = false;
-  bool _pendingDocumentNavigation = false;
 
   NovelContent? _content;
   List<NovelReaderBlock> _blocks = const <NovelReaderBlock>[];
   Map<String, String> _notes = const <String, String>{};
-  String? _fontDataUrl;
+  String? _fontFamily;
   int _totalChapters = 0;
   int _currentPage = 0;
   int _totalPages = 0;
@@ -78,10 +69,6 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   double _restoreProgression = 0;
   String _currentLocator = '';
   double _progression = 0;
-  Color? _webViewBackground;
-  Color? _webViewForeground;
-
-  ReaderViewMode? _renderedViewMode;
 
   @override
   void initState() {
@@ -89,66 +76,14 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     _sortNum = widget.sortNum;
     _openPosition = widget.openPosition;
     _api = ref.read(apiClientProvider);
-    _readerScriptSource = rootBundle.loadString('assets/js/novel_reader.js');
-    _readerCssSource = rootBundle.loadString('assets/css/novel_reader.css');
     _positions = ReaderPositionWriteQueue<ReaderRestorePosition>(
       _persistPosition,
       fingerprint: (position) => '${position.chapterId}:${position.position}',
     );
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setVerticalScrollBarEnabled(false)
-      ..setHorizontalScrollBarEnabled(false)
-      ..addJavaScriptChannel(
-        readerBridgeChannel,
-        onMessageReceived: _onBridgeMessage,
-      )
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageFinished: (_) => unawaited(_applyRestore()),
-          // 文档自身的那次导航只放行一次，其余外链一律拦掉。
-          onNavigationRequest: (request) {
-            if (_pendingDocumentNavigation &&
-                isReaderDocumentNavigation(
-                  url: request.url,
-                  isMainFrame: request.isMainFrame,
-                  baseUrl: ServiceEndpoints.apiOrigin,
-                )) {
-              _pendingDocumentNavigation = false;
-              return NavigationDecision.navigate;
-            }
-            return isReaderExternalNavigation(request.url)
-                ? NavigationDecision.prevent
-                : NavigationDecision.navigate;
-          },
-        ),
-      );
     _lifecycle = AppLifecycleListener(
       onPause: () => unawaited(_positions.flush()),
     );
     unawaited(_load());
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final settings = ref.read(appSettingsProvider);
-    final colors = Theme.of(context).colorScheme;
-    final background = _backgroundColor(settings, colors);
-    final foreground = _foregroundColor(settings, colors);
-    if (background == _webViewBackground && foreground == _webViewForeground) {
-      return;
-    }
-    _webViewBackground = background;
-    _webViewForeground = foreground;
-    unawaited(_controller.setBackgroundColor(background));
-    if (_content != null) {
-      unawaited(
-        _controller.runJavaScript(
-          readerTypographyScript(_typography(settings)),
-        ),
-      );
-    }
   }
 
   @override
@@ -175,7 +110,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     setState(() {
       _loading = true;
       _error = null;
-      _documentReady = false;
+      _contentReady = false;
       _currentPage = 0;
       _totalPages = 0;
     });
@@ -202,7 +137,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
       if (!mounted || version != _requestVersion) return;
       final total = content.chapter.chapterTitles.length;
 
-      final fontDataUrl = await ReaderFontCache.load(
+      final fontFamily = await ReaderFontCache.loadFamily(
         content.chapter.fontUrl,
         cacheEnabled: settings.fontCacheEnabled,
         cacheLimit: settings.fontCacheLimit,
@@ -212,16 +147,15 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
       }
 
       final footnotes = processNovelFootnotes(content.chapter.content);
-      // sanitize: false —— 分块文本必须与 WebView 里渲染的 DOM 逐字一致，
-      // 否则保存的定位会漂移。
-      final blocks = normalizeNovelBlocks(footnotes.html, sanitize: false);
+      // 一个字都不动：分块文本与渲染出来的正文逐字一致，保存的定位才不漂。
+      final blocks = normalizeNovelBlocks(footnotes.html);
       final restore = _resolveRestore(content, blocks);
 
       setState(() {
         _content = content;
         _blocks = blocks;
         _notes = footnotes.notesById;
-        _fontDataUrl = fontDataUrl;
+        _fontFamily = fontFamily;
         _totalChapters = total;
         _restoreLocator = restore.$1;
         _restoreProgression = restore.$2;
@@ -229,7 +163,6 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
         _progression = restore.$2;
         _loading = false;
       });
-      await _renderDocument();
       unawaited(_preload(convert, settings.readerPreloadWindow));
     } catch (error) {
       if (!mounted || version != _requestVersion) return;
@@ -298,150 +231,51 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   Color _foregroundColor(AppSettings settings, ColorScheme colors) =>
       _isDark && settings.oledBlack ? Colors.white : colors.onSurface;
 
-  static String _hex(Color color) =>
-      '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
+  ReaderContentStyle _contentStyle(AppSettings settings) => ReaderContentStyle(
+    fontSize: settings.fontSize,
+    lineHeight: settings.readerLineHeight,
+    paragraphSpacing: settings.readerParagraphSpacing,
+    color: _foregroundColor(settings, Theme.of(context).colorScheme),
+    firstLineIndent: settings.readerFirstLineIndent,
+    justify: settings.readerJustify,
+    fontFamily: _fontFamily,
+  );
 
-  ReaderTypography _typography(AppSettings settings) {
-    final colors = Theme.of(context).colorScheme;
+  /// 滚动模式的状态栏留白由外层让位，翻页模式必须落在每一页里。
+  EdgeInsets _contentPadding(AppSettings settings) {
     final padding = MediaQuery.paddingOf(context);
-    return ReaderTypography(
-      backgroundColor: _hex(_backgroundColor(settings, colors)),
-      textColor: _hex(_foregroundColor(settings, colors)),
-      fontSize: settings.fontSize,
-      lineHeight: settings.readerLineHeight,
-      sidePadding: settings.readerSidePadding,
-      topPadding:
-          (settings.readerViewMode == ReaderViewMode.scroll ? 0 : padding.top) +
-          12,
-      bottomPadding:
-          padding.bottom +
-          (settings.readerViewMode == ReaderViewMode.paged ? 56 : 12),
-      firstLineIndent: settings.readerFirstLineIndent,
-    );
-  }
-
-  Future<void> _renderDocument() async {
-    final content = _content;
-    if (content == null) return;
-    final readerScriptSource = await _readerScriptSource;
-    final readerCssSource = await _readerCssSource;
-    if (!mounted) return;
-    final settings = ref.read(appSettingsProvider);
     final paged = settings.readerViewMode == ReaderViewMode.paged;
-    _renderedViewMode = settings.readerViewMode;
-    if (mounted) {
-      setState(() {
-        _documentReady = false;
-        _currentPage = 0;
-        _totalPages = 0;
-      });
-    }
-    final document = buildReaderChapterDocument(
-      blocks: _blocks,
-      fallbackHtml: content.chapter.content,
-      imageBaseUrl: ServiceEndpoints.apiOrigin,
-      typography: _typography(settings),
-      paged: paged,
-      readerScriptSource: readerScriptSource,
-      readerCssSource: readerCssSource,
-      fontDataUrl: _fontDataUrl,
-      imagePreviewOnLongPress: settings.readerImagePreviewOpenOnLongPress,
-    );
-    _pendingDocumentNavigation = true;
-    await _controller.setBackgroundColor(
-      _backgroundColor(settings, Theme.of(context).colorScheme),
-    );
-    await _controller.loadHtmlString(
-      document,
-      baseUrl: ServiceEndpoints.apiOrigin,
-    );
-  }
-
-  Future<void> _applyRestore() async {
-    await _controller.runJavaScript(
-      readerRestoreScript(_restoreLocator, _restoreProgression),
+    return EdgeInsets.fromLTRB(
+      settings.readerSidePadding,
+      (paged ? padding.top : 0) + 12,
+      settings.readerSidePadding,
+      padding.bottom + (paged ? 56 : 12),
     );
   }
 
   void _onSettingsChanged(AppSettings? previous, AppSettings next) {
+    // 排版、分页方式与图片手势都是 [ReaderContentView] 的入参，随 build 生效；
+    // 只有换繁简需要重新取正文。
     if (previous == null || _content == null) return;
-    if (previous.convertType != next.convertType) {
-      unawaited(_load());
-      return;
-    }
-    if (previous.readerViewMode != next.readerViewMode &&
-        next.readerViewMode != _renderedViewMode) {
-      // 换分页方式要重排文档，先把当前位置钉住再重建。
-      _restoreLocator = _currentLocator.isEmpty
-          ? _restoreLocator
-          : _currentLocator;
-      _restoreProgression = _progression;
-      unawaited(_renderDocument());
-      return;
-    }
-    if (previous.readerImagePreviewOpenOnLongPress !=
-        next.readerImagePreviewOpenOnLongPress) {
-      unawaited(
-        _controller.runJavaScript(
-          readerImagePreviewModeScript(next.readerImagePreviewOpenOnLongPress),
-        ),
-      );
-    }
-    final typographyChanged =
-        previous.fontSize != next.fontSize ||
-        previous.readerLineHeight != next.readerLineHeight ||
-        previous.readerSidePadding != next.readerSidePadding ||
-        previous.readerFirstLineIndent != next.readerFirstLineIndent;
-    if (typographyChanged) {
-      unawaited(
-        _controller.runJavaScript(readerTypographyScript(_typography(next))),
-      );
-    }
+    if (previous.convertType != next.convertType) unawaited(_load());
   }
 
-  void _onBridgeMessage(JavaScriptMessage message) {
-    Object? decoded;
-    try {
-      decoded = jsonDecode(message.message);
-    } catch (_) {
-      return;
-    }
-    if (decoded is! Map<String, dynamic>) return;
-    switch (decoded['type']) {
-      case 'ready':
-        if (mounted) setState(() => _documentReady = true);
-      case 'position':
-        _onPositionReported(decoded);
-      case 'tap':
-        _onTap(decoded);
-      case 'footnote':
-        _onFootnote(decoded['id']);
-      case 'image':
-        _onImage(decoded['src'], decoded['rect']);
-    }
-  }
-
-  void _onPositionReported(Map<String, dynamic> payload) {
+  void _onPositionReported(ReaderContentPosition position) {
     final chapter = _content?.chapter;
     if (chapter == null || !mounted) return;
-    final locator = payload['locator'];
-    final progression = payload['progression'];
-    final page = payload['page'];
-    final pages = payload['pages'];
-    if (locator is String && locator.isNotEmpty) _currentLocator = locator;
-    if (progression is num) _progression = progression.toDouble();
-    final nextPage = page is num ? page.toInt() : 0;
-    final nextPages = pages is num ? pages.toInt() : 0;
-    final pageChanged = nextPage != _currentPage || nextPages != _totalPages;
+    if (position.locator.isNotEmpty) _currentLocator = position.locator;
+    _progression = position.progression;
+    final pageChanged =
+        position.page != _currentPage || position.pages != _totalPages;
     if (pageChanged || _chromeVisible) {
       setState(() {
-        _currentPage = nextPage;
-        _totalPages = nextPages;
+        _currentPage = position.page;
+        _totalPages = position.pages;
       });
     }
     if (_currentLocator.isEmpty) return;
 
-    final position = ReaderRestorePosition(
+    final saved = ReaderRestorePosition(
       chapterId: chapter.id,
       position: _currentLocator,
     );
@@ -449,60 +283,19 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     ReadPositionCache.stage(
       widget.bookId,
       BookReadPosition(
-        chapterId: position.chapterId,
-        position: position.position,
+        chapterId: saved.chapterId,
+        position: saved.position,
         readAt: DateTime.now(),
       ),
     );
-    _positions.schedule(position);
+    _positions.schedule(saved);
   }
 
-  void _onTap(Map<String, dynamic> payload) {
-    if (payload['zone'] == 'center') {
-      setState(() => _chromeVisible = !_chromeVisible);
-      return;
-    }
-    if (payload['boundary'] != true) return;
-    unawaited(
-      payload['zone'] == 'next' ? _openAdjacent(true) : _openAdjacent(false),
-    );
-  }
-
-  void _onFootnote(Object? id) {
-    final note = id is String ? _notes[id] : null;
+  void _onFootnote(String id) {
+    final note = _notes[id];
     if (note == null || note.isEmpty || !mounted) return;
     unawaited(
-      showReaderFootnoteSheet(context, html: note, fontDataUrl: _fontDataUrl),
-    );
-  }
-
-  void _onImage(Object? source, Object? rect) {
-    if (source is! String || !mounted) return;
-    final url = resolvePreviewImageUrl(source);
-    if (url == null) return;
-    unawaited(
-      showImagePreview(context, url: url, sourceRect: _webViewRect(rect)),
-    );
-  }
-
-  /// WebView 内的 CSS 像素与 Flutter 逻辑像素同尺度（viewport initial-scale=1），
-  /// 只需补上 WebView 自身在屏幕上的偏移，就能拿到图片的全局矩形做动画起点。
-  Rect? _webViewRect(Object? rect) {
-    if (rect is! Map) return null;
-    final x = rect['x'];
-    final y = rect['y'];
-    final width = rect['w'];
-    final height = rect['h'];
-    if (x is! num || y is! num || width is! num || height is! num) return null;
-    if (width <= 0 || height <= 0) return null;
-    final host = _webViewKey.currentContext;
-    final origin = host == null ? null : globalRectOf(host)?.topLeft;
-    if (origin == null) return null;
-    return Rect.fromLTWH(
-      origin.dx + x.toDouble(),
-      origin.dy + y.toDouble(),
-      width.toDouble(),
-      height.toDouble(),
+      showReaderFootnoteSheet(context, html: note, fontFamily: _fontFamily),
     );
   }
 
@@ -567,9 +360,8 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     final colors = Theme.of(context).colorScheme;
     final background = _backgroundColor(settings, colors);
     final foreground = _foregroundColor(settings, colors);
-    final readerTopInset = settings.readerViewMode == ReaderViewMode.scroll
-        ? MediaQuery.paddingOf(context).top
-        : 0.0;
+    final paged = settings.readerViewMode == ReaderViewMode.paged;
+    final readerTopInset = paged ? 0.0 : MediaQuery.paddingOf(context).top;
 
     final Widget body;
     if (_error != null) {
@@ -586,9 +378,26 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
         children: <Widget>[
           Positioned.fill(
             top: readerTopInset,
-            child: WebViewWidget(key: _webViewKey, controller: _controller),
+            child: ReaderContentView(
+              blocks: _blocks,
+              style: _contentStyle(settings),
+              paged: paged,
+              padding: _contentPadding(settings),
+              restoreLocator: _restoreLocator,
+              restoreProgression: _restoreProgression,
+              onPosition: _onPositionReported,
+              onTapCenter: () =>
+                  setState(() => _chromeVisible = !_chromeVisible),
+              onBoundary: (next) => unawaited(_openAdjacent(next)),
+              onFootnote: _onFootnote,
+              onReady: () {
+                if (mounted && !_contentReady) {
+                  setState(() => _contentReady = true);
+                }
+              },
+            ),
           ),
-          if (!_documentReady)
+          if (!_contentReady)
             const IgnorePointer(
               child: Center(child: CircularProgressIndicator()),
             ),
@@ -601,10 +410,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
       body: Stack(
         children: <Widget>[
           Positioned.fill(child: body),
-          if (settings.readerViewMode == ReaderViewMode.paged &&
-              _documentReady &&
-              _currentPage > 0 &&
-              _totalPages > 0)
+          if (paged && _contentReady && _currentPage > 0 && _totalPages > 0)
             Positioned(
               right: 16,
               bottom: MediaQuery.paddingOf(context).bottom + 16,
@@ -627,6 +433,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
             progress: _progression,
             onOpenChapters: () => unawaited(_openChapterSheet()),
             onOpenSettings: () => unawaited(showReaderSettingsSheet(context)),
+            onDismiss: () => setState(() => _chromeVisible = false),
             onPreviousChapter: _sortNum > 1
                 ? () => unawaited(_openAdjacent(false))
                 : null,

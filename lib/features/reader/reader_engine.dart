@@ -37,7 +37,10 @@ class NovelFootnoteProcessingResult {
 enum FootnoteMarkerContent { empty, placeholder }
 
 class ReaderRestorePosition {
-  const ReaderRestorePosition({required this.chapterId, required this.position});
+  const ReaderRestorePosition({
+    required this.chapterId,
+    required this.position,
+  });
 
   final int chapterId;
   final String position;
@@ -125,19 +128,6 @@ class ReaderPositionWriteQueue<T> {
   }
 }
 
-/// WKWebView 把 `loadHtmlString(baseUrl: ...)` 当成一次主框架导航上报（Android 不会），
-/// 阅读器必须放行这一次，否则会把自己的正文拦掉、永远停在加载态。
-bool isReaderDocumentNavigation({
-  required String url,
-  required bool isMainFrame,
-  required String baseUrl,
-}) =>
-    isMainFrame && (url == baseUrl || url == '$baseUrl/');
-
-/// 正文里的外链一律不在阅读器内跳转。
-bool isReaderExternalNavigation(String url) =>
-    url.startsWith('http://') || url.startsWith('https://');
-
 int? getAdjacentChapterSortNum({
   required int sortNum,
   required int totalChapters,
@@ -168,69 +158,21 @@ ReaderRestorePosition? resolveReaderRestorePosition(
   bool preferCached = false,
 }) {
   final local = cached != null && cached.chapterId == chapterId ? cached : null;
-  final remote = server != null && server.chapterId == chapterId ? server : null;
+  final remote = server != null && server.chapterId == chapterId
+      ? server
+      : null;
   if (local != null && (local.isPending || preferCached)) return local;
   return remote ?? local;
 }
 
-const Set<int> _alwaysInvisibleCodepoints = <int>{
-  0x200B,
-  0x200C,
-  0x200D,
-  0xFEFF,
-};
-
-final RegExp _textRunPattern = RegExp(r'([^<]+)(?=<|$)');
-final RegExp _splitEntityPattern = RegExp('&(?:\u200B*[#A-Za-z0-9xX]+)+\u200B*;');
-final RegExp _htmlEntityPattern = RegExp(r'&(#(?:[xX][0-9A-Fa-f]+|[0-9]+)|[A-Za-z]+);');
-
-bool _isInvisibleCodepoint(int codepoint, Set<int> extra) =>
-    _alwaysInvisibleCodepoints.contains(codepoint) || extra.contains(codepoint);
-
-int? _decodeNumericHtmlEntity(String token) {
-  if (!token.startsWith('#')) return null;
-  final hexadecimal = token.length > 1 && (token[1] == 'x' || token[1] == 'X');
-  final value = int.tryParse(
-    token.substring(hexadecimal ? 2 : 1),
-    radix: hexadecimal ? 16 : 10,
-  );
-  if (value == null) return null;
-  return value > 0 && value <= 0x10FFFF ? value : null;
-}
-
-/// 只处理文本片段（不碰标签），修复被零宽字符打断的实体并剔除不可见码位。
-String sanitizeNovelHtml(
-  String html, [
-  Set<int> invisibleCodepoints = const <int>{},
-]) =>
-    html.replaceAllMapped(_textRunPattern, (match) {
-      final repaired = match[0]!
-          .replaceAllMapped(
-            _splitEntityPattern,
-            (entity) => entity[0]!.replaceAll('\u200B', ''),
-          )
-          .replaceAllMapped(_htmlEntityPattern, (entity) {
-            final codepoint = _decodeNumericHtmlEntity(entity[1]!);
-            return codepoint != null &&
-                    _isInvisibleCodepoint(codepoint, invisibleCodepoints)
-                ? ''
-                : entity[0]!;
-          });
-      final buffer = StringBuffer();
-      for (final codepoint in repaired.runes) {
-        if (_isInvisibleCodepoint(codepoint, invisibleCodepoints)) continue;
-        buffer.writeCharCode(codepoint);
-      }
-      return buffer.toString();
-    });
-
+// TODO: 安全解析正文 <style> 并映射到 Flutter 样式；完成前由通用清理统一剥离。
 final RegExp _pairedMetadataPattern = RegExp(
-  r'<(?:base|head|link|meta|noscript|script|style|template|title)\b[^>]*>[\s\S]*?'
-  r'</(?:base|head|link|meta|noscript|script|style|template|title)>',
+  r'<(?:base|head|iframe|link|meta|noscript|object|script|style|template|title)\b[^>]*>[\s\S]*?'
+  r'</(?:base|head|iframe|link|meta|noscript|object|script|style|template|title)>',
   caseSensitive: false,
 );
 final RegExp _voidMetadataPattern = RegExp(
-  r'<(?:base|link|meta|noscript|script|style|template|title)\b[^>]*/?>',
+  r'<(?:base|embed|iframe|link|meta|noscript|object|script|style|template|title)\b[^>]*/?>',
   caseSensitive: false,
 );
 final RegExp _hiddenElementPattern = RegExp(
@@ -238,7 +180,7 @@ final RegExp _hiddenElementPattern = RegExp(
   caseSensitive: false,
 );
 
-String removeReaderMetadata(String html) => html
+String removeNonContentHtml(String html) => html
     .replaceAll(_pairedMetadataPattern, '')
     .replaceAll(_voidMetadataPattern, '')
     .replaceAll(_hiddenElementPattern, '');
@@ -293,23 +235,23 @@ class _BlockNode {
   final List<_BlockNode> children = <_BlockNode>[];
 }
 
-final RegExp _blockTagPattern = RegExp(r'<!--[^>]*-->|</?([a-zA-Z][\w:-]*)\b[^>]*>');
+final RegExp _blockTagPattern = RegExp(
+  r'<!--[^>]*-->|</?([a-zA-Z][\w:-]*)\b[^>]*>',
+);
 final RegExp _imgTagPattern = RegExp(r'<img\b', caseSensitive: false);
 final RegExp _anyTagPattern = RegExp(r'<[^>]*>');
 final RegExp _imgElementPattern = RegExp(r'<img\b[^>]*>', caseSensitive: false);
 final RegExp _nbspPattern = RegExp(r'&nbsp;|&#160;', caseSensitive: false);
 final RegExp _whitespacePattern = RegExp(r'\s+');
+final RegExp _visibleVoidTagPattern = RegExp(
+  r'<(?:img|br|hr|svg|video|audio|iframe)\b',
+  caseSensitive: false,
+);
 
 /// 把服务端 HTML 归一化成稳定的渲染单元。
-/// `sanitize: false` 时分块文本与 WebView 的 DOM 逐字一致，定位不漂。
-List<NovelReaderBlock> normalizeNovelBlocks(
-  String html, {
-  Set<int> invisibleCodepoints = const <int>{},
-  bool sanitize = true,
-}) {
-  final source = removeReaderMetadata(
-    sanitize ? sanitizeNovelHtml(html, invisibleCodepoints) : html,
-  );
+/// 不改一个字：分块文本必须与渲染出来的正文逐字一致，否则保存的定位会漂。
+List<NovelReaderBlock> normalizeNovelBlocks(String html) {
+  final source = removeNonContentHtml(html);
   final nodes = _parseHtmlBlockNodes(source);
   final leaves = _selectLeafBlockNodes(nodes, source);
   final blocks = <NovelReaderBlock>[
@@ -323,6 +265,32 @@ List<NovelReaderBlock> normalizeNovelBlocks(
       ? const <NovelReaderBlock>[]
       : <NovelReaderBlock>[_createNovelBlock('//*', fallback)];
 }
+
+/// 清掉所有正文场景都不应显示的 HTML，再按结构拆成可独立排版的块。
+///
+/// 不执行小说专属的脚注转换、定位生成或混淆字体加载。
+List<String> splitContentHtmlBlocks(String html) {
+  final source = removeNonContentHtml(html);
+  final nodes = _parseHtmlBlockNodes(source);
+  final leaves = _selectLeafBlockNodes(nodes, source);
+  final blocks = <String>[
+    for (final node in leaves) source.substring(node.start, node.end),
+  ];
+  if (blocks.isNotEmpty) return blocks;
+  final fallback = source.trim();
+  return fallback.isEmpty ? const <String>[] : <String>[fallback];
+}
+
+/// 一个元素是否会画出东西来。源站自带的空节点照留不误，这个判断只服务于
+/// [processNovelFootnotes]：摘掉注文之后，要判断包着它的祖先是不是被我们清空了。
+bool _hasSomethingToRender(String html) =>
+    _visibleVoidTagPattern.hasMatch(html) ||
+    html
+        .replaceAll(_anyTagPattern, ' ')
+        .replaceAll(_nbspPattern, ' ')
+        .replaceAll(_whitespacePattern, ' ')
+        .trim()
+        .isNotEmpty;
 
 NovelReaderBlock _createNovelBlock(String locator, String html) {
   final text = html
@@ -363,8 +331,7 @@ List<_BlockNode> _parseHtmlBlockNodes(String source) {
     }
     final parent = stack.isEmpty ? null : stack.last;
     final siblings = parent?.children ?? roots;
-    final siblingCount =
-        siblings.where((node) => node.tag == tag).length + 1;
+    final siblingCount = siblings.where((node) => node.tag == tag).length + 1;
     final node = _BlockNode(
       tag: tag,
       path: parent == null
@@ -379,14 +346,12 @@ List<_BlockNode> _parseHtmlBlockNodes(String source) {
   return roots.where((node) => node.end > node.start).toList();
 }
 
-List<_BlockNode> _selectLeafBlockNodes(
-  List<_BlockNode> nodes,
-  String source,
-) {
+List<_BlockNode> _selectLeafBlockNodes(List<_BlockNode> nodes, String source) {
   final output = <_BlockNode>[];
   void visit(_BlockNode node) {
-    final blockChildren =
-        node.children.where((child) => _blockTags.contains(child.tag)).toList();
+    final blockChildren = node.children
+        .where((child) => _blockTags.contains(child.tag))
+        .toList();
     if (_isStandaloneImageContainer(node, source) ||
         blockChildren.isEmpty ||
         _leafBlockTags.contains(node.tag)) {
@@ -507,8 +472,9 @@ const Set<String> _voidHtmlTags = <String>{
   'wbr',
 };
 
-final RegExp _elementRangePattern =
-    RegExp(r'<!--[\s\S]*?-->|</?([a-zA-Z][\w:-]*)\b[^>]*>');
+final RegExp _elementRangePattern = RegExp(
+  r'<!--[\s\S]*?-->|</?([a-zA-Z][\w:-]*)\b[^>]*>',
+);
 final RegExp _footnoteImagePattern = RegExp(
   r'''<img\b[^>]*\bsrc\s*=\s*(?:"[^"]*note\.png(?:[?#][^"]*)?"|'[^']*note\.png(?:[?#][^']*)?'|[^\s>]*note\.png(?:[?#\s>]))''',
   caseSensitive: false,
@@ -535,13 +501,14 @@ NovelFootnoteProcessingResult processNovelFootnotes(
   final notesById = <String, String>{};
   final elements = _parseHtmlElementRanges(html);
   final markers = _selectOutermostFootnoteMarkers(elements, html);
-  final marker =
-      markerContent == FootnoteMarkerContent.empty ? '' : '*';
+  final marker = markerContent == FootnoteMarkerContent.empty ? '' : '*';
   final replacements = <_HtmlReplacement>[];
+  final notes = <_HtmlElementRange>[];
   final removedTargets = <String>{};
 
   for (final element in markers) {
-    final id = readHtmlAttribute(element.openingTag, 'data-reader-footnote-id') ??
+    final id =
+        readHtmlAttribute(element.openingTag, 'data-reader-footnote-id') ??
         readHtmlAttribute(element.openingTag, 'data-footnote-id') ??
         _footnoteFragmentId(readHtmlAttribute(element.openingTag, 'href'));
     if (id.isEmpty) continue;
@@ -550,25 +517,101 @@ NovelFootnoteProcessingResult processNovelFootnotes(
       _HtmlReplacement(
         start: element.start,
         end: element.end,
-        value: '<a data-reader-footnote-id="${escapeHtmlAttribute(id)}">$marker</a>',
+        value:
+            '<a data-reader-footnote-id="${escapeHtmlAttribute(id)}">$marker</a>',
       ),
     );
 
-    final note = _findFootnoteTarget(elements, id) ??
+    final note =
+        _findFootnoteTarget(elements, id) ??
         _findFollowingLegacyFootnoteTarget(elements, element, markers);
     if (note == null) continue;
     final key = '${note.start}:${note.end}';
     if (!removedTargets.add(key)) continue;
     notesById[id] = html.substring(note.openingEnd, note.closingStart);
-    replacements.add(
-      _HtmlReplacement(start: note.start, end: note.end, value: ''),
-    );
+    notes.add(note);
   }
 
   return NovelFootnoteProcessingResult(
-    html: _applyHtmlReplacements(html, replacements),
+    html: _applyHtmlReplacements(
+      html,
+      _withNoteRemovals(html, elements, notes, replacements),
+    ),
     notesById: notesById,
   );
+}
+
+/// 注文所在的 `<li>` 摘走后，包着它的 `<ol>` 往往就空了 —— 那是我们制造的空壳，
+/// 得连着收掉；源站本来就有的空节点不归这里管。
+List<_HtmlReplacement> _withNoteRemovals(
+  String html,
+  List<_HtmlElementRange> elements,
+  List<_HtmlElementRange> notes,
+  List<_HtmlReplacement> markerReplacements,
+) {
+  final ordered = List<_HtmlElementRange>.of(notes)
+    ..sort((left, right) => left.start.compareTo(right.start));
+  final removals = <String, _HtmlReplacement>{};
+  for (final note in ordered) {
+    var target = note;
+    for (
+      var parent = _enclosingElement(elements, target);
+      parent != null && _isEmptiedBy(html, parent, ordered);
+      parent = _enclosingElement(elements, target)
+    ) {
+      target = parent;
+    }
+    removals['${target.start}:${target.end}'] = _HtmlReplacement(
+      start: target.start,
+      end: target.end,
+      value: '',
+    );
+  }
+
+  // 被整段删掉的范围里再做替换会互相踩偏移；标记恰好落在里面时一并丢弃。
+  bool covered(_HtmlReplacement item) => removals.values.any(
+    (removal) =>
+        removal.start <= item.start &&
+        removal.end >= item.end &&
+        (removal.start != item.start || removal.end != item.end),
+  );
+
+  return <_HtmlReplacement>[
+    for (final marker in markerReplacements)
+      if (!covered(marker)) marker,
+    for (final removal in removals.values)
+      if (!covered(removal)) removal,
+  ];
+}
+
+/// 最小的严格包含 [child] 的元素。
+_HtmlElementRange? _enclosingElement(
+  List<_HtmlElementRange> elements,
+  _HtmlElementRange child,
+) {
+  _HtmlElementRange? closest;
+  for (final element in elements) {
+    if (element.start >= child.start || element.end <= child.end) continue;
+    if (closest == null || element.start > closest.start) closest = element;
+  }
+  return closest;
+}
+
+/// 把 [removals] 覆盖的片段挖掉后，[element] 还剩不剩画得出来的东西。
+bool _isEmptiedBy(
+  String html,
+  _HtmlElementRange element,
+  List<_HtmlElementRange> removals,
+) {
+  final buffer = StringBuffer();
+  var index = element.openingEnd;
+  for (final removal in removals) {
+    if (removal.start < index || removal.end > element.closingStart) continue;
+    buffer.write(html.substring(index, removal.start));
+    index = removal.end;
+  }
+  buffer.write(html.substring(index, element.closingStart));
+  return !_hasSomethingToRender(buffer.toString());
 }
 
 String _footnoteFragmentId(String? href) {
@@ -647,8 +690,11 @@ List<_HtmlElementRange> _selectOutermostFootnoteMarkers(
 ) {
   final markers = elements.where((element) {
     final classes =
-        readHtmlAttribute(element.openingTag, 'class')?.split(_whitespacePattern) ??
-            const <String>[];
+        readHtmlAttribute(
+          element.openingTag,
+          'class',
+        )?.split(_whitespacePattern) ??
+        const <String>[];
     if (classes.contains('duokan-footnote')) return true;
     if (element.tag != 'a') return false;
     final href = readHtmlAttribute(element.openingTag, 'href');
@@ -660,7 +706,9 @@ List<_HtmlElementRange> _selectOutermostFootnoteMarkers(
   // 嵌套在外层标记内部的标记会被外层整段替换，必须丢弃。
   return <_HtmlElementRange>[
     for (var index = 0; index < markers.length; index++)
-      if (!markers.take(index).any(
+      if (!markers
+          .take(index)
+          .any(
             (other) =>
                 other.start <= markers[index].start &&
                 other.end >= markers[index].end,
@@ -687,18 +735,19 @@ _HtmlElementRange? _findFootnoteTarget(
   final named = namedTarget;
   if (named == null) return null;
 
-  final containing = elements
-      .where(
-        (element) =>
-            element.tag == 'li' &&
-            element.start <= named.start &&
-            element.end >= named.end,
-      )
-      .toList()
-    ..sort(
-      (left, right) =>
-          (left.end - left.start).compareTo(right.end - right.start),
-    );
+  final containing =
+      elements
+          .where(
+            (element) =>
+                element.tag == 'li' &&
+                element.start <= named.start &&
+                element.end >= named.end,
+          )
+          .toList()
+        ..sort(
+          (left, right) =>
+              (left.end - left.start).compareTo(right.end - right.start),
+        );
   return containing.isEmpty ? named : containing.first;
 }
 
@@ -719,8 +768,9 @@ _HtmlElementRange? _findFollowingLegacyFootnoteTarget(
     if (element.tag == 'li' &&
         element.start > marker.end &&
         element.start < nextMarkerStart &&
-        _dataLinePattern
-            .hasMatch(readHtmlAttribute(element.openingTag, 'data-line') ?? '')) {
+        _dataLinePattern.hasMatch(
+          readHtmlAttribute(element.openingTag, 'data-line') ?? '',
+        )) {
       legacyTarget = element;
       break;
     }
@@ -728,18 +778,19 @@ _HtmlElementRange? _findFollowingLegacyFootnoteTarget(
   final candidate = legacyTarget;
   if (candidate == null) return null;
 
-  final lists = elements
-      .where(
-        (element) =>
-            (element.tag == 'ol' || element.tag == 'ul') &&
-            element.start <= candidate.start &&
-            element.end >= candidate.end,
-      )
-      .toList()
-    ..sort(
-      (left, right) =>
-          (left.end - left.start).compareTo(right.end - right.start),
-    );
+  final lists =
+      elements
+          .where(
+            (element) =>
+                (element.tag == 'ol' || element.tag == 'ul') &&
+                element.start <= candidate.start &&
+                element.end >= candidate.end,
+          )
+          .toList()
+        ..sort(
+          (left, right) =>
+              (left.end - left.start).compareTo(right.end - right.start),
+        );
   if (lists.isEmpty) return candidate;
 
   final list = lists.first;
@@ -761,15 +812,19 @@ String _applyHtmlReplacements(
     ..sort((left, right) => right.start.compareTo(left.start));
   var output = html;
   for (final replacement in ordered) {
-    output = output.replaceRange(replacement.start, replacement.end, replacement.value);
+    output = output.replaceRange(
+      replacement.start,
+      replacement.end,
+      replacement.value,
+    );
   }
   return output;
 }
 
 List<ComicPageSlot> createComicPageSlots(int total) => <ComicPageSlot>[
-      for (var index = 0; index < math.max(0, total); index++)
-        ComicPageSlot(index: index, image: null),
-    ];
+  for (var index = 0; index < math.max(0, total); index++)
+    ComicPageSlot(index: index, image: null),
+];
 
 List<ComicPageSlot> mergeComicPageBatch(
   List<ComicPageSlot> slots,
@@ -817,6 +872,4 @@ List<int> createComicPrefetchPlan(int current, int total, int direction) {
 
 /// 宽屏/矮屏下限制连续模式正文宽度，免得单页被拉太宽。
 double getContinuousComicContentWidth(double width, double height) =>
-    height > 0 && width / height > 0.7
-        ? math.min(width, height * 0.7)
-        : width;
+    height > 0 && width / height > 0.7 ? math.min(width, height * 0.7) : width;

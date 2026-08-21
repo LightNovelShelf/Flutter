@@ -97,41 +97,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     });
 
     return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 8,
-        title: TextField(
-          controller: _input,
-          focusNode: _focus,
-          textInputAction: TextInputAction.search,
-          onChanged: controller.onInputChanged,
-          onSubmitted: (value) {
-            _focus.unfocus();
-            controller.submit(value);
-          },
-          decoration: InputDecoration(
-            hintText: '搜索小说和漫画',
-            isDense: true,
-            filled: true,
-            fillColor: colors.surfaceContainerHighest,
-            prefixIcon: const Icon(Icons.search, size: 20),
-            suffixIcon: !_hasInput
-                ? null
-                : IconButton(
-                    icon: const Icon(Icons.close, size: 18),
-                    tooltip: '清空',
-                    onPressed: () {
-                      _input.clear();
-                      controller.onInputChanged('');
-                    },
-                  ),
-            contentPadding: const EdgeInsets.symmetric(vertical: 10),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(24),
-              borderSide: BorderSide.none,
-            ),
-          ),
-        ),
-      ),
+      appBar: AppBar(title: const Text('搜索')),
       body: NotificationListener<ScrollNotification>(
         onNotification: _onScroll,
         child: CustomScrollView(
@@ -143,6 +109,41 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
+                    TextField(
+                      controller: _input,
+                      focusNode: _focus,
+                      textInputAction: TextInputAction.search,
+                      onChanged: controller.onInputChanged,
+                      onSubmitted: (value) {
+                        _focus.unfocus();
+                        controller.submit(value);
+                      },
+                      decoration: InputDecoration(
+                        hintText: '搜索小说和漫画',
+                        isDense: true,
+                        filled: true,
+                        fillColor: colors.surfaceContainerHighest,
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        suffixIcon: !_hasInput
+                            ? null
+                            : IconButton(
+                                icon: const Icon(Icons.close, size: 18),
+                                tooltip: '清空',
+                                onPressed: () {
+                                  _input.clear();
+                                  controller.onInputChanged('');
+                                },
+                              ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(

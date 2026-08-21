@@ -99,6 +99,28 @@ void main() {
     expect((rendered as Image).filterQuality, FilterQuality.high);
   });
 
+  testWidgets('外站图片关闭尺寸参数时保持原地址', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 120,
+            height: 180,
+            child: BookImage(
+              url: url,
+              displayHeight: 180,
+              requestSizedVariant: false,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final image = tester.widget<CachedNetworkImage>(networkImageLayer());
+    expect(image.imageUrl, url);
+  });
+
   testWidgets('没有 BlurHash 时回落到卡片底色加图标', (WidgetTester tester) async {
     await tester.pumpWidget(
       const MaterialApp(

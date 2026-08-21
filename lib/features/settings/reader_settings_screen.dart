@@ -11,12 +11,12 @@ class ReaderSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('阅读')),
-        body: const SingleChildScrollView(
-          padding: EdgeInsets.only(bottom: 88),
-          child: ReaderSettingsContent(),
-        ),
-      );
+    appBar: AppBar(title: const Text('阅读')),
+    body: const SingleChildScrollView(
+      padding: EdgeInsets.only(bottom: 88),
+      child: ReaderSettingsContent(),
+    ),
+  );
 }
 
 /// 阅读设置正文：不含滚动容器，可直接放进阅读器的底部面板。
@@ -47,7 +47,8 @@ class ReaderSettingsContent extends ConsumerWidget {
                 divisions: 20,
                 format: (value) => '${value.round()} 点',
                 onChanged: (value) => controller.update(
-                  (settings) => settings.copyWith(fontSize: value.roundToDouble()),
+                  (settings) =>
+                      settings.copyWith(fontSize: value.roundToDouble()),
                 ),
               ),
               SettingsSliderRow(
@@ -67,6 +68,21 @@ class ReaderSettingsContent extends ConsumerWidget {
                 ),
               ),
               SettingsSliderRow(
+                title: '行距',
+                description: '段落之间的额外间距',
+                icon: Icons.density_medium,
+                value: settings.readerParagraphSpacing,
+                min: 0,
+                max: 16,
+                divisions: 16,
+                format: (value) => '${value.round()} 点',
+                onChanged: (value) => controller.update(
+                  (settings) => settings.copyWith(
+                    readerParagraphSpacing: value.roundToDouble(),
+                  ),
+                ),
+              ),
+              SettingsSliderRow(
                 title: '两侧留白',
                 description: '阅读内容两侧的水平留白',
                 icon: Icons.space_bar,
@@ -76,8 +92,18 @@ class ReaderSettingsContent extends ConsumerWidget {
                 divisions: 52,
                 format: (value) => '${value.round()} 点',
                 onChanged: (value) => controller.update(
-                  (settings) =>
-                      settings.copyWith(readerSidePadding: value.roundToDouble()),
+                  (settings) => settings.copyWith(
+                    readerSidePadding: value.roundToDouble(),
+                  ),
+                ),
+              ),
+              SettingsToggleRow(
+                title: '两端对齐',
+                description: '调整字间距，使正文左右边缘对齐',
+                icon: Icons.format_align_justify,
+                value: settings.readerJustify,
+                onChanged: (value) => controller.update(
+                  (settings) => settings.copyWith(readerJustify: value),
                 ),
               ),
             ],
@@ -144,8 +170,7 @@ class ReaderSettingsContent extends ConsumerWidget {
                 min: 0,
                 max: 3,
                 divisions: 3,
-                format: (value) =>
-                    value < 1 ? '关闭' : '${value.round()} 章',
+                format: (value) => value < 1 ? '关闭' : '${value.round()} 章',
                 onChanged: (value) => controller.update(
                   (settings) =>
                       settings.copyWith(readerPreloadWindow: value.round()),
@@ -158,17 +183,6 @@ class ReaderSettingsContent extends ConsumerWidget {
                 value: settings.readerFirstLineIndent,
                 onChanged: (value) => controller.update(
                   (settings) => settings.copyWith(readerFirstLineIndent: value),
-                ),
-              ),
-              SettingsToggleRow(
-                title: '长按预览图片',
-                description: '长按打开图片预览',
-                icon: Icons.image_outlined,
-                value: settings.readerImagePreviewOpenOnLongPress,
-                onChanged: (value) => controller.update(
-                  (settings) => settings.copyWith(
-                    readerImagePreviewOpenOnLongPress: value,
-                  ),
                 ),
               ),
             ],

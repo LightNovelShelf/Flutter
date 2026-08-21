@@ -13,6 +13,7 @@ class ReaderChrome extends StatelessWidget {
     required this.totalChapters,
     required this.onOpenChapters,
     required this.onOpenSettings,
+    required this.onDismiss,
     this.progress,
     this.onPreviousChapter,
     this.onNextChapter,
@@ -27,6 +28,7 @@ class ReaderChrome extends StatelessWidget {
   final double? progress;
   final VoidCallback onOpenChapters;
   final VoidCallback onOpenSettings;
+  final VoidCallback onDismiss;
   final VoidCallback? onPreviousChapter;
   final VoidCallback? onNextChapter;
 
@@ -39,6 +41,12 @@ class ReaderChrome extends StatelessWidget {
       ignoring: !visible,
       child: Stack(
         children: <Widget>[
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onDismiss,
+            ),
+          ),
           Positioned(
             top: 0,
             left: 0,

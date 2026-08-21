@@ -8,6 +8,8 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
 import 'package:photo_view/photo_view.dart';
 
 import '../../data/api/endpoints.dart';
+import '../../data/api/decode.dart';
+import 'book_image.dart';
 import '../image_cache.dart';
 
 /// 取组件当前在屏幕上的矩形，作为预览动画的起点/终点。
@@ -15,6 +17,21 @@ Rect? globalRectOf(BuildContext context) {
   final object = context.findRenderObject();
   if (object is! RenderBox || !object.hasSize || !object.attached) return null;
   return object.localToGlobal(Offset.zero) & object.size;
+}
+
+/// 图片地址附带的 BlurHash 与原始尺寸；布局可在网络请求完成前占好空间。
+typedef ContentImageMetadata = ({String? blurHash, Size? size});
+
+ContentImageMetadata contentImageMetadata(String url) {
+  final blurHash = extractBlurHashPlaceholder(url);
+  final match = RegExp(r'(?:[?&])size=([1-9]\d*)x([1-9]\d*)(?:[&#]|$)')
+      .firstMatch(url);
+  return (
+    blurHash: blurHash,
+    size: match == null
+        ? null
+        : Size(double.parse(match.group(1)!), double.parse(match.group(2)!)),
+  );
 }
 
 /// 正文里的图片地址常是站内相对路径，预览前补全成绝对地址。
@@ -27,15 +44,99 @@ String? resolvePreviewImageUrl(String source) {
   return Uri.parse(ServiceEndpoints.apiOrigin).resolveUri(uri).toString();
 }
 
-/// `HtmlWidget.onTapImage`：正文（帖子 / 简介 / 公告）里的图片点开全屏预览。
-///
-/// 这里拿不到被点图片的 RenderBox，只能用居中的淡入淡出过渡。
+/// 简介、公告和脚注等轻量 HTML 的图片点击预览。
 void previewHtmlImage(BuildContext context, ImageMetadata metadata) {
   for (final source in metadata.sources) {
     final url = resolvePreviewImageUrl(source.url);
     if (url == null) continue;
     unawaited(showImagePreview(context, url: url));
     return;
+  }
+}
+
+/// 小说、漫画和富文本共用的内容图片：预留尺寸、BlurHash、加载和长按预览。
+class ContentImage extends StatelessWidget {
+  const ContentImage({
+    super.key,
+    required this.url,
+    required this.width,
+    required this.height,
+    this.blurHash,
+    this.fit = BoxFit.contain,
+    this.fadeInDuration = const Duration(milliseconds: 120),
+    this.fallbackIcon,
+    this.errorBuilder,
+    this.borderRadius = 0,
+    this.bordered = false,
+    this.previewable = true,
+    this.consumeTap = false,
+    this.requestSizedVariant = true,
+  });
+
+  final String url;
+  final double width;
+  final double height;
+  final String? blurHash;
+  final BoxFit fit;
+  final Duration fadeInDuration;
+  final IconData? fallbackIcon;
+  final Widget Function(BuildContext context, VoidCallback retry)? errorBuilder;
+  final double borderRadius;
+  final bool bordered;
+  final bool previewable;
+  final bool consumeTap;
+  final bool requestSizedVariant;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget image = SizedBox(
+      width: width,
+      height: height,
+      child: BookImage(
+        url: url,
+        displayHeight: height,
+        blurHash: blurHash,
+        fit: fit,
+        aspectRatio: height / width,
+        fadeInDuration: fadeInDuration,
+        fallbackIcon: fallbackIcon,
+        errorBuilder: errorBuilder,
+        requestSizedVariant: requestSizedVariant,
+      ),
+    );
+    if (borderRadius > 0) {
+      image = ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: image,
+      );
+    }
+    if (bordered) {
+      image = DecoratedBox(
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(borderRadius),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
+        child: image,
+      );
+    }
+    if (!previewable) return image;
+    return Builder(
+      builder: (sourceContext) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: consumeTap ? () {} : null,
+        onLongPress: () => unawaited(
+          showImagePreview(
+            sourceContext,
+            url: url,
+            sourceRect: globalRectOf(sourceContext),
+          ),
+        ),
+        child: image,
+      ),
+    );
   }
 }
 
@@ -124,7 +225,8 @@ class _ImagePreviewState extends State<_ImagePreview>
   void _onDragEnd(DragEndDetails details) {
     final velocity = details.velocity.pixelsPerSecond.dy;
     final dismissed =
-        _drag.dy.abs() >= _ImagePreview._dismissDistance || velocity.abs() > 700;
+        _drag.dy.abs() >= _ImagePreview._dismissDistance ||
+        velocity.abs() > 700;
     if (dismissed) {
       Navigator.of(context).pop();
       return;
@@ -172,8 +274,9 @@ class _ImagePreviewState extends State<_ImagePreview>
           minScale: PhotoViewComputedScale.contained,
           maxScale: PhotoViewComputedScale.covered * 6,
           onTapUp: (context, _, _) => Navigator.of(context).pop(),
-          loadingBuilder: (context, _) =>
-              const Center(child: CircularProgressIndicator(color: Colors.white)),
+          loadingBuilder: (context, _) => const Center(
+            child: CircularProgressIndicator(color: Colors.white),
+          ),
           errorBuilder: (context, _, _) => const Center(
             child: Text(
               '图片加载失败',
@@ -188,8 +291,11 @@ class _ImagePreviewState extends State<_ImagePreview>
       animation: _entry,
       builder: (context, child) {
         final progress = _entry.value.clamp(0.0, 1.0);
-        final dragProgress = (_drag.distance / (_ImagePreview._dismissDistance * 2))
-            .clamp(0.0, 1.0);
+        final dragProgress =
+            (_drag.distance / (_ImagePreview._dismissDistance * 2)).clamp(
+              0.0,
+              1.0,
+            );
         return ColoredBox(
           color: Colors.black.withValues(
             alpha: 0.96 * progress * (1 - 0.55 * dragProgress),
@@ -198,7 +304,10 @@ class _ImagePreviewState extends State<_ImagePreview>
             children: <Widget>[
               Positioned.fill(
                 child: Opacity(
-                  opacity: (progress * (1 - 0.35 * dragProgress)).clamp(0.0, 1.0),
+                  opacity: (progress * (1 - 0.35 * dragProgress)).clamp(
+                    0.0,
+                    1.0,
+                  ),
                   child: Transform(
                     key: imagePreviewTransformKey,
                     transform: _transform(screen, progress, dragProgress),

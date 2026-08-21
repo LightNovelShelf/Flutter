@@ -73,8 +73,9 @@ IconData resolveCommunityBoardIcon(String icon, String title) {
     'movie' => Icons.movie_outlined,
     'image' || 'imageoutline' => Icons.photo_outlined,
     'palette' => Icons.palette_outlined,
-    'controller' || 'gamepadvariantoutline' || 'gamepadroundoutline' =>
-      Icons.sports_esports_outlined,
+    'controller' ||
+    'gamepadvariantoutline' ||
+    'gamepadroundoutline' => Icons.sports_esports_outlined,
     'book' || 'bookopenvariant' => Icons.menu_book_outlined,
     'textboxoutline' => Icons.notes_outlined,
     'star' => Icons.star_outline,
@@ -96,19 +97,6 @@ IconData resolveCommunityBoardIcon(String icon, String title) {
   }
   return Icons.forum_outlined;
 }
-
-final RegExp _blockedHtmlBlock = RegExp(
-  r'<\s*(script|style|iframe|object|embed)\b[^>]*>[\s\S]*?<\s*/\s*\1\s*>',
-  caseSensitive: false,
-);
-final RegExp _blockedHtmlTag = RegExp(
-  r'<\s*/?\s*(script|style|iframe|object|embed)\b[^>]*>',
-  caseSensitive: false,
-);
-
-/// 帖子正文是服务端富文本，渲染前剥掉脚本/内嵌框架。
-String sanitizeCommunityHtml(String html) =>
-    html.replaceAll(_blockedHtmlBlock, '').replaceAll(_blockedHtmlTag, '');
 
 /// 网络层错误直接透出服务端消息，其余归一成社区文案。
 String describeCommunityError(Object error, {String fallback = '社区暂时不可用。'}) {
@@ -152,10 +140,10 @@ class CommunityHomeCache extends Notifier<CommunityHomePayload?> {
 }
 
 final NotifierProvider<CommunityHomeCache, CommunityHomePayload?>
-    communityHomeCacheProvider =
+communityHomeCacheProvider =
     NotifierProvider<CommunityHomeCache, CommunityHomePayload?>(
-  CommunityHomeCache.new,
-);
+      CommunityHomeCache.new,
+    );
 
 @immutable
 class CommunityHomeState {
@@ -208,22 +196,21 @@ class CommunityHomeState {
     bool? categoriesLoading,
     Object? error = _keep,
     Object? loadMoreError = _keep,
-  }) =>
-      CommunityHomeState(
-        home: identical(home, _keep) ? this.home : home as CommunityHomePayload?,
-        query: query ?? this.query,
-        feed: feed ?? this.feed,
-        feedPage: feedPage ?? this.feedPage,
-        subCategories: subCategories ?? this.subCategories,
-        loading: loading ?? this.loading,
-        refreshing: refreshing ?? this.refreshing,
-        loadingMore: loadingMore ?? this.loadingMore,
-        categoriesLoading: categoriesLoading ?? this.categoriesLoading,
-        error: identical(error, _keep) ? this.error : error as String?,
-        loadMoreError: identical(loadMoreError, _keep)
-            ? this.loadMoreError
-            : loadMoreError as String?,
-      );
+  }) => CommunityHomeState(
+    home: identical(home, _keep) ? this.home : home as CommunityHomePayload?,
+    query: query ?? this.query,
+    feed: feed ?? this.feed,
+    feedPage: feedPage ?? this.feedPage,
+    subCategories: subCategories ?? this.subCategories,
+    loading: loading ?? this.loading,
+    refreshing: refreshing ?? this.refreshing,
+    loadingMore: loadingMore ?? this.loadingMore,
+    categoriesLoading: categoriesLoading ?? this.categoriesLoading,
+    error: identical(error, _keep) ? this.error : error as String?,
+    loadMoreError: identical(loadMoreError, _keep)
+        ? this.loadMoreError
+        : loadMoreError as String?,
+  );
 }
 
 /// 首屏取整页数据，之后的筛选/翻页只取帖子流。
@@ -297,9 +284,9 @@ class CommunityHomeController extends Notifier<CommunityHomeState> {
   }
 
   Future<void> selectBoard(String boardKey) => _applyQuery(
-        state.query.copyWith(boardKey: boardKey, subCategoryKey: ''),
-        boardChanged: boardKey != state.query.boardKey,
-      );
+    state.query.copyWith(boardKey: boardKey, subCategoryKey: ''),
+    boardChanged: boardKey != state.query.boardKey,
+  );
 
   Future<void> selectSubCategory(String subCategoryKey) =>
       _applyQuery(state.query.copyWith(subCategoryKey: subCategoryKey));
@@ -332,8 +319,7 @@ class CommunityHomeController extends Notifier<CommunityHomeState> {
       subCategories: boardChanged
           ? const <CommunitySubCategorySummary>[]
           : state.subCategories,
-      categoriesLoading:
-          boardChanged && next.boardKey != communityAllBoardKey,
+      categoriesLoading: boardChanged && next.boardKey != communityAllBoardKey,
       loading: true,
       error: null,
       loadMoreError: null,
@@ -392,11 +378,7 @@ class CommunityHomeController extends Notifier<CommunityHomeState> {
       );
       if (token != _generation) return;
       state = state.copyWith(
-        feed: mergeCommunityById(
-          state.feed,
-          payload.feed,
-          communityFeedItemId,
-        ),
+        feed: mergeCommunityById(state.feed, payload.feed, communityFeedItemId),
         feedPage: payload.feedPage,
         loadingMore: false,
       );
@@ -420,10 +402,10 @@ class CommunityHomeController extends Notifier<CommunityHomeState> {
 }
 
 final NotifierProvider<CommunityHomeController, CommunityHomeState>
-    communityHomeProvider =
+communityHomeProvider =
     NotifierProvider<CommunityHomeController, CommunityHomeState>(
-  CommunityHomeController.new,
-);
+      CommunityHomeController.new,
+    );
 
 class CommunityPostNoticeStore {
   const CommunityPostNoticeStore(this._ref);
@@ -431,13 +413,17 @@ class CommunityPostNoticeStore {
   final Ref _ref;
 
   Future<bool> isAccepted() async {
-    final value =
-        await _ref.read(appRuntimeProvider).keyValueStore.read(communityPostNoticeKey);
+    final value = await _ref
+        .read(appRuntimeProvider)
+        .keyValueStore
+        .read(communityPostNoticeKey);
     return value == 'true';
   }
 
-  Future<void> accept() =>
-      _ref.read(appRuntimeProvider).keyValueStore.write(communityPostNoticeKey, 'true');
+  Future<void> accept() => _ref
+      .read(appRuntimeProvider)
+      .keyValueStore
+      .write(communityPostNoticeKey, 'true');
 }
 
 final Provider<CommunityPostNoticeStore> communityPostNoticeProvider =

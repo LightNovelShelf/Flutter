@@ -1,0 +1,154 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:lightnovel/features/reader/reader_pagination.dart';
+
+/// 行顶 + 块底构成的候选断点表：`step` 是行高，`count` 是行数。
+List<double> _lineBreaks(double step, int count) => <double>[
+  for (var i = 1; i <= count; i++) step * i,
+];
+
+void main() {
+  group('翻页切分', () {
+    test('断点恰好落在行顶时按视口整页切', () {
+      expect(
+        paginateReaderContent(
+          contentHeight: 300,
+          pageHeight: 100,
+          breaks: _lineBreaks(20, 15),
+        ),
+        <double>[0, 100, 200],
+      );
+    });
+
+    test('断点稀疏时提前换页，不把整块劈开', () {
+      expect(
+        paginateReaderContent(
+          contentHeight: 300,
+          pageHeight: 100,
+          breaks: const <double>[60, 120, 180, 240, 300],
+        ),
+        <double>[0, 60, 120, 180, 240],
+      );
+    });
+
+    test('超高原子（整页插图）无可断处时硬切', () {
+      expect(
+        paginateReaderContent(
+          contentHeight: 250,
+          pageHeight: 100,
+          breaks: const <double>[250],
+        ),
+        <double>[0, 100, 200],
+      );
+    });
+
+    test('测量误差在容差内不额外多切一页', () {
+      expect(
+        paginateReaderContent(
+          contentHeight: 100.4,
+          pageHeight: 100,
+          breaks: const <double>[20.1, 40.2, 60.3, 80.35, 100.4],
+        ),
+        <double>[0],
+      );
+    });
+
+    test('页顶严格递增且每页不超过视口', () {
+      const pageHeight = 640.0;
+      const lineHeight = 21.3;
+      final breaks = _lineBreaks(lineHeight, 120);
+      final pageTops = paginateReaderContent(
+        contentHeight: lineHeight * 120,
+        pageHeight: pageHeight,
+        breaks: breaks,
+      );
+      expect(pageTops.first, 0);
+      expect(pageTops.length, greaterThan(1));
+      for (var i = 1; i < pageTops.length; i++) {
+        expect(pageTops[i], greaterThan(pageTops[i - 1]));
+        expect(
+          pageTops[i] - pageTops[i - 1],
+          lessThanOrEqualTo(pageHeight + 0.5),
+        );
+      }
+    });
+
+    test('内容不足一页或尺寸未测出时只有一页', () {
+      expect(
+        paginateReaderContent(
+          contentHeight: 80,
+          pageHeight: 100,
+          breaks: const <double>[20, 40, 60, 80],
+        ),
+        <double>[0],
+      );
+      expect(
+        paginateReaderContent(
+          contentHeight: 0,
+          pageHeight: 100,
+          breaks: const <double>[],
+        ),
+        <double>[0],
+      );
+      expect(
+        paginateReaderContent(
+          contentHeight: 300,
+          pageHeight: 0,
+          breaks: const <double>[100, 200, 300],
+        ),
+        <double>[0],
+      );
+      expect(
+        paginateReaderContent(
+          contentHeight: 100,
+          pageHeight: 100,
+          breaks: const <double>[],
+        ),
+        <double>[0],
+      );
+    });
+  });
+
+  group('偏移定位', () {
+    const pageTops = <double>[0, 100, 200];
+
+    test('页下标越界收敛到首/末页', () {
+      expect(readerPageIndexForOffset(pageTops, -50), 0);
+      expect(readerPageIndexForOffset(pageTops, 0), 0);
+      expect(readerPageIndexForOffset(pageTops, 99), 0);
+      expect(readerPageIndexForOffset(pageTops, 100), 1);
+      expect(readerPageIndexForOffset(pageTops, 199.6), 2);
+      expect(readerPageIndexForOffset(pageTops, 5000), 2);
+      expect(readerPageIndexForOffset(const <double>[], 120), 0);
+    });
+
+    test('块下标：缝隙取下一块，末尾夹住最后一块', () {
+      const tops = <double>[0, 60, 130];
+      const bottoms = <double>[50, 120, 190];
+      int at(double offset) => readerBlockIndexAtOffset(
+        blockTops: tops,
+        blockBottoms: bottoms,
+        offset: offset,
+      );
+
+      expect(at(-20), 0);
+      expect(at(0), 0);
+      expect(at(49), 0);
+      expect(at(50), 1);
+      expect(at(55), 1);
+      expect(at(125), 2);
+      expect(at(189), 2);
+      expect(at(500), 2);
+    });
+
+    test('块表为空时回到首块', () {
+      expect(
+        readerBlockIndexAtOffset(
+          blockTops: const <double>[],
+          blockBottoms: const <double>[],
+          offset: 300,
+        ),
+        0,
+      );
+    });
+  });
+}

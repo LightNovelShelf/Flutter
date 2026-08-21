@@ -104,7 +104,9 @@ class BookListPage {
 List<dynamic> _rawBookListItems(Object? value) {
   if (value is List) return value;
   final record = asRecordOrNull(value);
-  if (record != null && record['Data'] is List) return record['Data'] as List<dynamic>;
+  if (record != null && record['Data'] is List) {
+    return record['Data'] as List<dynamic>;
+  }
   throw const ApiError('无效的书籍列表数据。', ApiErrorCategory.server);
 }
 
@@ -153,18 +155,18 @@ class ComicSeriesListItem {
 
   /// 把漫画系列映射到通用书卡形状，让小说与漫画共用同一个网格卡片。
   BookListItem toBookListItem() => BookListItem(
-        id: id,
-        type: BookType.comic,
-        title: title,
-        seriesTitle: null,
-        coverUrl: coverUrl,
-        coverPlaceholder: coverPlaceholder,
-        authorName: null,
-        lastUpdatedAt: lastUpdatedAt,
-        level: null,
-        interiorLevel: null,
-        category: null,
-      );
+    id: id,
+    type: BookType.comic,
+    title: title,
+    seriesTitle: null,
+    coverUrl: coverUrl,
+    coverPlaceholder: coverPlaceholder,
+    authorName: null,
+    lastUpdatedAt: lastUpdatedAt,
+    level: null,
+    interiorLevel: null,
+    category: null,
+  );
 }
 
 class ComicSeriesListPage {
@@ -183,9 +185,10 @@ class ComicSeriesListPage {
     return ComicSeriesListPage(
       page: asInt(record['Page'], 1),
       totalPages: asInt(record['TotalPages'], 1),
-      items: asArray(record['Data'], '漫画系列列表项')
-          .map(ComicSeriesListItem.decode)
-          .toList(),
+      items: asArray(
+        record['Data'],
+        '漫画系列列表项',
+      ).map(ComicSeriesListItem.decode).toList(),
     );
   }
 }
@@ -224,10 +227,10 @@ class ShelfItem {
     required this.index,
     required this.parents,
     required this.updatedAt,
-  })  : type = ShelfItemType.book,
-        bookId = id,
-        folderId = null,
-        title = '';
+  }) : type = ShelfItemType.book,
+       bookId = id,
+       folderId = null,
+       title = '';
 
   const ShelfItem.folder({
     required String id,
@@ -235,9 +238,9 @@ class ShelfItem {
     required this.parents,
     required this.updatedAt,
     required this.title,
-  })  : type = ShelfItemType.folder,
-        bookId = null,
-        folderId = id;
+  }) : type = ShelfItemType.folder,
+       bookId = null,
+       folderId = id;
 
   final ShelfItemType type;
   final int? bookId;
@@ -256,19 +259,20 @@ class ShelfItem {
     List<String>? parents,
     String? updatedAt,
     String? title,
-  }) =>
-      ShelfItem(
-        type: type,
-        bookId: bookId,
-        folderId: folderId,
-        index: index ?? this.index,
-        parents: parents ?? this.parents,
-        updatedAt: updatedAt ?? this.updatedAt,
-        title: title ?? this.title,
-      );
+  }) => ShelfItem(
+    type: type,
+    bookId: bookId,
+    folderId: folderId,
+    index: index ?? this.index,
+    parents: parents ?? this.parents,
+    updatedAt: updatedAt ?? this.updatedAt,
+    title: title ?? this.title,
+  );
 
   static ShelfItemType _decodeType(Object? value) {
-    if (value == 'BOOK' || value == 'Book' || value == 0) return ShelfItemType.book;
+    if (value == 'BOOK' || value == 'Book' || value == 0) {
+      return ShelfItemType.book;
+    }
     if (value == 'FOLDER' || value == 'Folder' || value == 1) {
       return ShelfItemType.folder;
     }
@@ -294,8 +298,8 @@ class ShelfItem {
     final folderId = rawId is String && rawId.isNotEmpty
         ? rawId
         : rawId is num
-            ? rawId.toInt().toString()
-            : throw const ApiError('服务端返回了无效的书架条目 ID。', ApiErrorCategory.server);
+        ? rawId.toInt().toString()
+        : throw const ApiError('服务端返回了无效的书架条目 ID。', ApiErrorCategory.server);
     return ShelfItem.folder(
       id: folderId,
       index: index,
@@ -306,13 +310,13 @@ class ShelfItem {
   }
 
   Map<String, Object?> encode() => <String, Object?>{
-        'id': isBook ? bookId : folderId,
-        'index': index,
-        'parents': parents,
-        if (!isBook) 'title': title,
-        'type': isBook ? 'BOOK' : 'FOLDER',
-        'updateAt': updatedAt,
-      };
+    'id': isBook ? bookId : folderId,
+    'index': index,
+    'parents': parents,
+    if (!isBook) 'title': title,
+    'type': isBook ? 'BOOK' : 'FOLDER',
+    'updateAt': updatedAt,
+  };
 }
 
 class UserShelf {
@@ -326,10 +330,10 @@ class UserShelf {
     final rawItems = value is List
         ? value
         : record?['data'] is List
-            ? record!['data'] as List<dynamic>
-            : record?['Data'] is List
-                ? record!['Data'] as List<dynamic>
-                : null;
+        ? record!['data'] as List<dynamic>
+        : record?['Data'] is List
+        ? record!['Data'] as List<dynamic>
+        : null;
     if (rawItems == null) {
       throw const ApiError('无效的书架响应。', ApiErrorCategory.server);
     }
@@ -587,25 +591,16 @@ class ComicChapterSummary {
 }
 
 class ComicImage {
-  const ComicImage({
-    required this.url,
-    required this.placeholder,
-    required this.width,
-    required this.height,
-  });
+  const ComicImage({required this.url, required this.placeholder});
 
   final String url;
   final String placeholder;
-  final int width;
-  final int height;
 
   static ComicImage decode(Object? value) {
-    final image = asRecord(value, '漫画图片');
+    final rawUrl = asString(value);
     return ComicImage(
-      url: asString(image['Url']),
-      placeholder: normalizeBlurHash(asStringOrEmpty(image['Placeholder'])) ?? '',
-      width: asInt(image['Width'], 1).clamp(1, 1 << 30),
-      height: asInt(image['Height'], 1).clamp(1, 1 << 30),
+      url: normalizeCoverUrl(rawUrl),
+      placeholder: extractBlurHashPlaceholder(rawUrl) ?? '',
     );
   }
 }
@@ -671,27 +666,27 @@ class ComicInfo {
   /// 归一化为 `BookDetail`，让详情页对小说/漫画使用同一套 UI。
   /// 漫画章节的排序号由章节顺序推导（1..N），与阅读器的解析方式一致。
   BookDetail toBookDetail() => BookDetail(
-        id: id,
-        type: BookType.comic,
-        coverUrl: coverUrl,
-        coverPlaceholder: coverPlaceholder,
-        title: title,
-        authorName: authorName,
-        category: null,
-        introduction: introduction,
-        lastUpdatedChapter: lastUpdatedChapter,
-        lastUpdatedAt: lastUpdatedAt,
-        createdAt: createdAt,
-        favoriteCount: favoriteCount,
-        viewCount: views,
-        canEdit: false,
-        chapters: chapters
-            .map((chapter) => BookChapter(id: chapter.id, title: chapter.title))
-            .toList(),
-        user: user,
-        classification: classification,
-        readPosition: readPosition,
-      );
+    id: id,
+    type: BookType.comic,
+    coverUrl: coverUrl,
+    coverPlaceholder: coverPlaceholder,
+    title: title,
+    authorName: authorName,
+    category: null,
+    introduction: introduction,
+    lastUpdatedChapter: lastUpdatedChapter,
+    lastUpdatedAt: lastUpdatedAt,
+    createdAt: createdAt,
+    favoriteCount: favoriteCount,
+    viewCount: views,
+    canEdit: false,
+    chapters: chapters
+        .map((chapter) => BookChapter(id: chapter.id, title: chapter.title))
+        .toList(),
+    user: user,
+    classification: classification,
+    readPosition: readPosition,
+  );
 }
 
 class ComicSeriesVolume {
@@ -792,9 +787,10 @@ class ComicSeriesDetail {
       lastUpdatedChapter: asNullableString(series['LastUpdatedChapter']),
       lastUpdatedAt: asDate(series['LastUpdatedAt']),
       classification: BookClassification.decode(series['Extra']),
-      volumes: asArray(response['Books'], '漫画系列分卷')
-          .map(ComicSeriesVolume.decode)
-          .toList(),
+      volumes: asArray(
+        response['Books'],
+        '漫画系列分卷',
+      ).map(ComicSeriesVolume.decode).toList(),
     );
   }
 }
@@ -855,18 +851,18 @@ enum CommentTargetType { book, announcement, series }
 /// 名字比序号更抗重排（枚举中间插一个成员不会让旧客户端指向错的值）。
 extension CommentTargetTypeWire on CommentTargetType {
   String get wire => switch (this) {
-        CommentTargetType.book => 'Book',
-        CommentTargetType.announcement => 'Announcement',
-        CommentTargetType.series => 'Series',
-      };
+    CommentTargetType.book => 'Book',
+    CommentTargetType.announcement => 'Announcement',
+    CommentTargetType.series => 'Series',
+  };
 }
 
 /// `BookType` 的线上表示，用途同上。
 extension BookTypeWire on BookType {
   String get wire => switch (this) {
-        BookType.novel => 'Novel',
-        BookType.comic => 'Comic',
-      };
+    BookType.novel => 'Novel',
+    BookType.comic => 'Comic',
+  };
 }
 
 class CommentUser {
@@ -972,8 +968,9 @@ class CommentPage {
               content: asStringOrEmpty(reply['Content']),
               createdAt: asDate(reply['CreatedAt']),
               canEdit: reply['CanEdit'] == true,
-              replyToUser:
-                  replyTo == null ? null : getUser(asInt(replyTo['UserId'])),
+              replyToUser: replyTo == null
+                  ? null
+                  : getUser(asInt(replyTo['UserId'])),
             );
           }).toList(),
         );
@@ -1054,7 +1051,8 @@ class UserProfile {
   static UserProfile decode(Object? value) {
     final record = asRecord(value, '用户资料响应');
     final role = asRecordOrNull(record['Role']) ?? const <String, dynamic>{};
-    final growth = asRecordOrNull(record['Growth']) ?? const <String, dynamic>{};
+    final growth =
+        asRecordOrNull(record['Growth']) ?? const <String, dynamic>{};
     return UserProfile(
       id: asInt(record['Id']),
       userName: asStringOrEmpty(record['UserName']),
@@ -1142,8 +1140,10 @@ class AnnouncementPage {
     return AnnouncementPage(
       page: asInt(record['Page'], 1),
       totalPages: asInt(record['TotalPages'], 1),
-      items:
-          asArray(record['Data'], '公告项').map(AnnouncementItem.decode).toList(),
+      items: asArray(
+        record['Data'],
+        '公告项',
+      ).map(AnnouncementItem.decode).toList(),
     );
   }
 }

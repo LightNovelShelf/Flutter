@@ -27,7 +27,9 @@ Future<void> main(List<String> args) async {
   final signalR = SignalRConnection(
     endpoint: ServiceEndpoints.signalRHub,
     accessTokenFactory: () async => sessionToken,
-    headersFactory: () async => <String, String>{'User-Agent': 'LightNovelShelf/1.0.0'},
+    headersFactory: () async => <String, String>{
+      'User-Agent': 'LightNovelShelf/1.0.0',
+    },
   );
   final api = ApiClient(
     signalR: signalR,
@@ -67,8 +69,11 @@ Future<void> main(List<String> args) async {
   });
 
   await check('getBookList(latest)', () async {
-    final page =
-        await api.getBookList(page: 1, size: 6, order: BookListOrder.latest);
+    final page = await api.getBookList(
+      page: 1,
+      size: 6,
+      order: BookListOrder.latest,
+    );
     stdout.writeln('   ${page.items.length} 本 / 共 ${page.totalPages} 页');
   });
 
@@ -77,9 +82,39 @@ Future<void> main(List<String> args) async {
     stdout.writeln('   榜首 ${items.first.title}');
   });
 
+  var comicId = 0;
+  var comicTitle = '';
+  var comicChapterId = 0;
+
   await check('getComicList', () async {
-    final page = await api.getComicList(page: 1, order: ComicOrder.latest, size: 6);
-    stdout.writeln('   ${page.items.length} 部漫画');
+    final page = await api.getComicList(
+      page: 1,
+      order: ComicOrder.latest,
+      size: 6,
+    );
+    if (page.items.isEmpty) throw StateError('空漫画列表');
+    comicId = page.items.first.id;
+    comicTitle = page.items.first.title;
+    stdout.writeln('   ${page.items.length} 部漫画 · $comicTitle');
+  });
+
+  await check('searchComicSeries', () async {
+    final page = await api.searchComicSeries(
+      BookSearchRequest(
+        keywords: comicTitle,
+        mode: BookSearchMode.exact,
+        page: 1,
+        size: 6,
+      ),
+    );
+    if (page.items.isEmpty) throw StateError('漫画系列搜索无结果');
+    stdout.writeln('   ${page.items.length} 个系列');
+  });
+
+  await check('getComicSeriesInfo', () async {
+    final series = await api.getComicSeriesInfo(comicTitle);
+    if (series.volumes.isEmpty) throw StateError('漫画系列没有分卷');
+    stdout.writeln('   ${series.title} · ${series.volumes.length} 卷');
   });
 
   await check('getAnnouncementList', () async {
@@ -99,6 +134,24 @@ Future<void> main(List<String> args) async {
     final content = await api.getNovelContent(bookId: bookId, sortNum: 1);
     stdout.writeln(
       '   ${content.chapter.title} · ${content.chapter.content.length} 字节 · 字体=${content.chapter.fontUrl ?? '无'}',
+    );
+  });
+
+  await check('getComicInfo', () async {
+    final info = await api.getComicInfo(comicId);
+    if (info.chapters.isEmpty) throw StateError('漫画没有章节');
+    comicChapterId = info.chapters.first.id;
+    stdout.writeln('   ${info.title} · ${info.chapters.length} 话');
+  });
+
+  await check('getComicContent', () async {
+    final content = await api.getComicContent(
+      chapterId: comicChapterId,
+      take: 1,
+    );
+    if (content.chapter.images.isEmpty) throw StateError('漫画章节没有图片');
+    stdout.writeln(
+      '   ${content.chapter.title} · ${content.chapter.images.length}/${content.chapter.total} 页',
     );
   });
 
@@ -167,7 +220,9 @@ Future<void> main(List<String> args) async {
     final home = await api.getCommunityHome(const CommunityListQuery());
     if (home.feed.isEmpty) throw StateError('没有帖子');
     final thread = await api.getCommunityThread(threadId: home.feed.first.id);
-    stdout.writeln('   ${thread?.item.title} · ${thread?.replyItems.length} 条回复');
+    stdout.writeln(
+      '   ${thread?.item.title} · ${thread?.replyItems.length} 条回复',
+    );
   });
 
   await check('getNotifications', () async {

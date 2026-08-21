@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 
-/// 脚注弹层。注文本身也用了章节混淆字体，必须在 WebView 里带着 `@font-face` 渲染。
+import '../../../shared/widgets/image_preview.dart';
+import '../reader_content_style.dart';
+
+/// 脚注弹层。注文与正文共用章节混淆字体，字体族名必须一路传到这里。
 Future<void> showReaderFootnoteSheet(
   BuildContext context, {
   required String html,
-  String? fontDataUrl,
+  String? fontFamily,
 }) => showModalBottomSheet<void>(
   context: context,
   backgroundColor: Colors.transparent,
@@ -36,7 +39,7 @@ Future<void> showReaderFootnoteSheet(
               ),
             ),
             Expanded(
-              child: _ReaderFootnoteSheet(html: html, fontDataUrl: fontDataUrl),
+              child: _ReaderFootnoteSheet(html: html, fontFamily: fontFamily),
             ),
           ],
         ),
@@ -45,67 +48,23 @@ Future<void> showReaderFootnoteSheet(
   },
 );
 
-class _ReaderFootnoteSheet extends StatefulWidget {
-  const _ReaderFootnoteSheet({required this.html, this.fontDataUrl});
+class _ReaderFootnoteSheet extends StatelessWidget {
+  const _ReaderFootnoteSheet({required this.html, this.fontFamily});
 
   final String html;
-  final String? fontDataUrl;
-
-  @override
-  State<_ReaderFootnoteSheet> createState() => _ReaderFootnoteSheetState();
-}
-
-class _ReaderFootnoteSheetState extends State<_ReaderFootnoteSheet> {
-  late final WebViewController _controller = WebViewController()
-    ..setJavaScriptMode(JavaScriptMode.disabled)
-    ..setVerticalScrollBarEnabled(false)
-    ..setHorizontalScrollBarEnabled(false);
-  bool _loaded = false;
-  String? _document;
-
-  String _buildDocument(ColorScheme colors) {
-    final fontFace = widget.fontDataUrl == null
-        ? ''
-        : "@font-face{font-family:'ChapterFont';font-display:block;"
-              'src:url(${widget.fontDataUrl});}';
-    final family = widget.fontDataUrl == null
-        ? "'PingFang SC','Noto Sans SC',sans-serif"
-        : "'ChapterFont','PingFang SC','Noto Sans SC',sans-serif";
-    return '<!DOCTYPE html><html><head><meta charset="utf-8" />'
-        '<meta name="viewport" content="width=device-width, initial-scale=1.0, '
-        'maximum-scale=1.0, user-scalable=no" /><style>$fontFace'
-        'html,body{margin:0;padding:0;background:${_hex(colors.surfaceContainerLow)};'
-        'color:${_hex(colors.onSurface)}}'
-        'html,body{scrollbar-width:none}'
-        'html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}'
-        'body{font-family:$family;font-size:16px;line-height:1.7;'
-        'word-break:break-word;overflow-wrap:break-word}'
-        'body *{background-color:transparent!important}'
-        'p{margin:0 0 .8em}'
-        'ol,ul{margin:0 0 .8em;padding:0;list-style-position:inside}'
-        'img{max-width:100%;height:auto}'
-        '*{line-break:anywhere;-webkit-user-select:none!important;user-select:none!important}'
-        '</style></head><body>${widget.html}</body></html>';
-  }
-
-  static String _hex(Color color) =>
-      '#${((color.toARGB32()) & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final document = _buildDocument(Theme.of(context).colorScheme);
-    if (document == _document) return;
-    _controller
-      ..setBackgroundColor(Theme.of(context).colorScheme.surfaceContainerLow)
-      ..loadHtmlString(document).then((_) {
-        if (mounted) setState(() => _loaded = true);
-      });
-  }
+  final String? fontFamily;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final style = ReaderContentStyle(
+      fontSize: 16,
+      lineHeight: 1.7,
+      color: colors.onSurface,
+      firstLineIndent: false,
+      justify: false,
+      fontFamily: fontFamily,
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
       child: Column(
@@ -131,14 +90,33 @@ class _ReaderFootnoteSheetState extends State<_ReaderFootnoteSheet> {
           ),
           const SizedBox(height: 16),
           Expanded(
-            child: Stack(
-              children: <Widget>[
-                Opacity(
-                  opacity: _loaded ? 1 : 0,
-                  child: WebViewWidget(controller: _controller),
+            child: SingleChildScrollView(
+              child: HtmlWidget(
+                html,
+                renderMode: RenderMode.column,
+                textStyle: style.textStyle,
+                customStylesBuilder: (element) {
+                  final styles = style.stylesFor(
+                    tag: element.localName,
+                    classes: element.classes,
+                    attributes: const <String, String>{},
+                  );
+                  // 注文是独立成段读的，段间要有喘息，列表也得让出项目符号的位置。
+                  return switch (element.localName) {
+                    'p' => <String, String>{...?styles, 'margin': '0 0 0.8em'},
+                    'ol' || 'ul' => <String, String>{
+                      ...?styles,
+                      'padding-left': '1.2em',
+                    },
+                    _ => styles,
+                  };
+                },
+                onTapImage: (metadata) => previewHtmlImage(context, metadata),
+                onErrorBuilder: (context, element, error) => Text(
+                  '注释无法显示。',
+                  style: TextStyle(fontSize: 16, color: colors.error),
                 ),
-                if (!_loaded) const Center(child: CircularProgressIndicator()),
-              ],
+              ),
             ),
           ),
         ],

@@ -26,6 +26,7 @@ class BookImage extends StatefulWidget {
     this.fadeInDuration = const Duration(milliseconds: 200),
     this.fallbackIcon = Icons.menu_book_outlined,
     this.errorBuilder,
+    this.requestSizedVariant = true,
   });
 
   final String url;
@@ -46,6 +47,9 @@ class BookImage extends StatefulWidget {
 
   /// 没有 BlurHash 时画在底色上的图标；传 null 只留底色。
   final IconData? fallbackIcon;
+
+  /// 是否向站内图床追加量化后的 `height` 参数。外站图片必须关闭。
+  final bool requestSizedVariant;
 
   /// 自动重试也失败后的兜底 UI，默认是盖在占位层上的小重试按钮。
   final Widget Function(BuildContext context, VoidCallback retry)? errorBuilder;
@@ -152,11 +156,16 @@ class _BookImageState extends State<BookImage> {
   Widget build(BuildContext context) {
     if (widget.url.isEmpty) return _placeholder(context);
 
-    final int bucket = imageHeightBucketFor(
-      widget.displayHeight,
-      MediaQuery.devicePixelRatioOf(context),
-    );
-    final String url = withImageHeight(widget.url, bucket);
+    final String url;
+    if (widget.requestSizedVariant) {
+      final int bucket = imageHeightBucketFor(
+        widget.displayHeight,
+        MediaQuery.devicePixelRatioOf(context),
+      );
+      url = withImageHeight(widget.url, bucket);
+    } else {
+      url = widget.url;
+    }
     // `cacheKeyFor` 只剥 `placeholder`/`t`，`height` 保留在键里 —— 每档一份缓存，
     // 正是 256 步进要的效果。
     final String cacheKey = BookImage.cacheKeyFor(url);

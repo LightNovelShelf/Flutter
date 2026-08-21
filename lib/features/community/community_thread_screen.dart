@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -10,7 +9,9 @@ import '../../core/network/api_error.dart';
 import '../../data/api/api_client.dart';
 import '../../data/api/community_models.dart';
 import '../../data/providers.dart';
-import '../../shared/widgets/image_preview.dart';
+import '../reader/reader_content_style.dart';
+import '../reader/reader_engine.dart';
+import '../reader/widgets/reader_html_block.dart';
 import 'community_providers.dart';
 import 'widgets/community_widgets.dart';
 
@@ -149,8 +150,9 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
       _loadMoreError = null;
     });
     try {
-      final size =
-          detail.repliesPage.size < 1 ? _replyPageSize : detail.repliesPage.size;
+      final size = detail.repliesPage.size < 1
+          ? _replyPageSize
+          : detail.repliesPage.size;
       final next = await _api.getCommunityThread(
         threadId: widget.threadId,
         replyPage: detail.repliesPage.page + 1,
@@ -184,7 +186,9 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
     final actionId = 'children:${parent.id}';
     setState(() => _replyActionId = actionId);
     try {
-      final size = parent.childPage.size < 1 ? _childPageSize : parent.childPage.size;
+      final size = parent.childPage.size < 1
+          ? _childPageSize
+          : parent.childPage.size;
       final page = parent.childReplies.isEmpty ? 1 : parent.childPage.page + 1;
       final payload = await _api.getCommunityReplyChildren(
         threadId: widget.threadId,
@@ -512,9 +516,34 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
         onRetry: _load,
       );
     }
-    return const CommunityStateCard(
-      title: '讨论不可用',
-      description: '此讨论可能已被移除。',
+    return const CommunityStateCard(title: '讨论不可用', description: '此讨论可能已被移除。');
+  }
+
+  Widget _buildThreadBody(String html, Color color) {
+    final style = ReaderContentStyle(
+      fontSize: 16,
+      lineHeight: 1.5,
+      paragraphSpacing: 4,
+      color: color,
+      firstLineIndent: false,
+      justify: false,
+    );
+    final blocks = splitContentHtmlBlocks(html);
+    return SelectionArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          for (var index = 0; index < blocks.length; index++)
+            ReaderHtmlBlock(
+              markup: blocks[index],
+              style: style,
+              onTapUrl: _openExternalUrl,
+              borderIllustrations: false,
+              consumeImageTap: true,
+              applyParagraphSpacing: index + 1 < blocks.length,
+            ),
+        ],
+      ),
     );
   }
 
@@ -605,19 +634,7 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
                       ],
                     ),
                     const SizedBox(height: 19),
-                    SelectionArea(
-                      child: HtmlWidget(
-                        sanitizeCommunityHtml(detail.bodyHtml),
-                        textStyle: TextStyle(
-                          fontSize: 16,
-                          height: 25 / 16,
-                          color: colors.onSurface,
-                        ),
-                        onTapUrl: _openExternalUrl,
-                        onTapImage: (metadata) =>
-                            previewHtmlImage(context, metadata),
-                      ),
-                    ),
+                    _buildThreadBody(detail.bodyHtml, colors.onSurface),
                   ],
                 ),
               ),
@@ -709,7 +726,10 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
 
   Widget _buildRow(_ReplyRow row, ColorScheme colors) {
     final busy = _replyActionId != null;
-    final BorderSide hairline = BorderSide(color: colors.outlineVariant, width: 0.5);
+    final BorderSide hairline = BorderSide(
+      color: colors.outlineVariant,
+      width: 0.5,
+    );
 
     if (row.kind == _ReplyRowKind.more) {
       final loading = _replyActionId == 'children:${row.parent.id}';
@@ -733,9 +753,7 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.expand_more, size: 18),
-            label: Text(
-              row.parent.childReplies.isEmpty ? '显示回复' : '展开更多回复',
-            ),
+            label: Text(row.parent.childReplies.isEmpty ? '显示回复' : '展开更多回复'),
           ),
         ),
       );
@@ -868,7 +886,10 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
       }
     }
     if (children.isEmpty) return const SizedBox.shrink();
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: children);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    );
   }
 
   static Future<bool> _openExternalUrl(String url) async {
@@ -933,14 +954,15 @@ List<CommunityThreadReply> _updateReplies(
   List<CommunityThreadReply> items,
   int id,
   CommunityThreadReply Function(CommunityThreadReply reply) update,
-) =>
-    items.map((reply) {
+) => items
+    .map((reply) {
       if (reply.id == id) return update(reply);
       if (reply.childReplies.isEmpty) return reply;
       return reply.copyWith(
         childReplies: _updateReplies(reply.childReplies, id, update),
       );
-    }).toList(growable: false);
+    })
+    .toList(growable: false);
 
 String _displayName(String name, bool deleted) {
   final trimmed = name.trim();
@@ -1013,7 +1035,9 @@ class _ReplyComposerSheetState extends ConsumerState<_ReplyComposerSheet> {
       _error = null;
     });
     try {
-      await ref.read(apiClientProvider).createCommunityReply(
+      await ref
+          .read(apiClientProvider)
+          .createCommunityReply(
             threadId: widget.threadId,
             content: content,
             replyToId: widget.replyToId,

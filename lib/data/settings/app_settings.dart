@@ -74,9 +74,10 @@ class AppSettings {
     this.ignoreJapanese = false,
     this.language = LanguageSetting.system,
     this.oledBlack = false,
-    this.readerFirstLineIndent = false,
-    this.readerImagePreviewOpenOnLongPress = false,
+    this.readerFirstLineIndent = true,
+    this.readerJustify = false,
     this.readerLineHeight = 1.6,
+    this.readerParagraphSpacing = 0,
     this.comicPagedDirection = ComicPagedDirection.ltr,
     this.readerPreloadWindow = 3,
     this.readerSidePadding = 30,
@@ -101,8 +102,9 @@ class AppSettings {
   final LanguageSetting language;
   final bool oledBlack;
   final bool readerFirstLineIndent;
-  final bool readerImagePreviewOpenOnLongPress;
+  final bool readerJustify;
   final double readerLineHeight;
+  final double readerParagraphSpacing;
   final ComicPagedDirection comicPagedDirection;
   final int readerPreloadWindow;
   final double readerSidePadding;
@@ -127,8 +129,9 @@ class AppSettings {
     LanguageSetting? language,
     bool? oledBlack,
     bool? readerFirstLineIndent,
-    bool? readerImagePreviewOpenOnLongPress,
+    bool? readerJustify,
     double? readerLineHeight,
+    double? readerParagraphSpacing,
     ComicPagedDirection? comicPagedDirection,
     int? readerPreloadWindow,
     double? readerSidePadding,
@@ -154,10 +157,10 @@ class AppSettings {
     language: language ?? this.language,
     oledBlack: oledBlack ?? this.oledBlack,
     readerFirstLineIndent: readerFirstLineIndent ?? this.readerFirstLineIndent,
-    readerImagePreviewOpenOnLongPress:
-        readerImagePreviewOpenOnLongPress ??
-        this.readerImagePreviewOpenOnLongPress,
+    readerJustify: readerJustify ?? this.readerJustify,
     readerLineHeight: readerLineHeight ?? this.readerLineHeight,
+    readerParagraphSpacing:
+        readerParagraphSpacing ?? this.readerParagraphSpacing,
     comicPagedDirection: comicPagedDirection ?? this.comicPagedDirection,
     readerPreloadWindow: readerPreloadWindow ?? this.readerPreloadWindow,
     readerSidePadding: readerSidePadding ?? this.readerSidePadding,
@@ -202,12 +205,15 @@ class AppSettings {
       ignoreJapanese: _bool(raw['ignoreJapanese'], false),
       language: _languageWire[raw['language']] ?? LanguageSetting.system,
       oledBlack: _bool(raw['oledBlack'], false),
-      readerFirstLineIndent: _bool(raw['readerFirstLineIndent'], false),
-      readerImagePreviewOpenOnLongPress: _bool(
-        raw['readerImagePreviewOpenOnLongPress'],
-        false,
-      ),
+      readerFirstLineIndent: _bool(raw['readerFirstLineIndent'], true),
+      readerJustify: _bool(raw['readerJustify'], false),
       readerLineHeight: _clampDouble(raw['readerLineHeight'], 1, 2.5, 1.6),
+      readerParagraphSpacing: _clampDouble(
+        raw['readerParagraphSpacing'],
+        0,
+        16,
+        0,
+      ),
       comicPagedDirection: _enumFromName(
         ComicPagedDirection.values,
         raw['comicPagedDirection'],
@@ -260,8 +266,9 @@ class AppSettings {
     'language': language.wire,
     'oledBlack': oledBlack,
     'readerFirstLineIndent': readerFirstLineIndent,
-    'readerImagePreviewOpenOnLongPress': readerImagePreviewOpenOnLongPress,
+    'readerJustify': readerJustify,
     'readerLineHeight': readerLineHeight,
+    'readerParagraphSpacing': readerParagraphSpacing,
     'comicPagedDirection': comicPagedDirection.name,
     'readerPreloadWindow': readerPreloadWindow,
     'readerSidePadding': readerSidePadding,

@@ -18,6 +18,7 @@ import '../../shared/image_cache.dart';
 import '../../shared/image_sizing.dart';
 import '../../shared/widgets/book_image.dart';
 import '../../shared/widgets/state_views.dart';
+import '../../shared/widgets/image_preview.dart';
 import 'reader_engine.dart';
 import 'reader_open_position.dart';
 import 'reader_providers.dart';
@@ -141,8 +142,11 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
       // 目录里的页数偶尔滞后，以正文返回的 total 为准并按需重取。
       if (content.chapter.total != total) {
         total = content.chapter.total;
-        final corrected =
-            getComicPageBatchStart(target, math.max(total, 1), _batchSize);
+        final corrected = getComicPageBatchStart(
+          target,
+          math.max(total, 1),
+          _batchSize,
+        );
         if (corrected != skip) {
           skip = corrected;
           content = await _api.getComicContent(
@@ -343,11 +347,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
     unawaited(_prefetch());
   }
 
-  double _aspect(int index) {
-    final image = index >= 0 && index < _slots.length ? _slots[index].image : null;
-    if (image == null || image.width <= 0) return _unknownAspect;
-    return math.max(0.2, image.height / image.width);
-  }
+  double _aspect(int _) => _unknownAspect;
 
   double _continuousWidth() {
     final size = MediaQuery.sizeOf(context);
@@ -397,7 +397,9 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
   }
 
   void _turn(int delta) {
-    final target = (_page + delta).clamp(0, math.max(0, _slots.length - 1)).toInt();
+    final target = (_page + delta)
+        .clamp(0, math.max(0, _slots.length - 1))
+        .toInt();
     if (target == _page) return;
     final pageController = _pageController;
     if (pageController != null && pageController.hasClients) {
@@ -439,8 +441,9 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
       comic: true,
     );
     if (selection == null) return;
-    final index =
-        _chapters.indexWhere((item) => item.sortNum == selection.sortNum);
+    final index = _chapters.indexWhere(
+      (item) => item.sortNum == selection.sortNum,
+    );
     await _openChapterIndex(index < 0 ? 0 : index);
   }
 
@@ -474,23 +477,14 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
         ),
       );
     }
-    return SizedBox(
+    return ContentImage(
+      url: image.url,
       width: width,
       height: height,
-      child: BookImage(
-        url: image.url,
-        displayHeight: height,
-        blurHash: image.placeholder,
-        fit: BoxFit.contain,
-        aspectRatio: _aspect(index),
-        fadeInDuration: const Duration(milliseconds: 80),
-        fallbackIcon: null,
-        errorBuilder: (context, retry) => ComicRetryTile(
-          width: width,
-          height: height,
-          onRetry: retry,
-        ),
-      ),
+      blurHash: image.placeholder,
+      fadeInDuration: const Duration(milliseconds: 80),
+      errorBuilder: (context, retry) =>
+          ComicRetryTile(width: width, height: height, onRetry: retry),
     );
   }
 
@@ -507,11 +501,8 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
         minScale: PhotoViewComputedScale.contained,
         initialScale: PhotoViewComputedScale.contained,
         maxScale: PhotoViewComputedScale.contained * 6,
-        onTapUp: (context, details, _) => _onTapZone(
-          details.globalPosition.dx,
-          size.width,
-          reversed,
-        ),
+        onTapUp: (context, details, _) =>
+            _onTapZone(details.globalPosition.dx, size.width, reversed),
         child: _pageContent(index, size.width, size.width * _aspect(index)),
       ),
     );
@@ -519,31 +510,23 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
 
   Widget _continuousView() {
     final width = _continuousWidth();
-    return Stack(
-      children: <Widget>[
-        Positioned.fill(
-          child: ListView.builder(
-            controller: _scrollController,
-            itemCount: _slots.length,
-            itemExtentBuilder: (index, _) => width * _aspect(index),
-            itemBuilder: (context, index) => Center(
-              child: SizedBox(
-                width: width,
-                child: _pageContent(index, width, width * _aspect(index)),
-              ),
+    return LayoutBuilder(
+      builder: (context, constraints) => GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTapUp: (details) =>
+            _onTapZone(details.localPosition.dy, constraints.maxHeight, false),
+        child: ListView.builder(
+          controller: _scrollController,
+          itemCount: _slots.length,
+          itemExtentBuilder: (index, _) => width * _aspect(index),
+          itemBuilder: (context, index) => Center(
+            child: SizedBox(
+              width: width,
+              child: _pageContent(index, width, width * _aspect(index)),
             ),
           ),
         ),
-        Positioned.fill(
-          child: ReaderTapZoneLayer(
-            axis: Axis.vertical,
-            onPrevious: () => _turn(-1),
-            onNext: () => _turn(1),
-            onToggleChrome: () =>
-                setState(() => _chromeVisible = !_chromeVisible),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -552,8 +535,12 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
     final settings = ref.watch(appSettingsProvider);
     final colors = Theme.of(context).colorScheme;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final background = dark && settings.oledBlack ? Colors.black : colors.surface;
-    final foreground = dark && settings.oledBlack ? Colors.white : colors.onSurface;
+    final background = dark && settings.oledBlack
+        ? Colors.black
+        : colors.surface;
+    final foreground = dark && settings.oledBlack
+        ? Colors.white
+        : colors.onSurface;
     final paged = settings.readerViewMode == ReaderViewMode.paged;
     // 切换阅读模式时保留当前页码。
     if (_mode != settings.readerViewMode) {
@@ -632,6 +619,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
             progress: _slots.isEmpty ? null : (_page + 1) / _slots.length,
             onOpenChapters: () => unawaited(_openChapterSheet()),
             onOpenSettings: () => unawaited(showReaderSettingsSheet(context)),
+            onDismiss: () => setState(() => _chromeVisible = false),
             onPreviousChapter: _chapterIndex > 0
                 ? () => unawaited(_openChapterIndex(_chapterIndex - 1))
                 : null,

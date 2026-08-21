@@ -38,7 +38,6 @@ dependencies:
 
   # 渲染
   flutter_widget_from_html_core: ^0.17.2
-  webview_flutter: ^4.14.1
 
   # 其它
   crypto: ^3.0.6
@@ -47,7 +46,7 @@ dependencies:
   package_info_plus: ^10.2.1
   url_launcher: ^6.3.1
   ffi: ^2.1.4
-  code_assets: ^1.2.1
+  code_assets: ^2.0.0
   hooks: ^2.0.2
 
 dev_dependencies:
@@ -57,6 +56,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/js/novel_reader.js
-    - assets/css/novel_reader.css

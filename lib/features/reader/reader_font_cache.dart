@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
+import 'dart:ui' show loadFontFromList;
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
@@ -10,14 +11,16 @@ import 'package:path_provider/path_provider.dart';
 import 'woff2.dart';
 import '../../data/api/endpoints.dart';
 
-/// 正文字形被混淆过，只有配套字体才认得。Android 先通过 libwoff2 转成 TTF，
-/// 再以内嵌字体注入 WebView；其它平台继续直接使用 WebView 支持的 WOFF2。
+/// 正文字形被服务端混淆过，只有配套的章节字体认得。WOFF2 一律先经 libwoff2 转成
+/// TTF，再整份注册进 Flutter 引擎，正文拿族名直接排版。
 class ReaderFontCache {
   const ReaderFontCache._();
 
   static const String _directoryName = 'reader-fonts';
   static final Map<String, Future<String>> _inflight =
       <String, Future<String>>{};
+  // 引擎里的字体注册无法撤销，重复注册纯属浪费，记下族名短路掉后续下载与磁盘读。
+  static final Set<String> _registered = <String>{};
 
   /// 相对地址按 API 源站补全；空地址表示该章节不用字体。
   static String? resolveFontUrl(String? fontUrl) {
@@ -29,15 +32,19 @@ class ReaderFontCache {
     return '${ServiceEndpoints.apiOrigin}${value.startsWith('/') ? '' : '/'}$value';
   }
 
-  /// 返回可直接写进 `@font-face` 的字体 `data:` URL。
-  /// 无字体返回 null；下载、校验或转换失败抛异常，调用方转错误态。
-  static Future<String?> load(
+  /// 返回已注册到 Flutter 引擎的字体族名。
+  /// 无字体返回 null；下载、校验、转换或注册失败抛异常，调用方转错误态。
+  static Future<String?> loadFamily(
     String? fontUrl, {
     bool cacheEnabled = true,
     int cacheLimit = 30,
   }) {
     final url = resolveFontUrl(fontUrl);
     if (url == null) return Future<String?>.value();
+
+    final digest = _digest(url);
+    final family = 'chapter-font-$digest';
+    if (_registered.contains(family)) return Future<String?>.value(family);
 
     final pending = _inflight[url];
     if (pending != null) return pending;
@@ -46,6 +53,8 @@ class ReaderFontCache {
     final request =
         _load(
           url,
+          digest: digest,
+          family: family,
           cacheEnabled: cacheEnabled,
           cacheLimit: cacheLimit,
         ).whenComplete(() {
@@ -57,19 +66,21 @@ class ReaderFontCache {
 
   static Future<String> _load(
     String url, {
+    required String digest,
+    required String family,
     required bool cacheEnabled,
     required int cacheLimit,
   }) async {
-    final file = cacheEnabled ? await _cacheFile(url) : null;
+    final file = cacheEnabled ? await _cacheFile(digest) : null;
     if (file != null && file.existsSync()) {
-      final bytes = await file.readAsBytes();
-      final prepared = await _prepare(bytes);
-      final mime = _fontMime(prepared);
-      if (mime != null) {
-        if (!identical(prepared, bytes)) {
+      final cached = await file.readAsBytes();
+      final prepared = await _prepare(cached);
+      if (_isEngineFont(prepared)) {
+        // 旧缓存可能存的还是 WOFF2 原件，顺手回写转换结果，省掉下次解码。
+        if (!identical(prepared, cached)) {
           await file.writeAsBytes(prepared, flush: true);
         }
-        return _dataUrl(mime, prepared);
+        return _register(family, prepared);
       }
       await file.delete();
     }
@@ -82,22 +93,28 @@ class ReaderFontCache {
       );
     }
     final bytes = await _prepare(response.bodyBytes);
-    final mime = _fontMime(bytes);
-    if (mime == null) throw const FormatException('章节字体格式无法识别。');
+    if (!_isEngineFont(bytes)) throw const FormatException('章节字体格式无法识别。');
 
     if (file != null) {
       await file.parent.create(recursive: true);
       await file.writeAsBytes(bytes, flush: true);
       await _trim(file.parent, cacheLimit);
     }
-    return _dataUrl(mime, bytes);
+    return _register(family, bytes);
   }
 
-  static Future<File> _cacheFile(String url) async {
+  static Future<String> _register(String family, Uint8List bytes) async {
+    await loadFontFromList(bytes, fontFamily: family);
+    _registered.add(family);
+    return family;
+  }
+
+  static String _digest(String url) => md5.convert(utf8.encode(url)).toString();
+
+  static Future<File> _cacheFile(String digest) async {
     final directory = Directory(
       '${(await getTemporaryDirectory()).path}/$_directoryName',
     );
-    final digest = md5.convert(utf8.encode(url)).toString();
     return File('${directory.path}/$digest.font');
   }
 
@@ -118,9 +135,6 @@ class ReaderFontCache {
     }
   }
 
-  static String _dataUrl(String mime, List<int> bytes) =>
-      'data:$mime;base64,${base64Encode(bytes)}';
-
   static Future<Uint8List> _prepare(Uint8List bytes) {
     if (_fontMime(bytes) != 'font/woff2') {
       return Future<Uint8List>.value(bytes);
@@ -128,7 +142,13 @@ class ReaderFontCache {
     return Isolate.run(() => decodeWoff2(bytes));
   }
 
-  /// 用魔数判断字体类型，避免把 HTML 错误页当成字体注入。
+  /// WOFF1 没有原生解码路径，和认不出魔数一样只能当作不可用字体。
+  static bool _isEngineFont(List<int> bytes) => switch (_fontMime(bytes)) {
+    'font/ttf' || 'font/otf' => true,
+    _ => false,
+  };
+
+  /// 用魔数判断字体类型，避免把 HTML 错误页当成字体注册。
   static String? _fontMime(List<int> bytes) {
     if (bytes.length < 4) return null;
     final magic =
