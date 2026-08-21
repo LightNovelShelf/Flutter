@@ -46,6 +46,8 @@ class ComicReaderScreen extends ConsumerStatefulWidget {
 
 class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
   static const int _batchSize = 12;
+
+  /// 尺寸未知时先按常见竖版单页占位。
   static const double _unknownAspect = 1.5;
 
   late final ApiClient _api;
@@ -242,6 +244,8 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
         priority: RequestPriority.preload,
       );
       if (!mounted || version != _requestVersion) return;
+      // 新一批图带来真实比例，之前按未知比例占位的页高会变，先记下当前页起点再补回偏移。
+      final anchor = _offsetForPage(_page);
       setState(() {
         _slots = mergeComicPageBatch(
           _slots,
@@ -249,6 +253,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
           content.chapter.images,
         );
       });
+      _restoreAnchor(anchor);
     } catch (_) {
       if (!mounted || version != _requestVersion) return;
       setState(() => _failedBatches.add(skip));
@@ -302,7 +307,11 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
     unawaited(_prefetch());
   }
 
-  double _aspect(int _) => _unknownAspect;
+  /// 整页高宽比。地址上带 `size` 就用真实比例，横跨两页的宽图才不会被塞进竖版版面。
+  double _aspect(int index) {
+    if (index < 0 || index >= _slots.length) return _unknownAspect;
+    return _slots[index].image?.aspect ?? _unknownAspect;
+  }
 
   double _continuousWidth() {
     final size = MediaQuery.sizeOf(context);
@@ -325,6 +334,17 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
       offset += width * _aspect(index);
     }
     return offset;
+  }
+
+  /// 页高变化后把当前页钉回原位。连续模式按累计页高定位，前面任何一页变高变矮都会整体平移。
+  ///
+  /// 同帧内改 offset，布局用新页高排一次，看不到中间态；上界不夹，越界由随后的布局纠正。
+  void _restoreAnchor(double anchor) {
+    final controller = _scrollController;
+    if (controller == null || !controller.hasClients) return;
+    final delta = _offsetForPage(_page) - anchor;
+    if (delta == 0) return;
+    controller.jumpTo(math.max(0, controller.offset + delta));
   }
 
   void _onScroll() {

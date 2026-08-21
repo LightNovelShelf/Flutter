@@ -156,6 +156,20 @@ _RawQueryValue? _extractRawQueryValue(String rawUrl, String key) {
 String? extractBlurHashPlaceholder(String value) =>
     normalizeBlurHash(_extractRawQueryValue(value, 'placeholder')?.value);
 
+/// 图床地址上的 `size=<宽>x<高>`（像素），下载前就能按真实比例预留版面。
+({int width, int height})? extractImageSize(String value) {
+  final raw = _extractRawQueryValue(value, 'size')?.value;
+  if (raw == null) return null;
+  // 老封面串偶尔在末尾挂 fragment，`size` 是最后一个参数时会被带进来。
+  final pair = raw.split('#').first;
+  final separator = pair.indexOf('x');
+  if (separator <= 0) return null;
+  final width = int.tryParse(pair.substring(0, separator));
+  final height = int.tryParse(pair.substring(separator + 1));
+  if (width == null || height == null || width <= 0 || height <= 0) return null;
+  return (width: width, height: height);
+}
+
 /// 修复旧封面 URL，未转义的 `#` 会把后续签名参数变成 fragment。
 String normalizeCoverUrl(String value) {
   final placeholder = _extractRawQueryValue(value, 'placeholder');

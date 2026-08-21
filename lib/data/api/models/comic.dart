@@ -34,14 +34,26 @@ class ComicChapterSummary {
 }
 
 class ComicImage {
-  const ComicImage({required this.url, required this.placeholder});
+  const ComicImage({
+    required this.url,
+    required this.placeholder,
+    required this.aspect,
+  });
 
   final String url;
   final String placeholder;
 
+  /// 整页高宽比，地址上没带 `size` 时为 null，由调用方按未知尺寸兜底。
+  final double? aspect;
+
   static ComicImage decode(Object? value) {
     final cover = decodeCover(value);
-    return ComicImage(url: cover.url, placeholder: cover.placeholder ?? '');
+    final size = extractImageSize(cover.url);
+    return ComicImage(
+      url: cover.url,
+      placeholder: cover.placeholder ?? '',
+      aspect: size == null ? null : size.height / size.width,
+    );
   }
 }
 
