@@ -48,6 +48,8 @@ dependencies:
   ffi: ^2.1.4
   code_assets: ^2.0.0
   hooks: ^2.0.2
+  # GlobalCupertinoLocalizations 引入的 Cupertino 组件引用 CupertinoIcons 字形。
+  cupertino_icons: ^1.0.8
 
 dev_dependencies:
   flutter_test:
