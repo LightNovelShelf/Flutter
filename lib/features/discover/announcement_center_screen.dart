@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../data/api/models.dart';
 import '../../shared/format.dart';
 import '../../shared/widgets/state_views.dart';
-import 'discover_providers.dart';
+import '../announcement/announcement_providers.dart';
 
 final RegExp _htmlTagPattern = RegExp('<[^>]*>');
 final RegExp _whitespacePattern = RegExp(r'\s+');

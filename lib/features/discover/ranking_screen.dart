@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/providers.dart';
 import '../../data/settings/app_settings.dart';
-import 'discover_providers.dart';
+import 'catalog_providers.dart';
+import 'home_providers.dart';
 import 'widgets/book_grid.dart';
 
 /// 排行榜：周期切换，一次返回完整榜单。
@@ -45,7 +46,7 @@ class _RankingScreenState extends ConsumerState<RankingScreen> {
           onSelectionChanged: (selection) =>
               setState(() => _period = selection.first),
         ),
-        books: state.books,
+        books: state.items,
         loading: state.loading,
         errorMessage: state.error,
         onRetry: controller.retry,

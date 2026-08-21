@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../../core/network/api_error.dart';
 import '../../core/network/request_scheduler.dart';
 import '../../data/api/api_client.dart';
 import '../../data/api/community_models.dart';
 import '../../data/providers.dart';
+import '../../shared/paging/paged_list.dart';
 
 const int communityPageSize = 6;
 
@@ -17,42 +17,6 @@ const String communityAllBoardKey = 'all';
 
 /// 发帖须知的确认标记，只认一次。
 const String communityPostNoticeKey = 'community_post_notice_accepted_v1';
-
-final NumberFormat _compactNumber = NumberFormat.compact(locale: 'zh_CN');
-
-/// 计数一律紧凑写法（1.2万），长数字会撑破卡片。
-String formatCommunityCount(int value) => _compactNumber.format(value);
-
-/// 社区相对时间：比 [formatRelativeTime] 粒度更细，且能显示未来时间。
-String formatCommunityTime(DateTime? value) {
-  if (value == null) return '';
-  final delta = DateTime.now().difference(value);
-  final abs = delta.abs();
-  final suffix = delta.isNegative ? '后' : '前';
-  if (abs.inMinutes < 1) return '刚刚';
-  if (abs.inMinutes < 60) return '${abs.inMinutes} 分钟$suffix';
-  if (abs.inHours < 24) return '${abs.inHours} 小时$suffix';
-  if (abs.inDays < 26) return '${abs.inDays} 天$suffix';
-  if (abs.inDays < 46) return '1 个月$suffix';
-  if (abs.inDays < 320) return '${(abs.inDays / 30.4).round()} 个月$suffix';
-  if (abs.inDays < 548) return '1 年$suffix';
-  return '${(abs.inDays / 365.25).round()} 年$suffix';
-}
-
-/// 分页合并：保留既有顺序，只追加没见过的 id。服务端会重排热度，翻页必然撞重复。
-List<T> mergeCommunityById<T>(
-  List<T> existing,
-  List<T> incoming,
-  int Function(T item) idOf,
-) {
-  if (incoming.isEmpty) return existing;
-  final seen = <int>{for (final T item in existing) idOf(item)};
-  final merged = List<T>.of(existing);
-  for (final T item in incoming) {
-    if (seen.add(idOf(item))) merged.add(item);
-  }
-  return merged;
-}
 
 int communityFeedItemId(CommunityFeedItem item) => item.id;
 
@@ -105,11 +69,6 @@ String describeCommunityError(Object error, {String fallback = '社区暂时不�
   }
   return fallback;
 }
-
-/// 页面切换、筛选变更会主动取消在途请求。
-bool isCommunityCancellation(Object error) =>
-    error is RequestCancelledError ||
-    (error is ApiError && error.cause is RequestCancelledError);
 
 /// 服务端没有「所有版面」时补一个合成项，统计沿用首页的今日主题数。
 List<CommunityBoardSummary> buildCommunityBoardOptions(
@@ -274,7 +233,7 @@ class CommunityHomeController extends Notifier<CommunityHomeState> {
         error: null,
       );
     } catch (error) {
-      if (token != _generation || isCommunityCancellation(error)) return;
+      if (token != _generation || isCancellation(error)) return;
       state = state.copyWith(
         loading: false,
         refreshing: false,
@@ -344,7 +303,7 @@ class CommunityHomeController extends Notifier<CommunityHomeState> {
         error: null,
       );
     } catch (error) {
-      if (token != _generation || isCommunityCancellation(error)) return;
+      if (token != _generation || isCancellation(error)) return;
       await _holdSkeleton(started);
       if (token != _generation) return;
       state = state.copyWith(
@@ -378,12 +337,12 @@ class CommunityHomeController extends Notifier<CommunityHomeState> {
       );
       if (token != _generation) return;
       state = state.copyWith(
-        feed: mergeCommunityById(state.feed, payload.feed, communityFeedItemId),
+        feed: mergeById(state.feed, payload.feed, communityFeedItemId),
         feedPage: payload.feedPage,
         loadingMore: false,
       );
     } catch (error) {
-      if (token != _generation || isCommunityCancellation(error)) return;
+      if (token != _generation || isCancellation(error)) return;
       state = state.copyWith(
         loadingMore: false,
         loadMoreError: describeCommunityError(error, fallback: '无法加载更多讨论。'),

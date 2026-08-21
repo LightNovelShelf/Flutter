@@ -1,6 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../data/settings/app_settings.dart';
+
+/// 阅读器整屏的底/前景色。OLED 纯黑模式要真黑真白，深色主题的浅灰底在 OLED 上会发亮。
+({Color background, Color foreground}) readerSurfaceColors(
+  BuildContext context,
+  AppSettings settings,
+) {
+  final theme = Theme.of(context);
+  final oled = theme.brightness == Brightness.dark && settings.oledBlack;
+  final colors = theme.colorScheme;
+  return (
+    background: oled ? Colors.black : colors.surface,
+    foreground: oled ? Colors.white : colors.onSurface,
+  );
+}
+
 /// 阅读器悬浮工具栏：默认隐藏，点中间区域才出现，不挡正文。
 class ReaderChrome extends StatelessWidget {
   const ReaderChrome({
@@ -89,92 +105,6 @@ class ReaderChrome extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// 常驻的章节 / 页码信息；工具栏展开时淡出，避免与底栏重叠。
-class ReaderStatusPills extends StatelessWidget {
-  const ReaderStatusPills({
-    super.key,
-    required this.visible,
-    required this.foregroundColor,
-    required this.currentChapter,
-    required this.totalChapters,
-    required this.currentPage,
-    required this.totalPages,
-  });
-
-  final bool visible;
-  final Color foregroundColor;
-  final int currentChapter;
-  final int totalChapters;
-  final int currentPage;
-  final int totalPages;
-
-  @override
-  Widget build(BuildContext context) => IgnorePointer(
-    child: AnimatedOpacity(
-      duration: const Duration(milliseconds: 150),
-      opacity: visible ? 1 : 0,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          _ReaderStatusPill(
-            icon: Icons.book_outlined,
-            value: '$currentChapter/$totalChapters',
-            foregroundColor: foregroundColor,
-          ),
-          const SizedBox(width: 8),
-          _ReaderStatusPill(
-            icon: Icons.menu_book_outlined,
-            value: '$currentPage/$totalPages',
-            foregroundColor: foregroundColor,
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class _ReaderStatusPill extends StatelessWidget {
-  const _ReaderStatusPill({
-    required this.icon,
-    required this.value,
-    required this.foregroundColor,
-  });
-
-  final IconData icon;
-  final String value;
-  final Color foregroundColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = foregroundColor.withValues(alpha: 0.78);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: foregroundColor.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 5),
-            Text(
-              value,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                height: 14 / 11,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -392,48 +322,4 @@ class _ReaderBottomBar extends StatelessWidget {
       ),
     );
   }
-}
-
-/// 点击热区：两端 30% 翻页，中间切换工具栏。
-class ReaderTapZoneLayer extends StatelessWidget {
-  const ReaderTapZoneLayer({
-    super.key,
-    required this.onPrevious,
-    required this.onNext,
-    required this.onToggleChrome,
-    this.axis = Axis.horizontal,
-    this.reversed = false,
-  });
-
-  final VoidCallback onPrevious;
-  final VoidCallback onNext;
-  final VoidCallback onToggleChrome;
-  final Axis axis;
-
-  /// 右向左阅读时翻页方向对调。
-  final bool reversed;
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) => GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTapUp: (details) {
-        final horizontal = axis == Axis.horizontal;
-        final position = horizontal
-            ? details.localPosition.dx
-            : details.localPosition.dy;
-        final extent = horizontal
-            ? constraints.maxWidth
-            : constraints.maxHeight;
-        if (extent <= 0) return;
-        if (position <= extent * 0.3) {
-          (reversed ? onNext : onPrevious)();
-        } else if (position >= extent * 0.7) {
-          (reversed ? onPrevious : onNext)();
-        } else {
-          onToggleChrome();
-        }
-      },
-    ),
-  );
 }

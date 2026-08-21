@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../data/api/models.dart';
 import '../../../shared/layout/book_grid_layout.dart';
 import '../../../shared/widgets/book_image.dart';
+import '../../../shared/widgets/grid_tile_parts.dart';
 
 /// 书架文件夹卡片：与书籍卡片同尺寸，内含书籍按 2×2 排列。
 class ShelfFolderTile extends StatelessWidget {
@@ -123,52 +124,13 @@ class ShelfFolderTile extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (selected)
-                        const ColoredBox(
-                          color: Color(0xB8D9475D),
-                          child: Center(
-                            child: Icon(
-                              Icons.check,
-                              size: 34,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      if (sorting && !selected)
-                        const ColoredBox(
-                          color: Color(0x7A000000),
-                          child: Center(
-                            child: Icon(
-                              Icons.drag_indicator,
-                              size: 36,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
+                      GridSelectionOverlay(selected: selected, sorting: sorting),
                     ],
                   ),
                 ),
               ),
             ),
-            SizedBox(
-              height: BookGridLayout.titleBoxHeight,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: Center(
-                  child: Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 16 / 13,
-                      color: colors.onSurface,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            GridTileTitle(title: title),
           ],
         ),
       ),

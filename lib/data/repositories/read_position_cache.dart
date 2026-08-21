@@ -15,11 +15,16 @@ class ReadPositionCache {
 
   static void clear() => _positions.clear();
 
-  /// 用缓存覆盖服务端返回的旧进度（缓存里的章节更新时才覆盖）。
+  /// 用缓存覆盖服务端返回的旧进度：取 `readAt` 更晚的一份，
+  /// 时间相同或缺失时以缓存为准（本机刚写的更可信）。
   static BookReadPosition? merge(int bookId, BookReadPosition? remote) {
     final cached = _positions[bookId];
     if (cached == null) return remote;
     if (remote == null) return cached;
-    return cached;
+    final cachedAt = cached.readAt;
+    final remoteAt = remote.readAt;
+    if (cachedAt == null && remoteAt != null) return remote;
+    if (cachedAt == null || remoteAt == null) return cached;
+    return remoteAt.isAfter(cachedAt) ? remote : cached;
   }
 }

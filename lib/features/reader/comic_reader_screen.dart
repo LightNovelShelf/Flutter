@@ -12,20 +12,22 @@ import '../../core/network/request_scheduler.dart';
 import '../../data/api/api_client.dart';
 import '../../data/api/models.dart';
 import '../../data/providers.dart';
-import '../../data/repositories/read_position_cache.dart';
 import '../../data/settings/app_settings.dart';
 import '../../shared/image_cache.dart';
 import '../../shared/image_sizing.dart';
 import '../../shared/widgets/book_image.dart';
-import '../../shared/widgets/state_views.dart';
 import '../../shared/widgets/image_preview.dart';
-import 'reader_engine.dart';
+import '../../shared/widgets/state_views.dart';
+import 'reader_comic_paging.dart';
 import 'reader_open_position.dart';
+import 'reader_position.dart';
+import 'reader_progress_controller.dart';
 import 'reader_providers.dart';
 import 'widgets/comic_retry_tile.dart';
 import 'widgets/reader_chapter_sheet.dart';
 import 'widgets/reader_chrome.dart';
 import 'widgets/reader_settings_sheet.dart';
+import 'widgets/reader_tap_zone.dart';
 
 /// 漫画阅读器：整页图片，按 12 页一批向服务端取图。
 class ComicReaderScreen extends ConsumerStatefulWidget {
@@ -47,8 +49,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
   static const double _unknownAspect = 1.5;
 
   late final ApiClient _api;
-  late final ReaderPositionWriteQueue<ReaderRestorePosition> _positions;
-  late final AppLifecycleListener _lifecycle;
+  late final ReaderProgressController _progress;
 
   late int _sortNum;
   int _requestVersion = 0;
@@ -75,35 +76,16 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
     super.initState();
     _sortNum = widget.sortNum;
     _api = ref.read(apiClientProvider);
-    _positions = ReaderPositionWriteQueue<ReaderRestorePosition>(
-      _persistPosition,
-      fingerprint: (position) => '${position.chapterId}:${position.position}',
-    );
-    _lifecycle = AppLifecycleListener(
-      onPause: () => unawaited(_positions.flush()),
-    );
+    _progress = ReaderProgressController(api: _api, bookId: widget.bookId);
     unawaited(_loadChapter());
   }
 
   @override
   void dispose() {
-    _lifecycle.dispose();
-    unawaited(_positions.dispose());
+    unawaited(_progress.dispose());
     _pageController?.dispose();
     _scrollController?.dispose();
     super.dispose();
-  }
-
-  Future<void> _persistPosition(ReaderRestorePosition position) async {
-    try {
-      await _api.saveReadPosition(
-        bookId: widget.bookId,
-        chapterId: position.chapterId,
-        position: position.position,
-      );
-    } catch (_) {
-      // 进度写入失败不打断阅读。
-    }
   }
 
   Future<void> _loadChapter() async {
@@ -174,9 +156,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
       });
       _resetControllers(page);
       _stage(page);
-      await _positions.commit(
-        ReaderRestorePosition(chapterId: chapter.id, position: '${page + 1}'),
-      );
+      await _progress.commit(chapter.id, '${page + 1}');
       unawaited(_prefetch());
     } catch (error) {
       if (!mounted || version != _requestVersion) return;
@@ -191,21 +171,10 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
     ComicChapterSummary chapter,
     BookReadPosition? server,
   ) {
-    final cached = ReadPositionCache.read(widget.bookId);
-    final restore = resolveReaderRestorePosition(
-      chapter.id,
-      server == null
-          ? null
-          : ReaderRestorePosition(
-              chapterId: server.chapterId,
-              position: server.position,
-            ),
-      cached == null
-          ? null
-          : CachedReaderRestorePosition(
-              chapterId: cached.chapterId,
-              position: cached.position,
-            ),
+    final restore = resolveReaderRestore(
+      bookId: widget.bookId,
+      chapterId: chapter.id,
+      server: server,
     );
     final saved = int.tryParse(restore?.position ?? '') ?? 1;
     return resolveReaderInitialIndex(
@@ -321,20 +290,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
   void _stage(int page) {
     final chapter = _chapter;
     if (chapter == null) return;
-    final position = ReaderRestorePosition(
-      chapterId: chapter.id,
-      position: '${page + 1}',
-    );
-    // 立刻写进程内缓存，详情页/书架马上能看到最新进度。
-    ReadPositionCache.stage(
-      widget.bookId,
-      BookReadPosition(
-        chapterId: position.chapterId,
-        position: position.position,
-        readAt: DateTime.now(),
-      ),
-    );
-    _positions.schedule(position);
+    _progress.stage(chapter.id, '${page + 1}');
   }
 
   void _onPageChanged(int page) {
@@ -428,9 +384,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
   Future<void> _commitPosition() async {
     final chapter = _chapter;
     if (chapter == null) return;
-    await _positions.commit(
-      ReaderRestorePosition(chapterId: chapter.id, position: '${_page + 1}'),
-    );
+    await _progress.commit(chapter.id, '${_page + 1}');
   }
 
   Future<void> _openChapterSheet() async {
@@ -447,14 +401,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
     await _openChapterIndex(index < 0 ? 0 : index);
   }
 
-  void _onTapZone(double position, double extent, bool reversed) {
-    final zone = resolveComicTapDirection(position, extent);
-    if (zone == 0) {
-      setState(() => _chromeVisible = !_chromeVisible);
-      return;
-    }
-    _turn(reversed ? -zone : zone);
-  }
+  void _toggleChrome() => setState(() => _chromeVisible = !_chromeVisible);
 
   Widget _pageContent(int index, double width, double height) {
     final slot = _slots[index];
@@ -490,7 +437,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
 
   Widget _pagedView(bool reversed) {
     final size = MediaQuery.sizeOf(context);
-    return PhotoViewGallery.builder(
+    final gallery = PhotoViewGallery.builder(
       itemCount: _slots.length,
       pageController: _pageController,
       reverse: reversed,
@@ -501,29 +448,40 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
         minScale: PhotoViewComputedScale.contained,
         initialScale: PhotoViewComputedScale.contained,
         maxScale: PhotoViewComputedScale.contained * 6,
-        onTapUp: (context, details, _) =>
-            _onTapZone(details.globalPosition.dx, size.width, reversed),
         child: _pageContent(index, size.width, size.width * _aspect(index)),
       ),
+    );
+    // PhotoView 自己先吃掉子树里的点按，热区只能铺在它上面才拿得到。
+    return Stack(
+      children: <Widget>[
+        Positioned.fill(child: gallery),
+        Positioned.fill(
+          child: ReaderTapZoneLayer(
+            reversed: reversed,
+            onPrevious: () => _turn(-1),
+            onNext: () => _turn(1),
+            onToggleChrome: _toggleChrome,
+          ),
+        ),
+      ],
     );
   }
 
   Widget _continuousView() {
     final width = _continuousWidth();
-    return LayoutBuilder(
-      builder: (context, constraints) => GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTapUp: (details) =>
-            _onTapZone(details.localPosition.dy, constraints.maxHeight, false),
-        child: ListView.builder(
-          controller: _scrollController,
-          itemCount: _slots.length,
-          itemExtentBuilder: (index, _) => width * _aspect(index),
-          itemBuilder: (context, index) => Center(
-            child: SizedBox(
-              width: width,
-              child: _pageContent(index, width, width * _aspect(index)),
-            ),
+    return ReaderTapZoneLayer(
+      axis: Axis.vertical,
+      onPrevious: () => _turn(-1),
+      onNext: () => _turn(1),
+      onToggleChrome: _toggleChrome,
+      child: ListView.builder(
+        controller: _scrollController,
+        itemCount: _slots.length,
+        itemExtentBuilder: (index, _) => width * _aspect(index),
+        itemBuilder: (context, index) => Center(
+          child: SizedBox(
+            width: width,
+            child: _pageContent(index, width, width * _aspect(index)),
           ),
         ),
       ),
@@ -533,14 +491,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(appSettingsProvider);
-    final colors = Theme.of(context).colorScheme;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final background = dark && settings.oledBlack
-        ? Colors.black
-        : colors.surface;
-    final foreground = dark && settings.oledBlack
-        ? Colors.white
-        : colors.onSurface;
+    final (:background, :foreground) = readerSurfaceColors(context, settings);
     final paged = settings.readerViewMode == ReaderViewMode.paged;
     // 切换阅读模式时保留当前页码。
     if (_mode != settings.readerViewMode) {

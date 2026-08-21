@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/api/api_client.dart';
-import 'discover_providers.dart';
+import 'catalog_providers.dart';
 import 'widgets/book_grid.dart';
 
 /// 全部漫画：与全部小说同构，但不做内容过滤。
@@ -44,7 +44,7 @@ class _ComicListScreenState extends ConsumerState<ComicListScreen> {
           onSelectionChanged: (selection) =>
               setState(() => _order = selection.first),
         ),
-        books: state.books,
+        books: state.items,
         loading: state.loading,
         loadingMore: state.loadingMore,
         hasMore: state.hasMore && state.loadMoreError == null,

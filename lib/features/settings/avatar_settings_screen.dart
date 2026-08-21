@@ -6,8 +6,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/network/api_error.dart';
 import '../../data/api/models.dart';
+import '../../data/repositories/avatar_source.dart';
 import '../../data/repositories/profile_repository.dart';
-import 'widgets/profile_avatar.dart';
+import '../../shared/widgets/user_avatar.dart';
 
 const Map<AvatarSource, ({String label, String placeholder, String hint})>
     _sourceCopy = <AvatarSource, ({String label, String placeholder, String hint})>{
@@ -188,10 +189,11 @@ class _AvatarSettingsScreenState extends ConsumerState<AvatarSettingsScreen> {
             ),
             child: Row(
               children: <Widget>[
-                ProfileAvatar(
+                UserAvatar(
                   url: _previewUrl(profile),
-                  userName: profile.userName,
+                  name: profile.userName,
                   size: 64,
+                  fallbackIcon: Icons.person,
                 ),
                 const SizedBox(width: 14),
                 Expanded(

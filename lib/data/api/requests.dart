@@ -1,0 +1,40 @@
+/// 线上枚举与请求参数对象：与传输层无关，单独放一处避免夹在客户端方法中间。
+enum BookSearchMode { fuzzy, exact, title, author, name, tags }
+
+enum BookListOrder { latest, newest, view }
+
+extension BookListOrderWire on BookListOrder {
+  String get wire => switch (this) {
+    BookListOrder.latest => 'latest',
+    BookListOrder.newest => 'new',
+    BookListOrder.view => 'view',
+  };
+}
+
+enum ComicOrder { latest, newest, view }
+
+extension ComicOrderWire on ComicOrder {
+  String get wire => switch (this) {
+    ComicOrder.latest => 'latest',
+    ComicOrder.newest => 'new',
+    ComicOrder.view => 'view',
+  };
+}
+
+class BookSearchRequest {
+  const BookSearchRequest({
+    required this.keywords,
+    required this.mode,
+    required this.page,
+    required this.size,
+    this.ignoreJapanese = false,
+    this.ignoreAI = false,
+  });
+
+  final String keywords;
+  final BookSearchMode mode;
+  final int page;
+  final int size;
+  final bool ignoreJapanese;
+  final bool ignoreAI;
+}

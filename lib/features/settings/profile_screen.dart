@@ -10,9 +10,9 @@ import '../../data/api/models.dart';
 import '../../data/providers.dart';
 import '../../data/repositories/profile_repository.dart';
 import '../../shared/format.dart';
+import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/settings_rows.dart';
-import 'settings_screen.dart';
-import 'widgets/profile_avatar.dart';
+import '../../shared/widgets/user_avatar.dart';
 
 /// 个人资料：账号信息、成长记录、每日签到与退出登录。
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -68,14 +68,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     try {
       final result = await ref.read(profileProvider.notifier).checkIn();
       if (!mounted) return;
-      await showSettingsAlert(
+      await showAppAlert(
         context: context,
         title: '签到成功',
         message: '连续第 ${result.streak} 天 · 经验值 +${result.reward}',
       );
     } catch (error) {
       if (!mounted) return;
-      await showSettingsAlert(
+      await showAppAlert(
         context: context,
         title: '无法签到',
         message: _errorMessage(error, '请重试。'),
@@ -86,7 +86,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _signOut() async {
-    final confirmed = await showSettingsConfirm(
+    final confirmed = await showAppConfirm(
       context: context,
       title: '要退出登录吗？',
       message: '已同步的账号数据仍会保留在服务器上。',
@@ -99,7 +99,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       await ref.read(authControllerProvider).signOut();
     } catch (error) {
       if (!mounted) return;
-      await showSettingsAlert(
+      await showAppAlert(
         context: context,
         title: '无法退出登录',
         message: _errorMessage(error, '请重试。'),
@@ -140,10 +140,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             description: '更换个人头像',
             icon: Icons.account_circle_outlined,
             onTap: () => context.push('/settings/avatar'),
-            trailing: ProfileAvatar(
+            trailing: UserAvatar(
               url: profile.avatarUrl,
-              userName: profile.userName,
+              name: profile.userName,
               size: 42,
+              fallbackIcon: Icons.person,
             ),
           ),
           _copyableRow(

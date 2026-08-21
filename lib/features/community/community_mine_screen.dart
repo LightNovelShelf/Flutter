@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../data/api/api_client.dart';
 import '../../data/api/community_models.dart';
 import '../../data/providers.dart';
 import '../../shared/format.dart';
-import 'community_providers.dart';
-import 'widgets/community_widgets.dart';
+import 'widgets/community_feed_card.dart';
+import 'widgets/community_primitives.dart';
 
 enum _MineTab { published, participated, favorites }
 
@@ -244,7 +245,7 @@ class _MyReplyCard extends StatelessWidget {
                 CommunityTagPill(label: reply.boardName.trim()),
               const Spacer(),
               Text(
-                formatCommunityTime(reply.publishedAt),
+                formatRelativeTimeFine(reply.publishedAt),
                 style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
               ),
             ],
@@ -304,7 +305,7 @@ class _MyReplyCard extends StatelessWidget {
               ),
               const SizedBox(width: 5),
               Text(
-                formatCommunityCount(reply.likes),
+                formatCompactCount(reply.likes),
                 style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
               ),
             ],

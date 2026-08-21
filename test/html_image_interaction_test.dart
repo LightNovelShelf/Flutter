@@ -5,8 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lightnovel/shared/widgets/blurhash_image.dart';
 import 'package:lightnovel/shared/widgets/book_image.dart';
 import 'package:lightnovel/shared/widgets/image_preview.dart';
-import 'package:lightnovel/features/reader/reader_content_style.dart';
-import 'package:lightnovel/features/reader/widgets/reader_html_block.dart';
+import 'package:lightnovel/shared/widgets/html/reader_content_style.dart';
+import 'package:lightnovel/shared/widgets/reader_html_block.dart';
 
 void main() {
   testWidgets('富文本图片预留尺寸并使用 BlurHash，短按不触发链接、长按预览', (tester) async {

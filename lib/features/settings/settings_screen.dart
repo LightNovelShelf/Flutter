@@ -3,57 +3,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../shared/widgets/settings_rows.dart';
 
-Future<void> showSettingsAlert({
-  required BuildContext context,
-  required String title,
-  String? message,
-}) => showDialog<void>(
-  context: context,
-  builder: (context) => AlertDialog(
-    title: Text(title),
-    content: message == null ? null : Text(message),
-    actions: <Widget>[
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('好'),
-      ),
-    ],
-  ),
-);
-
-/// 二次确认弹窗；`destructive` 用于退出登录一类的破坏性操作。
-Future<bool> showSettingsConfirm({
-  required BuildContext context,
-  required String title,
-  String? message,
-  required String confirmLabel,
-  String cancelLabel = '取消',
-  bool destructive = false,
-}) async {
-  final colors = Theme.of(context).colorScheme;
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(title),
-      content: message == null ? null : Text(message),
-      actions: <Widget>[
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(cancelLabel),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          style: destructive
-              ? TextButton.styleFrom(foregroundColor: colors.error)
-              : null,
-          child: Text(confirmLabel),
-        ),
-      ],
-    ),
-  );
-  return confirmed ?? false;
-}
-
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 

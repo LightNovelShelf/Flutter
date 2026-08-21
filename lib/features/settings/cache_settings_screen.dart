@@ -6,9 +6,9 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../data/providers.dart';
 import '../../shared/image_cache.dart';
+import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/book_image.dart';
 import '../../shared/widgets/settings_rows.dart';
-import 'settings_screen.dart';
 
 /// 阅读器下载并转换后的字体存放目录。
 const String readerFontCacheDirectoryName = 'reader-fonts';
@@ -36,14 +36,14 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
         ..clearLiveImages();
       await appImageCacheManager.emptyCache();
       if (!mounted) return;
-      await showSettingsAlert(
+      await showAppAlert(
         context: context,
         title: '图片缓存已清除',
         message: '已删除下载的图片和解码后的 BlurHash 占位图。',
       );
     } catch (_) {
       if (!mounted) return;
-      await showSettingsAlert(
+      await showAppAlert(
         context: context,
         title: '无法清除图片缓存',
         message: '图片缓存无法清除，请重试。',
@@ -59,14 +59,14 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
     try {
       final removed = await _removeReaderFontCache();
       if (!mounted) return;
-      await showSettingsAlert(
+      await showAppAlert(
         context: context,
         title: '阅读字体缓存已清除',
         message: removed == 0 ? '没有可清除的阅读字体缓存。' : '已删除 $removed 个字体缓存文件。',
       );
     } catch (_) {
       if (!mounted) return;
-      await showSettingsAlert(
+      await showAppAlert(
         context: context,
         title: '无法清除阅读字体缓存',
         message: '字体缓存无法清除，请重试。',

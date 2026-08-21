@@ -38,3 +38,36 @@ ApiError toApiError(Object error) {
     cause: error,
   );
 }
+
+/// 统一的用户可见错误文案：认证/网络给固定提示，其余沿用服务端消息。
+///
+/// `normalize` 为真时先把任意异常规整成 [ApiError]（socket 异常等会落到网络分支），
+/// 否则非 [ApiError] 直接用 `fallback`。
+String describeApiError(
+  Object error, {
+  String fallback = '发生了预料之外的错误，请稍后再试。',
+  String auth = '登录状态已失效，请重新登录后再试。',
+  String network = '网络连接不可用，请检查网络后重试。',
+  bool normalize = false,
+}) {
+  if (error is ApiError) {
+    return switch (error.category) {
+      ApiErrorCategory.auth => auth,
+      ApiErrorCategory.network => network,
+      _ => error.message.trim().isEmpty ? fallback : error.message,
+    };
+  }
+  if (error is RequestCancelledError) return '请求已取消。';
+  if (!normalize) return fallback;
+  return describeApiError(
+    toApiError(error),
+    fallback: fallback,
+    auth: auth,
+    network: network,
+  );
+}
+
+/// 页面切换、筛选变更会主动取消在途请求；取消可能被包在 [ApiError.cause] 里。
+bool isCancellation(Object error) =>
+    error is RequestCancelledError ||
+    (error is ApiError && error.cause is RequestCancelledError);

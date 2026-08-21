@@ -13,17 +13,14 @@ const int historyPageSize = 24;
 
 enum HistoryTab { novel, comic }
 
-/// 认证/网络单独提示，其余沿用服务端消息。
-String describeHistoryError(Object error, {String fallback = '阅读历史暂时不可用。'}) {
-  if (error is ApiError) {
-    return switch (error.category) {
-      ApiErrorCategory.auth => '登录状态已过期，请重新登录后继续。',
-      ApiErrorCategory.network => '网络连接不可用，请检查后重试。',
-      _ => error.message.trim().isEmpty ? fallback : error.message,
-    };
-  }
-  return describeHistoryError(toApiError(error), fallback: fallback);
-}
+String describeHistoryError(Object error, {String fallback = '阅读历史暂时不可用。'}) =>
+    describeApiError(
+      error,
+      fallback: fallback,
+      auth: '登录状态已过期，请重新登录后继续。',
+      network: '网络连接不可用，请检查后重试。',
+      normalize: true,
+    );
 
 /// 单个分页（小说或漫画）的状态：完整 ID 序列 + 已翻页的书籍。
 @immutable
@@ -150,24 +147,42 @@ class HistoryController extends AsyncNotifier<HistoryState> {
             .items
             .map((series) => series.toBookListItem())
             .toList();
-    final byId = <int, BookListItem>{for (final book in fetched) book.id: book};
-    final seenIds = <int>{for (final book in tab.items) book.id};
-    // 漫画按系列聚合，同一系列可能在后续页里再次出现，额外按标题去重。
-    final seenTitles = <String>{for (final book in tab.items) book.title};
-    final merged = List<BookListItem>.of(tab.items);
-    for (final id in slice) {
-      final book = byId[id];
-      if (book == null) continue;
-      if (!seenIds.add(book.id)) continue;
-      if (which == HistoryTab.comic && !seenTitles.add(book.title)) continue;
-      merged.add(book);
-    }
     return tab.copyWith(
-      items: merged,
+      items: _orderBySlice(
+        tab.items,
+        fetched,
+        slice,
+        dedupeByTitle: which == HistoryTab.comic,
+      ),
       loadedPages: tab.loadedPages + 1,
       loadingMore: false,
       clearError: true,
     );
+  }
+
+  /// 不是通用的按 id 合并：以请求的 id 顺序为准重排，
+  /// 并丢掉服务端没返回的 id（历史里的书可能已下架）。
+  static List<BookListItem> _orderBySlice(
+    List<BookListItem> existing,
+    List<BookListItem> fetched,
+    List<int> slice, {
+    required bool dedupeByTitle,
+  }) {
+    final byId = <int, BookListItem>{for (final book in fetched) book.id: book};
+    final seenIds = <int>{for (final book in existing) book.id};
+    // 漫画按系列聚合，同一系列可能在后续页里再次出现，额外按标题去重。
+    final seenTitles = <String>{
+      if (dedupeByTitle) for (final book in existing) book.title,
+    };
+    final merged = List<BookListItem>.of(existing);
+    for (final id in slice) {
+      final book = byId[id];
+      if (book == null) continue;
+      if (!seenIds.add(book.id)) continue;
+      if (dedupeByTitle && !seenTitles.add(book.title)) continue;
+      merged.add(book);
+    }
+    return merged;
   }
 
   Future<void> _appendPage(HistoryTab which) async {

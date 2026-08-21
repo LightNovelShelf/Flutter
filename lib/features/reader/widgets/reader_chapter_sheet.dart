@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/api/models.dart';
+import '../../../shared/widgets/app_sheet.dart';
 import '../../../shared/widgets/state_views.dart';
 import '../reader_open_position.dart';
 import '../reader_providers.dart';
@@ -39,24 +40,14 @@ Future<ReaderChapterSelection?> showReaderChapterSheet(
   List<String>? novelChapterTitles,
 }) {
   assert(comic || novelChapterTitles != null);
-  return showModalBottomSheet<ReaderChapterSelection>(
-    context: context,
-    isScrollControlled: true,
-    useRootNavigator: true,
-    builder: (context) => DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.6,
-      minChildSize: 0.4,
-      maxChildSize: 1,
-      snap: true,
-      snapSizes: const <double>[0.6, 1],
-      builder: (context, controller) => _ReaderChapterSheet(
-        bookId: bookId,
-        currentSortNum: currentSortNum,
-        comic: comic,
-        novelChapterTitles: novelChapterTitles,
-        scrollController: controller,
-      ),
+  return showDraggableSheet<ReaderChapterSelection>(
+    context,
+    builder: (context, controller) => _ReaderChapterSheet(
+      bookId: bookId,
+      currentSortNum: currentSortNum,
+      comic: comic,
+      novelChapterTitles: novelChapterTitles,
+      scrollController: controller,
     ),
   );
 }
@@ -81,8 +72,9 @@ class _ReaderChapterSheet extends ConsumerStatefulWidget {
       _ReaderChapterSheetState();
 }
 
+const double _rowHeight = 58;
+
 class _ReaderChapterSheetState extends ConsumerState<_ReaderChapterSheet> {
-  static const double _rowHeight = 58;
   bool _scrolled = false;
 
   /// 打开目录时直接定位到当前章节，长目录不必手动翻找。
@@ -130,88 +122,16 @@ class _ReaderChapterSheetState extends ConsumerState<_ReaderChapterSheet> {
         endIndent: 12,
         color: colors.outlineVariant,
       ),
-      itemBuilder: (context, index) {
-        final entry = entries[index];
-        final current = index == currentIndex;
-        return Material(
-          type: MaterialType.transparency,
-          borderRadius: BorderRadius.circular(14),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () => _select(entry, readPosition),
-            child: SizedBox(
-              height: _rowHeight,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 9,
-                ),
-                child: Row(
-                  children: <Widget>[
-                    SizedBox(
-                      width: 32,
-                      height: 32,
-                      child: Center(
-                        child: Text(
-                          '${entry.sortNum}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: current
-                                ? colors.primary
-                                : colors.onSurfaceVariant,
-                            fontFeatures: const <FontFeature>[
-                              FontFeature.tabularFigures(),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            entry.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 15,
-                              height: 1.4,
-                              fontWeight: FontWeight.w600,
-                              color: current
-                                  ? colors.primary
-                                  : colors.onSurface,
-                            ),
-                          ),
-                          if (entry.subtitle != null)
-                            Text(
-                              entry.subtitle!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: colors.onSurfaceVariant,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+      itemBuilder: (context, index) => _ChapterTile(
+        entry: entries[index],
+        current: index == currentIndex,
+        onTap: () => _select(entries[index], readPosition),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     final novelEntries = <_ChapterEntry>[
       for (
         var index = 0;
@@ -225,23 +145,7 @@ class _ReaderChapterSheetState extends ConsumerState<_ReaderChapterSheet> {
     ];
     return Column(
       children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
-          child: Row(
-            children: <Widget>[
-              Icon(Icons.list_alt, size: 22, color: colors.primary),
-              const SizedBox(width: 10),
-              Text(
-                '目录',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: colors.onSurface,
-                ),
-              ),
-            ],
-          ),
-        ),
+        const SheetHeader(icon: Icons.list_alt, title: '目录'),
         Expanded(
           child: widget.comic
               ? ref
@@ -268,6 +172,91 @@ class _ReaderChapterSheetState extends ConsumerState<_ReaderChapterSheet> {
               : _list(novelEntries, null),
         ),
       ],
+    );
+  }
+}
+
+class _ChapterTile extends StatelessWidget {
+  const _ChapterTile({
+    required this.entry,
+    required this.current,
+    required this.onTap,
+  });
+
+  final _ChapterEntry entry;
+  final bool current;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final subtitle = entry.subtitle;
+    return Material(
+      type: MaterialType.transparency,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: _rowHeight,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            child: Row(
+              children: <Widget>[
+                SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: Center(
+                    child: Text(
+                      '${entry.sortNum}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: current
+                            ? colors.primary
+                            : colors.onSurfaceVariant,
+                        fontFeatures: const <FontFeature>[
+                          FontFeature.tabularFigures(),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        entry.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 15,
+                          height: 1.4,
+                          fontWeight: FontWeight.w600,
+                          color: current ? colors.primary : colors.onSurface,
+                        ),
+                      ),
+                      if (subtitle != null)
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

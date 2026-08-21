@@ -8,6 +8,7 @@ import '../../core/network/api_error.dart';
 import '../../data/providers.dart';
 import 'auth_flow_session.dart';
 import 'widgets/auth_form_scaffold.dart';
+import 'widgets/verification_code_field.dart';
 
 class RegisterVerifyScreen extends ConsumerStatefulWidget {
   const RegisterVerifyScreen({super.key});

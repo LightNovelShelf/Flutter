@@ -5,11 +5,14 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
-import '../reader_content_markup.dart';
-import '../reader_content_style.dart';
-import '../reader_engine.dart';
+import '../../../shared/widgets/html/reader_content_style.dart';
+import '../../../shared/widgets/reader_html_block.dart';
+import '../reader_block_markup.dart';
+import '../reader_html_blocks.dart';
 import '../reader_pagination.dart';
-import 'reader_html_block.dart';
+import '../reader_position.dart';
+import 'reader_measure_box.dart';
+import 'reader_tap_zone.dart';
 
 /// 正文位置上报。`page`/`pages` 从 1 开始，滚动模式恒为 0。
 class ReaderContentPosition {
@@ -160,7 +163,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     final markup = buildReaderBlockMarkup(widget.blocks, widget.style);
     _blockWidgets = <Widget>[
       for (var index = 0; index < markup.length; index++)
-        _ReaderBlockBox(
+        ReaderBlockBox(
           index: index,
           child: ReaderHtmlBlock(
             markup: markup[index],
@@ -199,53 +202,15 @@ class _ReaderContentViewState extends State<ReaderContentView> {
 
   void _measure(Size viewport) {
     final root = _measureKey.currentContext?.findRenderObject();
-    if (root is! RenderBox || !root.hasSize) {
+    final geometry = root is RenderBox && root.hasSize
+        ? _collectGeometry(root)
+        : null;
+    if (geometry == null) {
+      // 布局没就绪，或还有块没排完（异步 build 的正文），再等一帧；
+      // 重试有上限，免得空转掉帧。
       _retryMeasure(viewport);
       return;
     }
-    final count = _blockWidgets.length;
-    final tops = List<double>.filled(count, 0);
-    final bottoms = List<double>.filled(count, 0);
-    final breaks = <double>[];
-    var measured = 0;
-    void visit(RenderObject node) {
-      if (node is _RenderReaderBlock) {
-        if (!node.hasSize || node.index >= count) return;
-        final top = node.localToGlobal(Offset.zero, ancestor: root).dy;
-        tops[node.index] = top;
-        bottoms[node.index] = top + node.size.height;
-        measured++;
-      }
-      if (node is RenderParagraph) {
-        if (node.hasSize) {
-          _collectLineTops(
-            node,
-            node.localToGlobal(Offset.zero, ancestor: root).dy,
-            breaks,
-          );
-        }
-        return; // 段落内部只有占位子节点，行几何已经取到。
-      }
-      node.visitChildren(visit);
-    }
-
-    visit(root);
-    if (measured != count) {
-      // 还有块没排完（异步 build 的正文），再等一帧；重试有上限，免得空转掉帧。
-      _retryMeasure(viewport);
-      return;
-    }
-
-    breaks
-      ..addAll(tops)
-      ..addAll(bottoms)
-      ..sort();
-    final geometry = _ReaderGeometry(
-      blockTops: tops,
-      blockBottoms: bottoms,
-      breaks: _dedupe(breaks),
-      height: root.size.height,
-    );
     final pageTops = widget.paged
         ? paginateReaderContent(
             contentHeight: geometry.height,
@@ -273,8 +238,51 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     widget.onReady();
   }
 
+  /// 从测量层的渲染树读回块区间与可断处；还有块没排完时返回 null。
+  _ReaderGeometry? _collectGeometry(RenderBox root) {
+    final count = _blockWidgets.length;
+    final tops = List<double>.filled(count, 0);
+    final bottoms = List<double>.filled(count, 0);
+    final breaks = <double>[];
+    var measured = 0;
+    void visit(RenderObject node) {
+      if (node is RenderReaderBlock) {
+        if (!node.hasSize || node.index >= count) return;
+        final top = node.localToGlobal(Offset.zero, ancestor: root).dy;
+        tops[node.index] = top;
+        bottoms[node.index] = top + node.size.height;
+        measured++;
+      }
+      if (node is RenderParagraph) {
+        if (node.hasSize) {
+          _collectLineTops(
+            node,
+            node.localToGlobal(Offset.zero, ancestor: root).dy,
+            breaks,
+          );
+        }
+        return; // 段落内部只有占位子节点，行几何已经取到。
+      }
+      node.visitChildren(visit);
+    }
+
+    visit(root);
+    if (measured != count) return null;
+
+    breaks
+      ..addAll(tops)
+      ..addAll(bottoms)
+      ..sort();
+    return _ReaderGeometry(
+      blockTops: tops,
+      blockBottoms: bottoms,
+      breaks: _dedupe(breaks),
+      height: root.size.height,
+    );
+  }
+
   /// 行顶取 `includeLineSpacingTop`：切页落在行距里，不会削掉字。
-  void _collectLineTops(
+  static void _collectLineTops(
     RenderParagraph paragraph,
     double top,
     List<double> breaks,
@@ -411,20 +419,6 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     return math.max(0, controller.offset);
   }
 
-  void _onTapUp(double dx, double width) {
-    if (!widget.paged) {
-      widget.onTapCenter();
-      return;
-    }
-    if (dx <= width * 0.3) {
-      _turn(false);
-    } else if (dx >= width * 0.7) {
-      _turn(true);
-    } else {
-      widget.onTapCenter();
-    }
-  }
-
   void _turn(bool next) {
     final controller = _pageController;
     final target = _pageIndex + (next ? 1 : -1);
@@ -462,7 +456,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
           Positioned(
             width: 0,
             height: 0,
-            child: _ReaderMeasureBox(
+            child: ReaderMeasureBox(
               width: viewport.width,
               child: _column(_measureKey),
             ),
@@ -470,10 +464,13 @@ class _ReaderContentViewState extends State<ReaderContentView> {
           if (geometry != null &&
               geometry.blockTops.length == _blockWidgets.length)
             Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTapUp: (details) =>
-                    _onTapUp(details.localPosition.dx, constraints.maxWidth),
+              child: ReaderTapZoneLayer(
+                // 滚动模式没有翻页热区，三块区域都用来切换工具栏。
+                onPrevious: widget.paged
+                    ? () => _turn(false)
+                    : widget.onTapCenter,
+                onNext: widget.paged ? () => _turn(true) : widget.onTapCenter,
+                onToggleChrome: widget.onTapCenter,
                 child: widget.paged
                     ? _pagedContent(geometry, viewport)
                     : _scrollingContent(),
@@ -552,79 +549,4 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       ),
     );
   }
-}
-
-/// 标出一个正文块的边界，测量时靠它把渲染树切回块序列。
-class _ReaderBlockBox extends SingleChildRenderObjectWidget {
-  const _ReaderBlockBox({required this.index, required Widget super.child});
-
-  final int index;
-
-  @override
-  _RenderReaderBlock createRenderObject(BuildContext context) =>
-      _RenderReaderBlock(index);
-
-  @override
-  void updateRenderObject(
-    BuildContext context,
-    _RenderReaderBlock renderObject,
-  ) => renderObject.index = index;
-}
-
-class _RenderReaderBlock extends RenderProxyBox {
-  _RenderReaderBlock(this.index);
-
-  int index;
-}
-
-/// 测量容器：给子节点正文宽度与无限高度，自身恒为零尺寸且不绘制。
-class _ReaderMeasureBox extends SingleChildRenderObjectWidget {
-  const _ReaderMeasureBox({required this.width, required Widget super.child});
-
-  final double width;
-
-  @override
-  _RenderReaderMeasure createRenderObject(BuildContext context) =>
-      _RenderReaderMeasure(width);
-
-  @override
-  void updateRenderObject(
-    BuildContext context,
-    _RenderReaderMeasure renderObject,
-  ) => renderObject.width = width;
-}
-
-class _RenderReaderMeasure extends RenderBox
-    with RenderObjectWithChildMixin<RenderBox> {
-  _RenderReaderMeasure(double width) : _width = width;
-
-  double _width;
-
-  double get width => _width;
-
-  set width(double value) {
-    if (value == _width) return;
-    _width = value;
-    markNeedsLayout();
-  }
-
-  @override
-  bool get sizedByParent => true;
-
-  @override
-  Size computeDryLayout(BoxConstraints constraints) => constraints.smallest;
-
-  @override
-  void performLayout() {
-    child?.layout(
-      BoxConstraints(minWidth: _width, maxWidth: _width),
-      parentUsesSize: true,
-    );
-  }
-
-  @override
-  void paint(PaintingContext context, Offset offset) {}
-
-  @override
-  bool hitTest(BoxHitTestResult result, {required Offset position}) => false;
 }

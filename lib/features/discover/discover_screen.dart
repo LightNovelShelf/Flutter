@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/network/api_error.dart';
 import '../../data/api/models.dart';
 import '../../data/providers.dart';
 import '../../shared/format.dart';
 import '../../shared/widgets/state_views.dart';
-import 'discover_providers.dart';
+import 'home_providers.dart';
 import 'widgets/book_grid.dart';
 
 /// 发现页：排行榜 / 全部小说 / 全部漫画 / 服务状态 / 公告。
@@ -23,11 +24,7 @@ class DiscoverScreen extends ConsumerWidget {
   }
 
   Future<void> _refreshAll(WidgetRef ref) => Future.wait<void>(<Future<void>>[
-    _reload(ref.refresh(homeRankingProvider.future)),
-    _reload(ref.refresh(homeLatestBooksProvider.future)),
-    _reload(ref.refresh(homeComicsProvider.future)),
-    _reload(ref.refresh(onlineInfoProvider.future)),
-    _reload(ref.refresh(homeAnnouncementsProvider.future)),
+    for (final spec in _sections) _reload(ref.refresh(spec.provider.future)),
   ]);
 
   @override
@@ -35,13 +32,6 @@ class DiscoverScreen extends ConsumerWidget {
     final period = ref.watch(
       appSettingsProvider.select((settings) => settings.homeRankType),
     );
-    final ranking = ref.watch(homeRankingProvider);
-    final books = ref.watch(homeLatestBooksProvider);
-    final comics = ref.watch(homeComicsProvider);
-    final online = ref.watch(onlineInfoProvider);
-    final announcements = ref.watch(homeAnnouncementsProvider);
-
-    void open(BookListItem book) => openBookDetail(context, book);
 
     return Scaffold(
       body: RefreshIndicator(
@@ -64,84 +54,18 @@ class DiscoverScreen extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
               sliver: SliverList(
                 delegate: SliverChildListDelegate(<Widget>[
-                  _AsyncSection<List<BookListItem>>(
-                    title: '排行榜 · ${rankPeriodLabels[period]}',
-                    actionLabel: '查看全部',
-                    onAction: () => context.push('/ranking'),
-                    value: ranking,
-                    isEmpty: (items) => items.isEmpty,
-                    body: (items) => BookGridPreview(
-                      books: items,
-                      onOpen: open,
-                      showRank: true,
+                  for (final (int index, _SectionSpec spec)
+                      in _sections.indexed) ...<Widget>[
+                    if (index > 0) const SizedBox(height: 18),
+                    _AsyncSection(
+                      spec: spec,
+                      title: spec.showRankPeriod
+                          ? '${spec.title} · ${rankPeriodLabels[period]}'
+                          : spec.title,
+                      value: ref.watch(spec.provider),
+                      onRetry: () => ref.invalidate(spec.provider),
                     ),
-                    skeleton: const BookGridPreviewSkeleton(),
-                    emptyTitle: '暂无排行',
-                    emptyDescription: '当前周期暂无排行数据。',
-                    errorTitle: '无法加载排行榜',
-                    errorDescription: '排行榜暂不可用。',
-                    onRetry: () => ref.invalidate(homeRankingProvider),
-                  ),
-                  const SizedBox(height: 18),
-                  _AsyncSection<List<BookListItem>>(
-                    title: '全部小说',
-                    actionLabel: '查看全部',
-                    onAction: () => context.push('/books'),
-                    value: books,
-                    isEmpty: (items) => items.isEmpty,
-                    body: (items) =>
-                        BookGridPreview(books: items, onOpen: open),
-                    skeleton: const BookGridPreviewSkeleton(),
-                    emptyTitle: '暂无小说',
-                    emptyDescription: '书库目前没有可显示的小说。',
-                    errorTitle: '无法加载小说',
-                    errorDescription: '书库暂不可用。',
-                    onRetry: () => ref.invalidate(homeLatestBooksProvider),
-                  ),
-                  const SizedBox(height: 18),
-                  _AsyncSection<List<BookListItem>>(
-                    title: '全部漫画',
-                    actionLabel: '查看全部',
-                    onAction: () => context.push('/comics'),
-                    value: comics,
-                    isEmpty: (items) => items.isEmpty,
-                    body: (items) =>
-                        BookGridPreview(books: items, onOpen: open),
-                    skeleton: const BookGridPreviewSkeleton(),
-                    emptyTitle: '暂无漫画',
-                    emptyDescription: '漫画库目前没有可显示的漫画。',
-                    errorTitle: '无法加载漫画',
-                    errorDescription: '漫画库暂不可用。',
-                    onRetry: () => ref.invalidate(homeComicsProvider),
-                  ),
-                  const SizedBox(height: 18),
-                  _AsyncSection<OnlineInfo>(
-                    title: '服务状态',
-                    value: online,
-                    isEmpty: (_) => false,
-                    body: (info) => _StatusMetrics(info: info),
-                    skeleton: const _StatusMetricsSkeleton(),
-                    emptyTitle: '暂无数据',
-                    emptyDescription: '服务状态暂不可用。',
-                    errorTitle: '无法加载服务状态',
-                    errorDescription: '服务状态暂不可用。',
-                    onRetry: () => ref.invalidate(onlineInfoProvider),
-                  ),
-                  const SizedBox(height: 18),
-                  _AsyncSection<List<AnnouncementItem>>(
-                    title: '公告',
-                    actionLabel: '查看全部',
-                    onAction: () => context.push('/announcements'),
-                    value: announcements,
-                    isEmpty: (items) => items.isEmpty,
-                    body: (items) => _AnnouncementStrip(items: items),
-                    skeleton: const _AnnouncementStripSkeleton(),
-                    emptyTitle: '暂无公告',
-                    emptyDescription: '目前没有新的公告。',
-                    errorTitle: '无法加载公告',
-                    errorDescription: '公告服务暂不可用。',
-                    onRetry: () => ref.invalidate(homeAnnouncementsProvider),
-                  ),
+                  ],
                 ]),
               ),
             ),
@@ -152,47 +76,169 @@ class DiscoverScreen extends ConsumerWidget {
   }
 }
 
-/// 分区外壳：按 AsyncValue 分别渲染骨架 / 错误 / 空 / 内容（含陈旧数据提示）。
-class _AsyncSection<T> extends StatelessWidget {
-  const _AsyncSection({
-    super.key,
+/// 五个分区只有文案 / 路由 / 数据源不同，集中成表，省掉五份几乎相同的字面量。
+/// 表里各分区数据类型不同，只能按 `Object` 存；但 [of] 把 provider 与两个回调
+/// 绑在一起构造，唯一的向下转型锁在这里，调用点全程带类型，配错了编译就过不去。
+/// （回调不能直接靠泛型协变：函数类型的参数是逆变的，`_SectionSpec<Object>`
+/// 视图下读取字段本身就会抛类型错误。）
+class _SectionSpec {
+  const _SectionSpec._({
     required this.title,
-    required this.value,
-    required this.isEmpty,
+    required this.provider,
     required this.body,
     required this.skeleton,
+    required this.isEmpty,
     required this.emptyTitle,
     required this.emptyDescription,
     required this.errorTitle,
     required this.errorDescription,
-    required this.onRetry,
-    this.actionLabel,
-    this.onAction,
+    required this.route,
+    required this.showRankPeriod,
   });
 
+  static _SectionSpec of<T extends Object>({
+    required String title,
+    required FutureProvider<T> provider,
+    required Widget Function(BuildContext context, T value) body,
+    required Widget skeleton,
+    required bool Function(T value) isEmpty,
+    required String emptyTitle,
+    required String emptyDescription,
+    required String errorTitle,
+    required String errorDescription,
+    String? route,
+    bool showRankPeriod = false,
+  }) => _SectionSpec._(
+    title: title,
+    provider: provider,
+    body: (context, value) => body(context, value as T),
+    skeleton: skeleton,
+    isEmpty: (value) => isEmpty(value as T),
+    emptyTitle: emptyTitle,
+    emptyDescription: emptyDescription,
+    errorTitle: errorTitle,
+    errorDescription: errorDescription,
+    route: route,
+    showRankPeriod: showRankPeriod,
+  );
+
   final String title;
-  final AsyncValue<T> value;
-  final bool Function(T value) isEmpty;
-  final Widget Function(T value) body;
+
+  /// 非空时标题右侧出现「查看全部」，点了跳这里。
+  final String? route;
+  final FutureProvider<Object> provider;
+  final Widget Function(BuildContext context, Object value) body;
   final Widget skeleton;
+  final bool Function(Object value) isEmpty;
   final String emptyTitle;
   final String emptyDescription;
   final String errorTitle;
   final String errorDescription;
+
+  /// 排行榜标题要缀上当前周期，其余分区标题是静态文案。
+  final bool showRankPeriod;
+}
+
+final List<_SectionSpec> _sections = <_SectionSpec>[
+  _SectionSpec.of<List<BookListItem>>(
+    title: '排行榜',
+    showRankPeriod: true,
+    route: '/ranking',
+    provider: homeRankingProvider,
+    body: (context, books) => BookGridPreview(
+      books: books,
+      onOpen: (book) => openBookDetail(context, book),
+      showRank: true,
+    ),
+    skeleton: const BookGridPreviewSkeleton(),
+    isEmpty: (books) => books.isEmpty,
+    emptyTitle: '暂无排行',
+    emptyDescription: '当前周期暂无排行数据。',
+    errorTitle: '无法加载排行榜',
+    errorDescription: '排行榜暂不可用。',
+  ),
+  _SectionSpec.of<List<BookListItem>>(
+    title: '全部小说',
+    route: '/books',
+    provider: homeLatestBooksProvider,
+    body: _bookPreview,
+    skeleton: const BookGridPreviewSkeleton(),
+    isEmpty: (books) => books.isEmpty,
+    emptyTitle: '暂无小说',
+    emptyDescription: '书库目前没有可显示的小说。',
+    errorTitle: '无法加载小说',
+    errorDescription: '书库暂不可用。',
+  ),
+  _SectionSpec.of<List<BookListItem>>(
+    title: '全部漫画',
+    route: '/comics',
+    provider: homeComicsProvider,
+    body: _bookPreview,
+    skeleton: const BookGridPreviewSkeleton(),
+    isEmpty: (books) => books.isEmpty,
+    emptyTitle: '暂无漫画',
+    emptyDescription: '漫画库目前没有可显示的漫画。',
+    errorTitle: '无法加载漫画',
+    errorDescription: '漫画库暂不可用。',
+  ),
+  _SectionSpec.of<OnlineInfo>(
+    title: '服务状态',
+    provider: onlineInfoProvider,
+    body: (context, info) => _StatusMetrics(info: info),
+    skeleton: const _StatusMetricsSkeleton(),
+    // 服务状态是单条记录，取到就不算空。
+    isEmpty: (_) => false,
+    emptyTitle: '暂无数据',
+    emptyDescription: '服务状态暂不可用。',
+    errorTitle: '无法加载服务状态',
+    errorDescription: '服务状态暂不可用。',
+  ),
+  _SectionSpec.of<List<AnnouncementItem>>(
+    title: '公告',
+    route: '/announcements',
+    provider: homeAnnouncementsProvider,
+    body: (context, items) => _AnnouncementStrip(items: items),
+    skeleton: const _AnnouncementStripSkeleton(),
+    isEmpty: (items) => items.isEmpty,
+    emptyTitle: '暂无公告',
+    emptyDescription: '目前没有新的公告。',
+    errorTitle: '无法加载公告',
+    errorDescription: '公告服务暂不可用。',
+  ),
+];
+
+Widget _bookPreview(BuildContext context, List<BookListItem> books) =>
+    BookGridPreview(
+      books: books,
+      onOpen: (book) => openBookDetail(context, book),
+    );
+
+/// 分区外壳：按 AsyncValue 分别渲染骨架 / 错误 / 空 / 内容（含陈旧数据提示）。
+class _AsyncSection extends StatelessWidget {
+  const _AsyncSection({
+    required this.spec,
+    required this.title,
+    required this.value,
+    required this.onRetry,
+  });
+
+  final _SectionSpec spec;
+
+  /// 排行榜标题随周期变，与 spec 里的静态文案不同，单独传。
+  final String title;
+  final AsyncValue<Object> value;
   final VoidCallback onRetry;
-  final String? actionLabel;
-  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
     final data = value.value;
     final Widget content;
-    if (data != null && !isEmpty(data)) {
+    if (data != null && !spec.isEmpty(data)) {
       final error = value.error;
       content = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          body(data),
+          spec.body(context, data),
           if (error != null) ...<Widget>[
             const SizedBox(height: 10),
             _StaleWarning(message: describeApiError(error), onRetry: onRetry),
@@ -200,28 +246,29 @@ class _AsyncSection<T> extends StatelessWidget {
         ],
       );
     } else if (value.isLoading) {
-      content = skeleton;
+      content = spec.skeleton;
     } else if (value.hasError) {
       content = _SectionError(
-        title: errorTitle,
-        description: errorDescription,
+        title: spec.errorTitle,
+        description: spec.errorDescription,
         onRetry: onRetry,
       );
     } else {
       content = _SectionMessage(
-        title: emptyTitle,
-        description: emptyDescription,
+        title: spec.emptyTitle,
+        description: spec.emptyDescription,
       );
     }
 
+    final route = spec.route;
     return SectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           SectionHeader(
             title: title,
-            actionLabel: actionLabel,
-            onAction: onAction,
+            actionLabel: route == null ? null : '查看全部',
+            onAction: route == null ? null : () => context.push(route),
           ),
           const SizedBox(height: 10),
           content,

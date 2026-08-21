@@ -7,20 +7,23 @@ import '../../core/network/api_error.dart';
 import '../../data/api/api_client.dart';
 import '../../data/api/models.dart';
 import '../../data/providers.dart';
-import '../../data/repositories/read_position_cache.dart';
 import '../../data/settings/app_settings.dart';
 import '../../shared/format.dart';
+import '../../shared/widgets/html/reader_content_style.dart';
 import '../../shared/widgets/state_views.dart';
-import 'reader_content_style.dart';
-import 'reader_engine.dart';
 import 'reader_font_cache.dart';
+import 'reader_footnotes.dart';
+import 'reader_html_blocks.dart';
 import 'reader_open_position.dart';
+import 'reader_position.dart';
+import 'reader_progress_controller.dart';
 import 'reader_providers.dart';
 import 'widgets/reader_chapter_sheet.dart';
 import 'widgets/reader_chrome.dart';
 import 'widgets/reader_content_view.dart';
 import 'widgets/reader_footnote_sheet.dart';
 import 'widgets/reader_settings_sheet.dart';
+import 'widgets/reader_status_pills.dart';
 
 /// 小说阅读器。
 ///
@@ -45,8 +48,7 @@ class NovelReaderScreen extends ConsumerStatefulWidget {
 
 class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   late final ApiClient _api;
-  late final ReaderPositionWriteQueue<ReaderRestorePosition> _positions;
-  late final AppLifecycleListener _lifecycle;
+  late final ReaderProgressController _progress;
 
   late int _sortNum;
   late ReaderOpenPosition _openPosition;
@@ -76,33 +78,14 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     _sortNum = widget.sortNum;
     _openPosition = widget.openPosition;
     _api = ref.read(apiClientProvider);
-    _positions = ReaderPositionWriteQueue<ReaderRestorePosition>(
-      _persistPosition,
-      fingerprint: (position) => '${position.chapterId}:${position.position}',
-    );
-    _lifecycle = AppLifecycleListener(
-      onPause: () => unawaited(_positions.flush()),
-    );
+    _progress = ReaderProgressController(api: _api, bookId: widget.bookId);
     unawaited(_load());
   }
 
   @override
   void dispose() {
-    _lifecycle.dispose();
-    unawaited(_positions.dispose());
+    unawaited(_progress.dispose());
     super.dispose();
-  }
-
-  Future<void> _persistPosition(ReaderRestorePosition position) async {
-    try {
-      await _api.saveReadPosition(
-        bookId: widget.bookId,
-        chapterId: position.chapterId,
-        position: position.position,
-      );
-    } catch (_) {
-      // 进度写入失败不打断阅读，下一次上报会重试。
-    }
   }
 
   Future<void> _load() async {
@@ -184,22 +167,10 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
       case ReaderOpenPosition.end:
         return (blocks.isEmpty ? null : blocks.last.locator, 1.0);
       case ReaderOpenPosition.saved:
-        final cached = ReadPositionCache.read(widget.bookId);
-        final server = content.readPosition;
-        final restore = resolveReaderRestorePosition(
-          content.chapter.id,
-          server == null
-              ? null
-              : ReaderRestorePosition(
-                  chapterId: server.chapterId,
-                  position: server.position,
-                ),
-          cached == null
-              ? null
-              : CachedReaderRestorePosition(
-                  chapterId: cached.chapterId,
-                  position: cached.position,
-                ),
+        final restore = resolveReaderRestore(
+          bookId: widget.bookId,
+          chapterId: content.chapter.id,
+          server: content.readPosition,
         );
         if (restore == null || restore.position.isEmpty) return (null, 0);
         final index = findReaderBlockIndex(blocks, restore.position);
@@ -223,23 +194,16 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     return '章节加载失败，请稍后重试。';
   }
 
-  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
-
-  Color _backgroundColor(AppSettings settings, ColorScheme colors) =>
-      _isDark && settings.oledBlack ? Colors.black : colors.surface;
-
-  Color _foregroundColor(AppSettings settings, ColorScheme colors) =>
-      _isDark && settings.oledBlack ? Colors.white : colors.onSurface;
-
-  ReaderContentStyle _contentStyle(AppSettings settings) => ReaderContentStyle(
-    fontSize: settings.fontSize,
-    lineHeight: settings.readerLineHeight,
-    paragraphSpacing: settings.readerParagraphSpacing,
-    color: _foregroundColor(settings, Theme.of(context).colorScheme),
-    firstLineIndent: settings.readerFirstLineIndent,
-    justify: settings.readerJustify,
-    fontFamily: _fontFamily,
-  );
+  ReaderContentStyle _contentStyle(AppSettings settings, Color foreground) =>
+      ReaderContentStyle(
+        fontSize: settings.fontSize,
+        lineHeight: settings.readerLineHeight,
+        paragraphSpacing: settings.readerParagraphSpacing,
+        color: foreground,
+        firstLineIndent: settings.readerFirstLineIndent,
+        justify: settings.readerJustify,
+        fontFamily: _fontFamily,
+      );
 
   /// 滚动模式的状态栏留白由外层让位，翻页模式必须落在每一页里。
   EdgeInsets _contentPadding(AppSettings settings) {
@@ -275,20 +239,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     }
     if (_currentLocator.isEmpty) return;
 
-    final saved = ReaderRestorePosition(
-      chapterId: chapter.id,
-      position: _currentLocator,
-    );
-    // 立刻写进程内缓存，详情页/书架不必等服务端往返就能看到最新章节。
-    ReadPositionCache.stage(
-      widget.bookId,
-      BookReadPosition(
-        chapterId: saved.chapterId,
-        position: saved.position,
-        readAt: DateTime.now(),
-      ),
-    );
-    _positions.schedule(saved);
+    _progress.stage(chapter.id, _currentLocator);
   }
 
   void _onFootnote(String id) {
@@ -327,9 +278,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   Future<void> _commitPosition() async {
     final chapter = _content?.chapter;
     if (chapter == null || _currentLocator.isEmpty) return;
-    await _positions.commit(
-      ReaderRestorePosition(chapterId: chapter.id, position: _currentLocator),
-    );
+    await _progress.commit(chapter.id, _currentLocator);
   }
 
   Future<void> _openChapterSheet() async {
@@ -357,9 +306,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   Widget build(BuildContext context) {
     ref.listen<AppSettings>(appSettingsProvider, _onSettingsChanged);
     final settings = ref.watch(appSettingsProvider);
-    final colors = Theme.of(context).colorScheme;
-    final background = _backgroundColor(settings, colors);
-    final foreground = _foregroundColor(settings, colors);
+    final (:background, :foreground) = readerSurfaceColors(context, settings);
     final paged = settings.readerViewMode == ReaderViewMode.paged;
     final readerTopInset = paged ? 0.0 : MediaQuery.paddingOf(context).top;
 
@@ -380,7 +327,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
             top: readerTopInset,
             child: ReaderContentView(
               blocks: _blocks,
-              style: _contentStyle(settings),
+              style: _contentStyle(settings, foreground),
               paged: paged,
               padding: _contentPadding(settings),
               restoreLocator: _restoreLocator,

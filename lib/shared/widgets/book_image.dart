@@ -59,7 +59,10 @@ class BookImage extends StatefulWidget {
   /// Android 用 C++ 查表解码，避免在 UI isolate 里逐像素计算余弦。16 像素宽仍能
   /// 覆盖 4×3 分量 hash 的有效频率。
   static const int blurHashWidth = 16;
-  static const int _blurHashMaxHeight = 64;
+
+  /// 高度只按图片比例算，不另设上限：长条漫画页比例能到十几，截断会让占位层
+  /// 明显比真图矮。512 是 [decodeBlurHash] 的硬上限，只作兜底。
+  static const int _blurHashMaxHeight = 512;
   static const int _revealedCapacity = 256;
 
   /// 进程级已展示过的图片，命中后跳过淡入动画（滚回去、翻回去不再重播）。
@@ -134,8 +137,11 @@ class _BookImageState extends State<BookImage> {
               .round()
               .clamp(1, BookImage._blurHashMaxHeight),
         ),
-        // 占位层跟真图用同一个 fit，两层才不会错位。
-        fit: widget.fit,
+        // 必须 fill：解码尺寸只有 16 宽，高度取整后比例是 1/16 的台阶
+        //（还会被 _blurHashMaxHeight 截断），跟真图对不齐。用真图的 fit 会按这个
+        // 量化后的比例做信箱留白，占位层就比真图窄/矮几个像素，淡入时边缘跳一下。
+        // 拉伸一张模糊图没有视觉代价，铺满整个盒子才是对的。
+        fit: BoxFit.fill,
         gaplessPlayback: true,
         // 解码完成前铺容器底色，而不是包默认的蓝灰色。
         frameBuilder: (context, child, frame, _) => frame == null

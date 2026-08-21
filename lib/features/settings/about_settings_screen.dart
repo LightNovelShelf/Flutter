@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/settings_rows.dart';
-import 'settings_screen.dart';
 
 const String officialWebsiteUrl = 'https://www.lightnovel.app';
 
@@ -46,7 +46,7 @@ class _AboutSettingsScreenState extends State<AboutSettingsScreen> {
       opened = false;
     }
     if (!opened && mounted) {
-      await showSettingsAlert(
+      await showAppAlert(
         context: context,
         title: '无法打开链接',
         message: '请稍后重试。',

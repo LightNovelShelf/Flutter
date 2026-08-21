@@ -1,0 +1,460 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
+
+import '../../core/network/api_error.dart';
+import '../../data/api/api_client.dart';
+import '../../data/api/community_models.dart';
+import '../../data/providers.dart';
+import '../../shared/paging/paged_list.dart';
+import 'community_providers.dart';
+
+const int communityReplyPageSize = 5;
+const int communityChildReplyPageSize = 3;
+
+@immutable
+class CommunityThreadState {
+  const CommunityThreadState({
+    this.thread,
+    this.loading = true,
+    this.refreshing = false,
+    this.loadingMore = false,
+    this.error,
+    this.loadMoreError,
+    this.threadActionBusy = false,
+    this.replyActionId,
+    this.notice,
+    this.noticeTag = 0,
+  });
+
+  final CommunityThreadDetail? thread;
+  final bool loading;
+  final bool refreshing;
+  final bool loadingMore;
+  final String? error;
+  final String? loadMoreError;
+
+  /// 帖子级动作（点赞/收藏）和回复级动作分开，免得互相禁用。
+  final bool threadActionBusy;
+
+  /// 形如 `like:12` / `children:12`；带 id 才能把展开中的菊花画在发起的那一行上。
+  final String? replyActionId;
+
+  /// 一次性提示（操作失败），`noticeTag` 递增，UI 靠它区分同一句文案的第二次失败。
+  final String? notice;
+  final int noticeTag;
+
+  bool get canReply => thread != null && !thread!.item.locked;
+
+  /// 深链定位用：在整棵回复树里找一条回复。
+  CommunityThreadReply? findReply(int id) {
+    final detail = thread;
+    return detail == null ? null : _findReply(detail.replyItems, id);
+  }
+
+  static const Object _keep = Object();
+
+  CommunityThreadState copyWith({
+    Object? thread = _keep,
+    bool? loading,
+    bool? refreshing,
+    bool? loadingMore,
+    Object? error = _keep,
+    Object? loadMoreError = _keep,
+    bool? threadActionBusy,
+    Object? replyActionId = _keep,
+    String? notice,
+    int? noticeTag,
+  }) => CommunityThreadState(
+    thread: identical(thread, _keep)
+        ? this.thread
+        : thread as CommunityThreadDetail?,
+    loading: loading ?? this.loading,
+    refreshing: refreshing ?? this.refreshing,
+    loadingMore: loadingMore ?? this.loadingMore,
+    error: identical(error, _keep) ? this.error : error as String?,
+    loadMoreError: identical(loadMoreError, _keep)
+        ? this.loadMoreError
+        : loadMoreError as String?,
+    threadActionBusy: threadActionBusy ?? this.threadActionBusy,
+    replyActionId: identical(replyActionId, _keep)
+        ? this.replyActionId
+        : replyActionId as String?,
+    notice: notice ?? this.notice,
+    noticeTag: noticeTag ?? this.noticeTag,
+  );
+}
+
+/// 帖子详情的分页 + 乐观互动状态机。页面只留滚动/高亮这类纯 UI 状态。
+class CommunityThreadController extends Notifier<CommunityThreadState> {
+  CommunityThreadController(this.threadId);
+
+  final int threadId;
+
+  /// 世代号：慢的旧响应一律丢弃。
+  int _operation = 0;
+  bool _disposed = false;
+
+  /// 浏览量只算首次加载那一次，下拉刷新不再重复计数。
+  bool _viewTracked = false;
+
+  late Future<void> _initialLoad;
+
+  /// 深链要等首屏落地才能开始找目标回复。
+  Future<void> get initialLoad => _initialLoad;
+
+  @override
+  CommunityThreadState build() {
+    _disposed = false;
+    ref.onDispose(() => _disposed = true);
+    // build 里不能同步改 state，首屏加载推到微任务。
+    _initialLoad = Future<void>.microtask(_load);
+    return const CommunityThreadState();
+  }
+
+  ApiClient get _api => ref.read(apiClientProvider);
+
+  Future<void> refresh() => _load(refresh: true);
+
+  Future<void> retry() => _load();
+
+  Future<void> _load({bool refresh = false}) async {
+    // 首屏加载排在微任务里，页面可能已经被弹掉了。
+    if (_disposed) return;
+    final token = ++_operation;
+    state = state.copyWith(
+      loading: !refresh,
+      refreshing: refresh,
+      error: null,
+      loadMoreError: null,
+    );
+    try {
+      final detail = await _api.getCommunityThread(
+        threadId: threadId,
+        replyPage: 1,
+        replySize: communityReplyPageSize,
+        trackView: !_viewTracked,
+      );
+      if (_isStale(token)) return;
+      _viewTracked = true;
+      state = state.copyWith(
+        thread: detail,
+        loading: false,
+        refreshing: false,
+      );
+    } catch (error) {
+      if (isCancellation(error) || _isStale(token)) return;
+      state = state.copyWith(
+        loading: false,
+        refreshing: false,
+        error: describeCommunityError(error, fallback: '无法加载讨论。'),
+      );
+    }
+  }
+
+  Future<void> loadMore() async {
+    final snapshot = state;
+    final detail = snapshot.thread;
+    if (detail == null ||
+        snapshot.loading ||
+        snapshot.refreshing ||
+        snapshot.loadingMore ||
+        !detail.repliesPage.hasMore) {
+      return;
+    }
+    final token = _operation;
+    state = state.copyWith(loadingMore: true, loadMoreError: null);
+    try {
+      final size = detail.repliesPage.size < 1
+          ? communityReplyPageSize
+          : detail.repliesPage.size;
+      final next = await _api.getCommunityThread(
+        threadId: threadId,
+        replyPage: detail.repliesPage.page + 1,
+        replySize: size,
+        trackView: false,
+      );
+      if (_isStale(token)) return;
+      final current = state.thread;
+      if (next == null || current == null) {
+        state = state.copyWith(loadingMore: false);
+        return;
+      }
+      state = state.copyWith(
+        loadingMore: false,
+        thread: current.copyWith(
+          repliesPage: next.repliesPage,
+          replyItems: mergeById(
+            current.replyItems,
+            next.replyItems,
+            communityReplyId,
+          ),
+        ),
+      );
+    } catch (error) {
+      if (isCancellation(error) || _isStale(token)) return;
+      state = state.copyWith(
+        loadingMore: false,
+        loadMoreError: describeCommunityError(error, fallback: '无法加载更多回复。'),
+      );
+    }
+  }
+
+  Future<void> loadChildren(CommunityThreadReply parent) async {
+    if (state.replyActionId != null) return;
+    state = state.copyWith(replyActionId: 'children:${parent.id}');
+    try {
+      final size = parent.childPage.size < 1
+          ? communityChildReplyPageSize
+          : parent.childPage.size;
+      final page = parent.childReplies.isEmpty ? 1 : parent.childPage.page + 1;
+      final payload = await _api.getCommunityReplyChildren(
+        threadId: threadId,
+        parentReplyId: parent.id,
+        page: page,
+        size: size,
+      );
+      if (_disposed) return;
+      final detail = state.thread;
+      state = state.copyWith(
+        replyActionId: null,
+        thread: detail?.copyWith(
+          replyItems: _updateReplies(
+            detail.replyItems,
+            parent.id,
+            (reply) => reply.copyWith(
+              childReplies: mergeById(
+                reply.childReplies,
+                payload.items,
+                communityReplyId,
+              ),
+              childPage: payload.page,
+            ),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (_disposed) return;
+      state = _withNotice(
+        state.copyWith(replyActionId: null),
+        describeCommunityError(error, fallback: '无法加载更多回复。'),
+      );
+    }
+  }
+
+  Future<void> toggleLike() {
+    final detail = state.thread;
+    if (detail == null || detail.item.locked) return Future<void>.value();
+    return _optimistic<CommunityLikeToggleResult>(
+      apply: (current) => _withCounts(
+        current.copyWith(liked: !current.liked),
+        likes: current.item.likes + (current.liked ? -1 : 1),
+      ),
+      commit: () => _api.toggleCommunityThreadLike(detail.item.id),
+      settle: (current, result) => _withCounts(
+        current.copyWith(liked: result.liked),
+        likes: result.likes,
+      ),
+      failure: '无法更新点赞状态。',
+    );
+  }
+
+  Future<void> toggleFavorite() {
+    final detail = state.thread;
+    if (detail == null || detail.item.locked) return Future<void>.value();
+    return _optimistic<CommunityFavoriteToggleResult>(
+      apply: (current) => _withCounts(
+        current.copyWith(favorited: !current.favorited),
+        favorites: current.item.favorites + (current.favorited ? -1 : 1),
+      ),
+      commit: () => _api.toggleCommunityThreadFavorite(detail.item.id),
+      settle: (current, result) => _withCounts(
+        current.copyWith(favorited: result.favorited),
+        favorites: result.favorites,
+      ),
+      failure: '无法更新收藏状态。',
+    );
+  }
+
+  Future<void> toggleReplyLike(CommunityThreadReply reply) {
+    if (!state.canReply) return Future<void>.value();
+    return _optimistic<CommunityLikeToggleResult>(
+      busyKey: 'like:${reply.id}',
+      apply: (current) => current.copyWith(
+        replyItems: _updateReplies(
+          current.replyItems,
+          reply.id,
+          (item) => item.copyWith(
+            liked: !item.liked,
+            likes: item.likes + (item.liked ? -1 : 1),
+          ),
+        ),
+      ),
+      commit: () => _api.toggleCommunityReplyLike(reply.id),
+      settle: (current, result) => current.copyWith(
+        replyItems: _updateReplies(
+          current.replyItems,
+          reply.id,
+          (item) => item.copyWith(liked: result.liked, likes: result.likes),
+        ),
+      ),
+      // 只把这一条回滚回去，期间展开的子回复要保住。
+      revert: (current) => current.copyWith(
+        replyItems: _updateReplies(
+          current.replyItems,
+          reply.id,
+          (item) => item.copyWith(liked: reply.liked, likes: reply.likes),
+        ),
+      ),
+      failure: '无法更新点赞状态。',
+    );
+  }
+
+  /// 发布回复；文案由发布面板自己给，这里只负责发请求。
+  Future<void> postReply({required String content, int? replyToId}) async {
+    await _api.createCommunityReply(
+      threadId: threadId,
+      content: content,
+      replyToId: replyToId,
+    );
+  }
+
+  /// 三个乐观开关共用：先本地翻转，服务端返回后用真实计数覆盖，失败回滚并提示。
+  /// `busyKey` 为空表示帖子级动作，否则占用回复级的忙碌位。
+  Future<void> _optimistic<R>({
+    required CommunityThreadDetail Function(CommunityThreadDetail detail) apply,
+    required Future<R> Function() commit,
+    required CommunityThreadDetail Function(
+      CommunityThreadDetail detail,
+      R result,
+    )
+    settle,
+    required String failure,
+    CommunityThreadDetail Function(CommunityThreadDetail detail)? revert,
+    String? busyKey,
+  }) async {
+    final snapshot = state.thread;
+    if (snapshot == null) return;
+    if (busyKey == null
+        ? state.threadActionBusy
+        : state.replyActionId != null) {
+      return;
+    }
+    state = _hold(state.copyWith(thread: apply(snapshot)), busyKey);
+    try {
+      final result = await commit();
+      if (_disposed) return;
+      final current = state.thread;
+      state = _release(
+        state.copyWith(
+          thread: current == null ? null : settle(current, result),
+        ),
+        busyKey,
+      );
+    } catch (error) {
+      if (_disposed) return;
+      final current = state.thread;
+      // 没给 revert 就整份回到发起前的快照（帖子级动作原本就是这么做的）。
+      final CommunityThreadDetail? rolledBack = revert == null
+          ? snapshot
+          : (current == null ? null : revert(current));
+      state = _withNotice(
+        _release(state.copyWith(thread: rolledBack), busyKey),
+        describeCommunityError(error, fallback: failure),
+      );
+    }
+  }
+
+  CommunityThreadState _hold(CommunityThreadState next, String? busyKey) =>
+      busyKey == null
+      ? next.copyWith(threadActionBusy: true)
+      : next.copyWith(replyActionId: busyKey);
+
+  CommunityThreadState _release(CommunityThreadState next, String? busyKey) =>
+      busyKey == null
+      ? next.copyWith(threadActionBusy: false)
+      : next.copyWith(replyActionId: null);
+
+  CommunityThreadState _withNotice(
+    CommunityThreadState next,
+    String message,
+  ) => next.copyWith(notice: message, noticeTag: next.noticeTag + 1);
+
+  bool _isStale(int token) => _disposed || token != _operation;
+}
+
+final
+NotifierProviderFamily<
+  CommunityThreadController,
+  CommunityThreadState,
+  int
+>
+communityThreadProvider =
+    NotifierProvider.family<
+      CommunityThreadController,
+      CommunityThreadState,
+      int
+    >(CommunityThreadController.new, isAutoDispose: true);
+
+/// 只更新计数的帖子副本（`CommunityFeedItem` 没有 copyWith）。
+CommunityThreadDetail _withCounts(
+  CommunityThreadDetail detail, {
+  int? likes,
+  int? favorites,
+}) {
+  final item = detail.item;
+  return CommunityThreadDetail(
+    item: CommunityFeedItem(
+      id: item.id,
+      boardKey: item.boardKey,
+      boardName: item.boardName,
+      subCategoryKey: item.subCategoryKey,
+      subCategoryLabel: item.subCategoryLabel,
+      title: item.title,
+      excerpt: item.excerpt,
+      authorName: item.authorName,
+      authorIsDeleted: item.authorIsDeleted,
+      authorAvatar: item.authorAvatar,
+      publishedAt: item.publishedAt,
+      replies: item.replies,
+      views: item.views,
+      heat: item.heat,
+      likes: likes ?? item.likes,
+      favorites: favorites ?? item.favorites,
+      tags: item.tags,
+      featured: item.featured,
+      pinned: item.pinned,
+      locked: item.locked,
+    ),
+    liked: detail.liked,
+    favorited: detail.favorited,
+    bodyHtml: detail.bodyHtml,
+    repliesPage: detail.repliesPage,
+    replyItems: detail.replyItems,
+    relatedThreads: detail.relatedThreads,
+  );
+}
+
+CommunityThreadReply? _findReply(List<CommunityThreadReply> items, int id) {
+  for (final CommunityThreadReply reply in items) {
+    if (reply.id == id) return reply;
+    final child = _findReply(reply.childReplies, id);
+    if (child != null) return child;
+  }
+  return null;
+}
+
+/// 命中 id 就替换，否则递归子回复。
+List<CommunityThreadReply> _updateReplies(
+  List<CommunityThreadReply> items,
+  int id,
+  CommunityThreadReply Function(CommunityThreadReply reply) update,
+) => items.map((reply) {
+  if (reply.id == id) return update(reply);
+  if (reply.childReplies.isEmpty) return reply;
+  return reply.copyWith(
+    childReplies: _updateReplies(reply.childReplies, id, update),
+  );
+}).toList(growable: false);

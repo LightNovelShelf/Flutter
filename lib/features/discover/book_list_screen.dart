@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/api/api_client.dart';
-import 'discover_providers.dart';
+import 'catalog_providers.dart';
 import 'widgets/book_grid.dart';
 
 /// 全部小说：排序切换 + 无限滚动。
@@ -44,7 +44,7 @@ class _BookListScreenState extends ConsumerState<BookListScreen> {
           onSelectionChanged: (selection) =>
               setState(() => _order = selection.first),
         ),
-        books: state.books,
+        books: state.items,
         loading: state.loading,
         loadingMore: state.loadingMore,
         // 加载更多失败后停止自动预取，交给底部的手动重试。

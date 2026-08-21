@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/api/community_models.dart';
-import '../../data/providers.dart';
-import '../../data/repositories/profile_repository.dart';
-import 'community_providers.dart';
-import 'widgets/community_widgets.dart';
-
-const int _notificationPageSize = 20;
+import '../../shared/format.dart';
+import '../../shared/paging/paged_list.dart';
+import '../../shared/paging/scroll_prefetch.dart';
+import '../../shared/widgets/state_views.dart';
+import '../../shared/widgets/user_avatar.dart';
+import 'community_notifications_providers.dart';
+import 'widgets/community_feed_card.dart';
+import 'widgets/community_primitives.dart';
 
 class CommunityNotificationsScreen extends ConsumerStatefulWidget {
   const CommunityNotificationsScreen({super.key});
@@ -22,129 +24,25 @@ class _CommunityNotificationsScreenState
     extends ConsumerState<CommunityNotificationsScreen> {
   final ScrollController _controller = ScrollController();
 
-  List<AppNotificationItem> _items = const <AppNotificationItem>[];
-  int _page = 1;
-  int _totalPages = 0;
-  bool _loading = true;
-  bool _loadingMore = false;
-  bool _marking = false;
-  String? _error;
-  String? _loadMoreError;
-  int _operation = 0;
-
-  bool get _hasUnread => _items.any((item) => !item.isRead);
-
   @override
   void initState() {
     super.initState();
-    _controller.addListener(_onScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    _controller.attachPrefetch(
+      onLoadMore: () =>
+          ref.read(communityNotificationsProvider.notifier).loadMore(),
+    );
   }
 
   @override
   void dispose() {
-    _controller.removeListener(_onScroll);
     _controller.dispose();
     super.dispose();
   }
 
-  void _onScroll() {
-    if (!_controller.hasClients) return;
-    if (_controller.position.extentAfter < 480) _loadMore();
-  }
-
-  Future<void> _load({bool silent = false}) async {
-    final token = ++_operation;
-    if (!silent) {
-      setState(() {
-        _loading = _items.isEmpty;
-        _error = null;
-        _loadMoreError = null;
-      });
-    }
-    try {
-      final page = await ref.read(apiClientProvider).getNotifications(
-            page: 1,
-            size: _notificationPageSize,
-          );
-      if (!mounted || token != _operation) return;
-      setState(() {
-        _items = page.items;
-        _page = page.page;
-        _totalPages = page.totalPages;
-        _loading = false;
-        _error = null;
-      });
-    } catch (error) {
-      if (!mounted || token != _operation) return;
-      setState(() {
-        _loading = false;
-        if (!silent) {
-          _error = describeCommunityError(error, fallback: '无法加载通知。');
-        }
-      });
-    }
-  }
-
-  Future<void> _loadMore() async {
-    if (_loading || _loadingMore || _page >= _totalPages) return;
-    final token = _operation;
-    setState(() {
-      _loadingMore = true;
-      _loadMoreError = null;
-    });
-    try {
-      final page = await ref.read(apiClientProvider).getNotifications(
-            page: _page + 1,
-            size: _notificationPageSize,
-          );
-      if (!mounted || token != _operation) return;
-      setState(() {
-        _items = mergeCommunityById(_items, page.items, (item) => item.id);
-        _page = page.page;
-        _totalPages = page.totalPages;
-        _loadingMore = false;
-      });
-    } catch (error) {
-      if (!mounted || token != _operation) return;
-      setState(() {
-        _loadingMore = false;
-        _loadMoreError = describeCommunityError(error, fallback: '无法加载更多通知。');
-      });
-    }
-  }
-
-  /// 已读先本地翻转，服务端提交成功后再用列表 + 资料对齐未读角标。
-  Future<void> _mark(List<int> ids) async {
-    if (ids.isEmpty || _marking) return;
-    setState(() {
-      _marking = true;
-      _items = _items
-          .map((item) => ids.contains(item.id) ? item.copyWith(isRead: true) : item)
-          .toList(growable: false);
-    });
-    try {
-      await ref.read(apiClientProvider).markNotifications(ids);
-    } catch (_) {
-      // 服务端其实已提交，只是返回值解不出来，交给随后的对账。
-    }
-    if (!mounted) return;
-    setState(() => _marking = false);
-    await Future.wait<void>(<Future<void>>[
-      _load(silent: true),
-      ref.read(profileProvider.notifier).reload(),
-    ]);
-  }
-
-  Future<void> _markAll() => _mark(
-        _items
-            .where((item) => !item.isRead)
-            .map((item) => item.id)
-            .toList(growable: false),
-      );
-
   void _open(AppNotificationItem item) {
-    if (!item.isRead) _mark(<int>[item.id]);
+    if (!item.isRead) {
+      ref.read(communityNotificationsProvider.notifier).mark(<int>[item.id]);
+    }
     final id = item.extra.objectId > 0 ? item.extra.objectId : item.objectId;
     if (id <= 0) return;
     switch (item.objectType) {
@@ -184,26 +82,31 @@ class _CommunityNotificationsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final state = ref.watch(communityNotificationsProvider);
+    final controller = ref.read(communityNotificationsProvider.notifier);
     return Scaffold(
       appBar: AppBar(
         title: const Text('通知'),
         actions: <Widget>[
-          if (_hasUnread)
+          if (controller.hasUnread)
             TextButton(
-              onPressed: _marking ? null : _markAll,
+              onPressed: controller.markAll,
               child: const Text('全部已读'),
             ),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _load,
-        child: _buildBody(),
+        onRefresh: controller.refresh,
+        child: _buildBody(state, controller),
       ),
     );
   }
 
-  Widget _buildBody() {
-    if (_loading && _items.isEmpty) {
+  Widget _buildBody(
+    PagedList<AppNotificationItem> state,
+    CommunityNotificationsController controller,
+  ) {
+    if (state.loading && state.items.isEmpty) {
       return ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
@@ -212,17 +115,17 @@ class _CommunityNotificationsScreenState
         itemBuilder: (_, _) => const CommunityFeedCardSkeleton(),
       );
     }
-    if (_items.isEmpty) {
+    if (state.items.isEmpty) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
         children: <Widget>[
-          if (_error != null)
+          if (state.error != null)
             CommunityStateCard(
               title: '无法加载通知',
-              description: _error!,
+              description: state.error!,
               isError: true,
-              onRetry: _load,
+              onRetry: controller.retry,
             )
           else
             const CommunityStateCard(
@@ -237,46 +140,31 @@ class _CommunityNotificationsScreenState
       controller: _controller,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-      itemCount: _items.length + 1,
+      itemCount: state.items.length + 1,
       separatorBuilder: (_, _) => const SizedBox(height: 11),
       itemBuilder: (_, index) {
-        if (index == _items.length) return _buildFooter();
-        final item = _items[index];
+        if (index == state.items.length) return _buildFooter(state, controller);
+        final item = state.items[index];
         return _NotificationCard(item: item, onTap: () => _open(item));
       },
     );
   }
 
-  Widget _buildFooter() {
-    if (_loadingMore) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 18),
-        child: Center(
-          child: SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(strokeWidth: 2.2),
-          ),
-        ),
-      );
-    }
-    if (_loadMoreError != null) {
+  /// 翻页失败保留社区风格的错误卡，其余状态交给全站统一的列表尾。
+  Widget _buildFooter(
+    PagedList<AppNotificationItem> state,
+    CommunityNotificationsController controller,
+  ) {
+    final error = state.loadMoreError;
+    if (error != null) {
       return CommunityStateCard(
         title: '无法加载更多',
-        description: _loadMoreError!,
+        description: error,
         isError: true,
-        onRetry: _loadMore,
+        onRetry: controller.loadMore,
       );
     }
-    if (_page < _totalPages) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Center(
-          child: OutlinedButton(onPressed: _loadMore, child: const Text('加载更多')),
-        ),
-      );
-    }
-    return const SizedBox(height: 8);
+    return ListFooterStatus(loading: state.loadingMore, hasMore: state.hasMore);
   }
 }
 
@@ -308,7 +196,7 @@ class _NotificationCard extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              CommunityAvatar(
+              UserAvatar(
                 url: item.actor?.avatar ?? '',
                 name: actorName,
                 size: 38,
@@ -400,7 +288,7 @@ class _NotificationCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  formatCommunityTime(item.createdAt),
+                  formatRelativeTimeFine(item.createdAt),
                   style: TextStyle(
                     fontSize: 12,
                     color: colors.onSurfaceVariant,
@@ -420,24 +308,24 @@ class _NotificationCard extends StatelessWidget {
   }
 
   static String _actionLabel(AppNotificationType type) => switch (type) {
-        AppNotificationType.comment => '评论了你的内容',
-        AppNotificationType.commentReply => '回复了你的评论',
-        AppNotificationType.communityThreadReply => '回复了你的讨论',
-        AppNotificationType.communityThreadChildReply => '回复了你的社区回复',
-        AppNotificationType.unknown => '向你发送了一条通知',
-      };
+    AppNotificationType.comment => '评论了你的内容',
+    AppNotificationType.commentReply => '回复了你的评论',
+    AppNotificationType.communityThreadReply => '回复了你的讨论',
+    AppNotificationType.communityThreadChildReply => '回复了你的社区回复',
+    AppNotificationType.unknown => '向你发送了一条通知',
+  };
 
   static String _objectLabel(AppNotificationObjectType type) => switch (type) {
-        AppNotificationObjectType.communityThread => '社区',
-        AppNotificationObjectType.book => '书籍',
-        AppNotificationObjectType.announcement => '公告',
-        AppNotificationObjectType.series => '系列',
-        AppNotificationObjectType.unknown => '通知',
-      };
+    AppNotificationObjectType.communityThread => '社区',
+    AppNotificationObjectType.book => '书籍',
+    AppNotificationObjectType.announcement => '公告',
+    AppNotificationObjectType.series => '系列',
+    AppNotificationObjectType.unknown => '通知',
+  };
 
   static IconData _typeIcon(AppNotificationObjectType type) => switch (type) {
-        AppNotificationObjectType.book => Icons.menu_book_outlined,
-        AppNotificationObjectType.announcement => Icons.campaign_outlined,
-        _ => Icons.mode_comment_outlined,
-      };
+    AppNotificationObjectType.book => Icons.menu_book_outlined,
+    AppNotificationObjectType.announcement => Icons.campaign_outlined,
+    _ => Icons.mode_comment_outlined,
+  };
 }

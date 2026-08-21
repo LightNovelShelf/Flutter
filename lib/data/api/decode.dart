@@ -15,6 +15,10 @@ Map<String, dynamic>? asRecordOrNull(Object? value) {
   return null;
 }
 
+/// 可选的嵌套对象：缺失时给空表，省掉每个调用点的 `?? const {}`。
+Map<String, dynamic> asRecordOrEmpty(Object? value) =>
+    asRecordOrNull(value) ?? const <String, dynamic>{};
+
 List<dynamic> asArray(Object? value, String name) {
   if (value is List) return value;
   throw ApiError('服务端返回了无效的 $name。', ApiErrorCategory.server);
@@ -160,4 +164,14 @@ String normalizeCoverUrl(String value) {
   return value.substring(0, placeholder.valueStart) +
       repaired +
       value.substring(placeholder.valueEnd);
+}
+
+/// 计数字段一律非负且有上限：服务端偶尔回负数或超大值，直接渲染会撑破布局。
+int asCount(Object? value, [int fallback = 0]) =>
+    asInt(value, fallback).clamp(0, 1 << 30);
+
+/// 封面原串同时承载地址与 BlurHash 占位，两者永远成对解出。
+({String url, String? placeholder}) decodeCover(Object? value) {
+  final raw = asString(value);
+  return (url: normalizeCoverUrl(raw), placeholder: extractBlurHashPlaceholder(raw));
 }

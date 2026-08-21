@@ -5,10 +5,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 
-import '../../../shared/image_cache.dart';
-import '../../../shared/widgets/image_preview.dart';
-import '../reader_content_markup.dart';
-import '../reader_content_style.dart';
+import '../image_cache.dart';
+import 'html/reader_content_markup.dart';
+import 'html/reader_content_style.dart';
+import 'image_preview.dart';
 
 /// 小说阅读器与社区正文共用的 HTML 块渲染器。
 ///

@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../data/api/api_client.dart';
 import '../../data/api/community_models.dart';
 import '../../data/providers.dart';
 import 'community_providers.dart';
-import 'widgets/community_widgets.dart';
+import 'widgets/community_primitives.dart';
+import 'widgets/community_rank_panels.dart';
 
 /// 排行榜直接读社区首页缓存，只有用户主动刷新才回源。
 class CommunityRankingsScreen extends ConsumerStatefulWidget {

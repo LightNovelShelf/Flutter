@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/async/serial_queue.dart';
 import '../../core/network/api_error.dart';
 import '../../core/network/request_scheduler.dart';
 import '../../data/api/api_client.dart';
@@ -11,6 +12,7 @@ import '../../data/api/models.dart';
 import '../../data/providers.dart';
 import '../../data/settings/app_settings.dart';
 import '../../shared/content_filter.dart';
+import '../../shared/paging/paged_list.dart';
 
 const String searchHistoryStorageKey = 'lightnovel.search-history.v1';
 const int _historyLimit = 10;
@@ -19,7 +21,7 @@ const Duration searchDebounce = Duration(milliseconds: 350);
 
 /// 搜索历史：最近在前、去重、限 10 条。
 class SearchHistoryController extends AsyncNotifier<List<String>> {
-  Future<void> _writeQueue = Future<void>.value();
+  final SerialQueue _writes = SerialQueue();
 
   @override
   Future<List<String>> build() async {
@@ -49,13 +51,12 @@ class SearchHistoryController extends AsyncNotifier<List<String>> {
     return result;
   }
 
-  /// 写盘串行、不阻塞搜索。
+  /// 写盘串行、不阻塞搜索；写失败不影响本次搜索，忽略即可。
   void _persist(List<String> values) {
     final store = ref.read(appRuntimeProvider).keyValueStore;
-    _writeQueue = _writeQueue.then(
-      (_) => store.write(searchHistoryStorageKey, jsonEncode(values)),
-      onError: (_) {},
-    );
+    _writes
+        .add(() => store.write(searchHistoryStorageKey, jsonEncode(values)))
+        .ignore();
   }
 
   void _apply(List<String> values) {
@@ -282,7 +283,7 @@ class BookSearchController extends Notifier<BookSearchState> {
       if (generation != _generation) return;
       final merged = page == 1
           ? result.items
-          : _mergeById(state.items, result.items);
+          : mergeById(state.items, result.items, (item) => item.id);
       state = state.copyWith(
         items: merged,
         page: result.page,
@@ -301,17 +302,6 @@ class BookSearchController extends Notifier<BookSearchState> {
         error: describeSearchError(error),
       );
     }
-  }
-
-  static List<BookListItem> _mergeById(
-    List<BookListItem> current,
-    List<BookListItem> next,
-  ) {
-    final seen = <int>{for (final item in current) item.id};
-    return <BookListItem>[
-      ...current,
-      ...next.where((item) => seen.add(item.id)),
-    ];
   }
 
   Future<_FetchResult> _fetch({
@@ -355,16 +345,12 @@ class BookSearchController extends Notifier<BookSearchState> {
   }
 }
 
-String describeSearchError(Object error) {
-  if (error is ApiError) {
-    return switch (error.category) {
-      ApiErrorCategory.auth => '请重新登录后继续搜索。',
-      ApiErrorCategory.network => '离线时无法使用搜索。',
-      _ => error.message,
-    };
-  }
-  return '无法完成搜索。';
-}
+String describeSearchError(Object error) => describeApiError(
+  error,
+  fallback: '无法完成搜索。',
+  auth: '请重新登录后继续搜索。',
+  network: '离线时无法使用搜索。',
+);
 
 final NotifierProvider<BookSearchController, BookSearchState>
 bookSearchProvider = NotifierProvider<BookSearchController, BookSearchState>(

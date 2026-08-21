@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 
+import '../../core/network/api_error.dart';
 import '../../data/api/models.dart';
 import '../../shared/format.dart';
+import '../../shared/widgets/comments/comment_compose_sheet.dart';
+import '../../shared/widgets/comments/comment_thread_list.dart';
 import '../../shared/widgets/image_preview.dart';
-import '../book/widgets/comment_thread.dart';
-import 'discover_providers.dart';
+import '../announcement/announcement_providers.dart';
+import '../book/book_providers.dart';
 
 /// 正文作为评论列表的头部，整页只有一个滚动容器。
 class AnnouncementDetailScreen extends ConsumerWidget {

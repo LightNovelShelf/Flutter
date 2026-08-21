@@ -138,7 +138,7 @@ void main() {
     expect(find.byIcon(Icons.menu_book_outlined), findsOneWidget);
   });
 
-  testWidgets('漫画整页用法：占位层与真图同 fit，按图片比例解码，无图标兜底', (WidgetTester tester) async {
+  testWidgets('漫画整页用法：占位层铺满盒子，按图片比例解码，无图标兜底', (WidgetTester tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -162,7 +162,9 @@ void main() {
     await tester.pump();
 
     final Image placeholder = tester.widget<Image>(blurHashLayer());
-    expect(placeholder.fit, BoxFit.contain);
+    // 占位层不能跟着真图用 contain：16 宽的解码高度取整后比例有 1/16 的台阶，
+    // 信箱留白会让它比真图窄几个像素，淡入时边缘可见地跳一下。
+    expect(placeholder.fit, BoxFit.fill);
     expect(placeholder.gaplessPlayback, isTrue);
     final BlurHashImage provider = placeholder.image as BlurHashImage;
     expect(provider.decodingWidth, BookImage.blurHashWidth);
@@ -175,6 +177,32 @@ void main() {
     expect(image.fadeInDuration, const Duration(milliseconds: 80));
     expect(image.fadeOutDuration, Duration.zero);
     expect(find.byIcon(Icons.menu_book_outlined), findsNothing);
+  });
+
+  testWidgets('长条页比例不再被截断', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 200,
+            height: 2400,
+            child: BookImage(
+              url: url,
+              displayHeight: 2400,
+              blurHash: hash,
+              fit: BoxFit.contain,
+              aspectRatio: 2400 / 200,
+              fallbackIcon: null,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final BlurHashImage provider =
+        tester.widget<Image>(blurHashLayer()).image as BlurHashImage;
+    expect(provider.decodingHeight, BookImage.blurHashWidth * 12);
   });
 
   testWidgets('封面地址去掉 placeholder 和 t 参数后作为缓存键', (WidgetTester tester) async {

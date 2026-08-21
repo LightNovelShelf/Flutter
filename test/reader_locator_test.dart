@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightnovel/features/reader/reader_engine.dart';
+import 'package:lightnovel/features/reader/reader_footnotes.dart';
+import 'package:lightnovel/features/reader/reader_html_blocks.dart';
+import 'package:lightnovel/features/reader/reader_position.dart';
 
 /// 服务端存的阅读进度就是一条 xpath（`//*/div[2]/p[76]`），Web 端与客户端必须算出
 /// 同一套路径，否则跨端续读会跳段。

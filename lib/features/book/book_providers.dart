@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 
 import '../../core/network/api_error.dart';
+import '../../data/api/api_client.dart';
 import '../../data/api/models.dart';
 import '../../data/providers.dart';
+import '../../data/repositories/shelf_draft.dart';
 import '../../data/repositories/shelf_repository.dart';
+import '../../shared/paging/paged_list.dart';
 
 /// 漫画与小说走不同接口，类型必须进缓存键。
 typedef BookDetailRequest = ({int id, BookType? type});
@@ -35,11 +38,12 @@ bookDetailProvider = FutureProvider.family<BookDetailBundle, BookDetailRequest>(
   isAutoDispose: true,
 );
 
+/// 同步判定：只看缓存快照，不像 `ShelfController.contains` 那样回源查询。
 final FutureProviderFamily<bool, int> bookInShelfProvider =
     FutureProvider.family<bool, int>((ref, bookId) async {
       final snapshot = await ref.watch(shelfProvider.future);
       if (snapshot == null) return false;
-      return snapshot.items.any((item) => item.isBook && item.bookId == bookId);
+      return shelfContainsBook(snapshot.items, bookId);
     }, isAutoDispose: true);
 
 final FutureProviderFamily<ComicSeriesDetail, String> comicSeriesProvider =
@@ -119,16 +123,13 @@ class CommentThreadState {
 }
 
 /// 认证/离线单独提示，其余沿用服务端消息。
-String describeCommentError(Object error, {required String fallback}) {
-  if (error is ApiError) {
-    return switch (error.category) {
-      ApiErrorCategory.auth => '请重新登录后使用评论功能。',
-      ApiErrorCategory.network => '离线时无法加载评论。',
-      _ => error.message,
-    };
-  }
-  return fallback;
-}
+String describeCommentError(Object error, {required String fallback}) =>
+    describeApiError(
+      error,
+      fallback: fallback,
+      auth: '请重新登录后使用评论功能。',
+      network: '离线时无法加载评论。',
+    );
 
 class CommentThreadController extends AsyncNotifier<CommentThreadState> {
   CommentThreadController(this.arg);
@@ -154,16 +155,16 @@ class CommentThreadController extends AsyncNotifier<CommentThreadState> {
     );
   }
 
-  /// 按 id 去重：相邻页在服务端可能重叠。
-  static List<CommentItem> _merge(
-    List<CommentItem> current,
-    List<CommentItem> next,
-  ) {
-    final seen = <int>{for (final item in current) item.id};
-    return <CommentItem>[
-      ...current,
-      ...next.where((item) => seen.add(item.id)),
-    ];
+  /// 重新拉第一页并整份替换：刷新与删除后都要回到「干净的第一页」。
+  Future<void> _replaceWithFirstPage() async {
+    final page = await _fetch(1);
+    state = AsyncValue<CommentThreadState>.data(
+      CommentThreadState(
+        items: page.items,
+        page: page.page,
+        totalPages: page.totalPages,
+      ),
+    );
   }
 
   Future<void> loadMore() async {
@@ -177,7 +178,7 @@ class CommentThreadController extends AsyncNotifier<CommentThreadState> {
       final latest = state.value ?? current;
       state = AsyncValue<CommentThreadState>.data(
         latest.copyWith(
-          items: _merge(latest.items, next.items),
+          items: mergeById(latest.items, next.items, (item) => item.id),
           page: next.page,
           totalPages: next.totalPages,
           loadingMore: false,
@@ -199,14 +200,7 @@ class CommentThreadController extends AsyncNotifier<CommentThreadState> {
   Future<void> refresh({bool silent = true}) async {
     if (!silent) state = const AsyncValue<CommentThreadState>.loading();
     try {
-      final page = await _fetch(1);
-      state = AsyncValue<CommentThreadState>.data(
-        CommentThreadState(
-          items: page.items,
-          page: page.page,
-          totalPages: page.totalPages,
-        ),
-      );
+      await _replaceWithFirstPage();
     } catch (error, stackTrace) {
       if (state.hasValue && silent) rethrow;
       state = AsyncValue<CommentThreadState>.error(error, stackTrace);
@@ -215,24 +209,14 @@ class CommentThreadController extends AsyncNotifier<CommentThreadState> {
 
   Future<void> delete(int commentId) async {
     await ref.read(apiClientProvider).deleteComment(commentId);
-
-    final CommentPage page;
     try {
-      page = await _fetch(1);
+      await _replaceWithFirstPage();
     } catch (error) {
       throw ApiError(
         describeCommentError(error, fallback: '无法刷新评论列表。'),
         ApiErrorCategory.unknown,
       );
     }
-
-    state = AsyncValue<CommentThreadState>.data(
-      CommentThreadState(
-        items: page.items,
-        page: page.page,
-        totalPages: page.totalPages,
-      ),
-    );
   }
 }
 
@@ -247,3 +231,50 @@ commentThreadProvider =
       CommentThreadState,
       CommentTarget
     >(CommentThreadController.new, isAutoDispose: true);
+
+/// 书架按钮的乐观状态：`inShelf` 为 null 表示没有本地覆盖，沿用 [bookInShelfProvider]。
+@immutable
+class ShelfToggle {
+  const ShelfToggle({this.busy = false, this.inShelf, this.error});
+
+  final bool busy;
+  final bool? inShelf;
+  final String? error;
+}
+
+/// 点下去先翻转图标再发请求，失败回退到服务端状态并给出文案。
+class ShelfToggleController extends Notifier<ShelfToggle> {
+  ShelfToggleController(this.arg);
+
+  final int arg;
+
+  @override
+  ShelfToggle build() => const ShelfToggle();
+
+  Future<void> toggle(bool inShelf) async {
+    state = ShelfToggle(busy: true, inShelf: !inShelf);
+    try {
+      final result = await ref.read(shelfProvider.notifier).toggleBook(arg);
+      if (!ref.mounted) return;
+      state = ShelfToggle(inShelf: result);
+    } catch (error) {
+      if (!ref.mounted) return;
+      state = ShelfToggle(
+        error: describeApiError(
+          error,
+          fallback: '无法更新书架。',
+          auth: '请重新登录后使用书架。',
+          network: '离线时无法修改书架。',
+        ),
+      );
+    }
+  }
+}
+
+/// autoDispose：乐观状态只在详情页停留期间有意义，离开就该丢掉。
+final NotifierProviderFamily<ShelfToggleController, ShelfToggle, int>
+shelfToggleProvider =
+    NotifierProvider.family<ShelfToggleController, ShelfToggle, int>(
+      ShelfToggleController.new,
+      isAutoDispose: true,
+    );

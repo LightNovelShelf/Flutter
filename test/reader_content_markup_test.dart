@@ -1,8 +1,9 @@
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightnovel/features/reader/reader_content_markup.dart';
-import 'package:lightnovel/features/reader/reader_content_style.dart';
-import 'package:lightnovel/features/reader/reader_engine.dart';
+import 'package:lightnovel/features/reader/reader_block_markup.dart';
+import 'package:lightnovel/features/reader/reader_html_blocks.dart';
+import 'package:lightnovel/shared/widgets/html/reader_content_markup.dart';
+import 'package:lightnovel/shared/widgets/html/reader_content_style.dart';
 
 ReaderContentStyle _style({bool indent = false}) => ReaderContentStyle(
   fontSize: 18,

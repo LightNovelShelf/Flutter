@@ -5,8 +5,12 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/api/community_models.dart';
 import '../../data/repositories/profile_repository.dart';
+import '../../shared/format.dart';
+import '../../shared/paging/scroll_prefetch.dart';
+import '../../shared/widgets/skeleton.dart';
 import 'community_providers.dart';
-import 'widgets/community_widgets.dart';
+import 'widgets/community_feed_card.dart';
+import 'widgets/community_primitives.dart';
 
 const List<(CommunityFeedOrder, String)> _orderOptions =
     <(CommunityFeedOrder, String)>[
@@ -38,7 +42,11 @@ class _CommunityHomeScreenState extends ConsumerState<CommunityHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _controller.addListener(_onScroll);
+    // 距底部不足 720 逻辑像素就预取下一页。
+    _controller.attachPrefetch(
+      threshold: 720,
+      onLoadMore: () => ref.read(communityHomeProvider.notifier).loadMore(),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) ref.read(communityHomeProvider.notifier).ensureLoaded();
     });
@@ -46,17 +54,8 @@ class _CommunityHomeScreenState extends ConsumerState<CommunityHomeScreen> {
 
   @override
   void dispose() {
-    _controller.removeListener(_onScroll);
     _controller.dispose();
     super.dispose();
-  }
-
-  void _onScroll() {
-    if (!_controller.hasClients) return;
-    // 距底部不足 720 逻辑像素就预取下一页。
-    if (_controller.position.extentAfter < 720) {
-      ref.read(communityHomeProvider.notifier).loadMore();
-    }
   }
 
   Future<void> _openAnnouncement(String link) async {
@@ -235,12 +234,12 @@ class _Header extends StatelessWidget {
                   _StatChip(
                     icon: Icons.grid_view_outlined,
                     label: '今日发帖',
-                    value: formatCommunityCount(home.todayThreads),
+                    value: formatCompactCount(home.todayThreads),
                   ),
                   _StatChip(
                     icon: Icons.people_alt_outlined,
                     label: '在线人数',
-                    value: formatCommunityCount(home.onlineUserCount),
+                    value: formatCompactCount(home.onlineUserCount),
                   ),
                   if (heat.isNotEmpty)
                     _StatChip(
@@ -393,29 +392,29 @@ class _HeaderSkeleton extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      CommunitySkeletonBox(height: 24, widthFactor: 0.62),
+                      SkeletonBox(height: 24, widthFactor: 0.62),
                       SizedBox(height: 8),
-                      CommunitySkeletonBox(height: 14, widthFactor: 0.82),
+                      SkeletonBox(height: 14, widthFactor: 0.82),
                     ],
                   ),
                 ),
                 SizedBox(width: 12),
-                CommunitySkeletonBox(height: 42, width: 42, radius: 14),
+                SkeletonBox(height: 42, width: 42, radius: 14),
               ],
             ),
             SizedBox(height: 14),
             Row(
               children: <Widget>[
-                CommunitySkeletonBox(height: 34, width: 132, radius: 14),
+                SkeletonBox(height: 34, width: 132, radius: 14),
                 SizedBox(width: 8),
-                CommunitySkeletonBox(height: 34, width: 132, radius: 14),
+                SkeletonBox(height: 34, width: 132, radius: 14),
               ],
             ),
           ],
         ),
       ),
       SizedBox(height: 8),
-      CommunitySkeletonBox(height: 70, radius: 18),
+      SkeletonBox(height: 70, radius: 18),
       SizedBox(height: 8),
     ],
   );
@@ -509,7 +508,7 @@ class _FilterToolbar extends ConsumerWidget {
           if (state.categoriesLoading)
             const Padding(
               padding: EdgeInsets.fromLTRB(12, 6, 12, 0),
-              child: CommunitySkeletonBox(height: 34, radius: 999),
+              child: SkeletonBox(height: 34, radius: 999),
             )
           else if (state.subCategories.isNotEmpty)
             Padding(
@@ -534,7 +533,7 @@ class _FilterToolbar extends ConsumerWidget {
                         in state.subCategories) ...<Widget>[
                       CommunityFilterChip(
                         label:
-                            '${category.label} · ${formatCommunityCount(category.count)}',
+                            '${category.label} · ${formatCompactCount(category.count)}',
                         selected: state.query.subCategoryKey == category.key,
                         onTap: () => controller.selectSubCategory(category.key),
                       ),
@@ -625,20 +624,10 @@ class _Footer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).colorScheme;
     if (state.home == null) return const SizedBox.shrink();
-    if (state.loadingMore) {
-      return const Column(
-        children: <Widget>[
-          CommunityFeedCardSkeleton(),
-          SizedBox(height: 8),
-          CommunityFeedCardSkeleton(),
-        ],
-      );
-    }
-    if (state.loadMoreError != null) {
-      return CommunityStateCard(
-        title: '无法加载更多',
-        description: state.loadMoreError!,
-        isError: true,
+    if (state.loadingMore || state.loadMoreError != null) {
+      return CommunityLoadMoreFooter(
+        loading: state.loadingMore,
+        error: state.loadMoreError,
         onRetry: ref.read(communityHomeProvider.notifier).loadMore,
       );
     }
