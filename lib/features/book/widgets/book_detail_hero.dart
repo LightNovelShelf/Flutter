@@ -18,9 +18,51 @@ const double bookHeroHeight = 280;
 const double bookCoverDisplayHeight = 150;
 
 class BookHero extends StatelessWidget {
-  const BookHero({super.key, required this.detail});
+  const BookHero({super.key, required this.detail, this.onTitleTap});
 
   final BookDetail detail;
+
+  /// 点标题进系列列表；为空时标题就是普通文本（漫画详情本身就是系列）。
+  final VoidCallback? onTitleTap;
+
+  Widget _title(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final style = Theme.of(context).textTheme.titleLarge?.copyWith(
+      fontSize: 22,
+      height: 1.28,
+      fontWeight: FontWeight.w700,
+      color: colors.onSurface,
+    );
+    final text = Text(
+      detail.title,
+      maxLines: 4,
+      overflow: TextOverflow.ellipsis,
+      style: style,
+    );
+    if (onTitleTap == null) return text;
+    return Semantics(
+      button: true,
+      label: '查看《${detail.title}》所属系列',
+      child: InkWell(
+        onTap: onTitleTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Flexible(child: text),
+            Padding(
+              padding: const EdgeInsets.only(top: 3, left: 2),
+              child: Icon(
+                Icons.chevron_right,
+                size: 22,
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -110,17 +152,7 @@ class BookHero extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(
-                      detail.title,
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis,
-                      style: text.titleLarge?.copyWith(
-                        fontSize: 22,
-                        height: 1.28,
-                        fontWeight: FontWeight.w700,
-                        color: colors.onSurface,
-                      ),
-                    ),
+                    _title(context),
                     if (detail.authorName != null &&
                         detail.authorName!.isNotEmpty) ...<Widget>[
                       const SizedBox(height: 4),

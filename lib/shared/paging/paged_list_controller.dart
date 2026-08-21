@@ -23,8 +23,8 @@ abstract class PagedListController<T, Arg> extends Notifier<PagedList<T>> {
   /// 拉取一页数据；实现方可在内部连续消费多个后端页。
   Future<FetchedPage<T>> fetchPage(int page);
 
-  /// 翻页去重用的主键。
-  int idOf(T item);
+  /// 翻页去重用的主键：数字 id 或分组键（如系列名）。
+  Object idOf(T item);
 
   /// 离开页面后的保活时长；null 表示随页面一起丢弃。
   Duration? get keepAliveFor => null;

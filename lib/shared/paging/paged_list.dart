@@ -63,15 +63,16 @@ class PagedList<T> {
   );
 }
 
-/// 分页合并：保留既有顺序，只追加没见过的 id。服务端会按热度重排，翻页必然撞重复。
+/// 分页合并：保留既有顺序，只追加没见过的主键。服务端会按热度重排，翻页必然撞重复。
+/// 主键类型放开到 `Object`：按系列分组的列表没有数字 id，键就是系列名。
 /// `incoming` 为空时原样返回同一个实例，避免下游无谓重建。
 List<T> mergeById<T>(
   List<T> existing,
   List<T> incoming,
-  int Function(T item) idOf,
+  Object Function(T item) idOf,
 ) {
   if (incoming.isEmpty) return existing;
-  final seen = <int>{for (final item in existing) idOf(item)};
+  final seen = <Object>{for (final item in existing) idOf(item)};
   final merged = List<T>.of(existing);
   for (final item in incoming) {
     if (seen.add(idOf(item))) merged.add(item);

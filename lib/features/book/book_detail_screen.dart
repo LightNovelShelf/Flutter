@@ -29,11 +29,15 @@ class BookDetailScreen extends ConsumerStatefulWidget {
     required this.id,
     this.type,
     this.seriesTitle,
+    this.fromSeries,
   });
 
   final int id;
   final BookType? type;
   final String? seriesTitle;
+
+  /// 从系列页点进来时带上的系列键；点标题回系列时原路返回，不再压一个同样的页面。
+  final String? fromSeries;
 
   @override
   ConsumerState<BookDetailScreen> createState() => _BookDetailScreenState();
@@ -42,13 +46,34 @@ class BookDetailScreen extends ConsumerStatefulWidget {
 class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   BookDetailRequest get _request => (id: widget.id, type: widget.type);
 
+  /// 系列键必须与服务端 `SeriesTitle` 口径一致：中文名优先、空回落原名、再空回落书名。
+  /// 列表页带来的提示值本身就是这个键，优先用它。
   String _seriesTitleOf(BookDetailBundle bundle) {
     final hinted = widget.seriesTitle?.trim();
     if (hinted != null && hinted.isNotEmpty) return hinted;
     final classification = bundle.detail.classification;
-    return classification.seriesName ??
-        classification.seriesNameCn ??
+    return classification.seriesNameCn ??
+        classification.seriesName ??
         bundle.detail.title;
+  }
+
+  /// 小说：点标题看同系列的其它书。
+  void _openSeries(BookDetailBundle bundle) {
+    final name = _seriesTitleOf(bundle);
+    // 就是从这个系列点进来的，回去而不是叠一层重复页面。
+    if (widget.fromSeries == name && context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.push(
+      Uri(
+        path: '/books/series',
+        queryParameters: <String, String>{
+          'name': name,
+          'order': BookListOrder.latest.wire,
+        },
+      ).toString(),
+    );
   }
 
   Future<void> _openReader(BookDetailBundle bundle, int sortNum) async {
@@ -181,7 +206,10 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
               ),
           ],
           flexibleSpace: FlexibleSpaceBar(
-            background: BookHero(detail: detail),
+            background: BookHero(
+              detail: detail,
+              onTitleTap: bundle.isComic ? null : () => _openSeries(bundle),
+            ),
             collapseMode: CollapseMode.parallax,
           ),
         ),

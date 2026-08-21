@@ -11,6 +11,14 @@ extension BookListOrderWire on BookListOrder {
   };
 }
 
+/// 路由参数回解：未知取值交给调用点决定默认排序。
+BookListOrder? bookListOrderFromWire(String? value) => switch (value) {
+  'latest' => BookListOrder.latest,
+  'new' => BookListOrder.newest,
+  'view' => BookListOrder.view,
+  _ => null,
+};
+
 enum ComicOrder { latest, newest, view }
 
 extension ComicOrderWire on ComicOrder {

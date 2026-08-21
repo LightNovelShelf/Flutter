@@ -68,6 +68,83 @@ class BookCatalogController
   }
 }
 
+/// 系列内书籍列表的参数：系列名 + 排序。
+typedef SeriesBooksArg = ({String name, BookListOrder order});
+
+/// 全部小说的「按系列」视图：一页就是一页系列，没有本地补充过滤。
+class NovelSeriesCatalogController
+    extends PagedListController<NovelSeriesListItem, BookListOrder> {
+  NovelSeriesCatalogController(super.arg);
+
+  @override
+  Duration? get keepAliveFor => _catalogKeepAlive;
+
+  @override
+  void subscribe() {
+    ref.watch(apiClientProvider);
+    watchContentSettings(ref);
+  }
+
+  /// 系列没有数字 id，分组键即系列名。
+  @override
+  Object idOf(NovelSeriesListItem series) => series.name;
+
+  @override
+  Future<FetchedPage<NovelSeriesListItem>> fetchPage(int page) async {
+    final api = ref.read(apiClientProvider);
+    final settings = ref.read(appSettingsProvider);
+    final response = await api.getNovelSeriesList(
+      page: page,
+      size: discoverPageSize,
+      order: arg,
+      ignoreJapanese: settings.ignoreJapanese,
+      ignoreAI: settings.ignoreAI,
+    );
+    return FetchedPage<NovelSeriesListItem>(
+      items: response.items,
+      page: page,
+      totalPages: response.totalPages,
+    );
+  }
+}
+
+/// 单个系列下的全部小说。系列通常只有几本，不做「过滤后补页」的循环。
+class SeriesBooksController
+    extends PagedListController<BookListItem, SeriesBooksArg> {
+  SeriesBooksController(super.arg);
+
+  @override
+  Duration? get keepAliveFor => _catalogKeepAlive;
+
+  @override
+  void subscribe() {
+    ref.watch(apiClientProvider);
+    watchContentSettings(ref);
+  }
+
+  @override
+  Object idOf(BookListItem book) => book.id;
+
+  @override
+  Future<FetchedPage<BookListItem>> fetchPage(int page) async {
+    final api = ref.read(apiClientProvider);
+    final settings = ref.read(appSettingsProvider);
+    final response = await api.getBooksBySeries(
+      seriesName: arg.name,
+      page: page,
+      size: discoverPageSize,
+      order: arg.order,
+      ignoreJapanese: settings.ignoreJapanese,
+      ignoreAI: settings.ignoreAI,
+    );
+    return FetchedPage<BookListItem>(
+      items: applyContentFilter(response.items, settings),
+      page: page,
+      totalPages: response.totalPages,
+    );
+  }
+}
+
 class ComicCatalogController
     extends PagedListController<BookListItem, ComicOrder> {
   ComicCatalogController(super.arg);
@@ -141,6 +218,32 @@ bookCatalogProvider =
       PagedList<BookListItem>,
       BookListOrder
     >(BookCatalogController.new, isAutoDispose: true);
+
+final
+NotifierProviderFamily<
+  NovelSeriesCatalogController,
+  PagedList<NovelSeriesListItem>,
+  BookListOrder
+>
+novelSeriesCatalogProvider =
+    NotifierProvider.family<
+      NovelSeriesCatalogController,
+      PagedList<NovelSeriesListItem>,
+      BookListOrder
+    >(NovelSeriesCatalogController.new, isAutoDispose: true);
+
+final
+NotifierProviderFamily<
+  SeriesBooksController,
+  PagedList<BookListItem>,
+  SeriesBooksArg
+>
+seriesBooksProvider =
+    NotifierProvider.family<
+      SeriesBooksController,
+      PagedList<BookListItem>,
+      SeriesBooksArg
+    >(SeriesBooksController.new, isAutoDispose: true);
 
 final
 NotifierProviderFamily<

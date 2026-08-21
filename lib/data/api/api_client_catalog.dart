@@ -28,6 +28,40 @@ extension ApiClientCatalog on ApiClient {
     'IgnoreAI': ignoreAI,
   }, BookListPage.decode);
 
+  /// 按系列分组列出小说；分组键由服务端分类器给出（中文名优先）。
+  Future<NovelSeriesListPage> getNovelSeriesList({
+    required int page,
+    required int size,
+    required BookListOrder order,
+    bool ignoreJapanese = false,
+    bool ignoreAI = false,
+  }) => invoke('GetSeriesList', <String, Object?>{
+    'Type': BookType.novel.wire,
+    'Page': page,
+    'Size': size,
+    'Order': order.wire,
+    'IgnoreJapanese': ignoreJapanese,
+    'IgnoreAI': ignoreAI,
+  }, NovelSeriesListPage.decode);
+
+  /// 精确列出某个系列下的全部小说；系列名必须是 [getNovelSeriesList] 给出的分组键。
+  Future<BookListPage> getBooksBySeries({
+    required String seriesName,
+    required int page,
+    required int size,
+    required BookListOrder order,
+    bool ignoreJapanese = false,
+    bool ignoreAI = false,
+  }) => invoke('GetBooksBySeries', <String, Object?>{
+    'Type': BookType.novel.wire,
+    'SeriesName': seriesName,
+    'Page': page,
+    'Size': size,
+    'Order': order.wire,
+    'IgnoreJapanese': ignoreJapanese,
+    'IgnoreAI': ignoreAI,
+  }, BookListPage.decode);
+
   /// 周期是天数：1 日榜、7 周榜、31 月榜。
   Future<List<BookListItem>> getRank(int days) =>
       invoke('GetRank', <String, Object?>{'Days': days}, decodeBookListItems);

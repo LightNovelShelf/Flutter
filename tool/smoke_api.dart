@@ -77,6 +77,28 @@ Future<void> main(List<String> args) async {
     stdout.writeln('   ${page.items.length} 本 / 共 ${page.totalPages} 页');
   });
 
+  await check('getNovelSeriesList(latest)', () async {
+    final page = await api.getNovelSeriesList(
+      page: 1,
+      size: 6,
+      order: BookListOrder.latest,
+    );
+    if (page.items.isEmpty) throw StateError('空系列列表');
+    final series = page.items.first;
+    stdout.writeln(
+      '   ${page.items.length} 个系列 / 共 ${page.totalPages} 页 · ${series.name} (${series.bookCount} 本)',
+    );
+
+    final books = await api.getBooksBySeries(
+      seriesName: series.name,
+      page: 1,
+      size: 6,
+      order: BookListOrder.latest,
+    );
+    if (books.items.isEmpty) throw StateError('系列内没有书籍');
+    stdout.writeln('   getBooksBySeries → ${books.items.first.title}');
+  });
+
   await check('getRank(7)', () async {
     final items = await api.getRank(7);
     stdout.writeln('   榜首 ${items.first.title}');

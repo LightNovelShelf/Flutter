@@ -4,6 +4,7 @@ export 'models/comic.dart';
 export 'models/comic_series.dart';
 export 'models/comment.dart';
 export 'models/novel.dart';
+export 'models/novel_series.dart';
 export 'models/read_position.dart';
 export 'models/shelf.dart';
 export 'models/user.dart';

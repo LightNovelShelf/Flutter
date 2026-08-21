@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../data/api/api_client.dart';
 import '../data/api/models.dart';
 import '../data/providers.dart';
 import '../data/session/auth_controller.dart';
@@ -26,6 +27,7 @@ import '../features/discover/announcement_detail_screen.dart';
 import '../features/discover/book_list_screen.dart';
 import '../features/discover/comic_list_screen.dart';
 import '../features/discover/discover_screen.dart';
+import '../features/discover/novel_series_books_screen.dart';
 import '../features/discover/ranking_screen.dart';
 import '../features/history/history_screen.dart';
 import '../features/reader/comic_reader_screen.dart';
@@ -153,6 +155,15 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: '/books', builder: (_, _) => const BookListScreen()),
+      GoRoute(
+        path: '/books/series',
+        builder: (_, state) => NovelSeriesBooksScreen(
+          seriesName: state.uri.queryParameters['name'] ?? '',
+          initialOrder:
+              bookListOrderFromWire(state.uri.queryParameters['order']) ??
+              BookListOrder.latest,
+        ),
+      ),
       GoRoute(path: '/comics', builder: (_, _) => const ComicListScreen()),
       GoRoute(path: '/ranking', builder: (_, _) => const RankingScreen()),
       GoRoute(
@@ -175,6 +186,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
                   ? BookType.novel
                   : null,
           seriesTitle: state.uri.queryParameters['seriesTitle'],
+          fromSeries: state.uri.queryParameters['fromSeries'],
         ),
         routes: <RouteBase>[
           GoRoute(

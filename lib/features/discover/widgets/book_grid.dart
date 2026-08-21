@@ -4,21 +4,29 @@ import 'package:go_router/go_router.dart';
 import '../../../data/api/models.dart';
 import '../../../shared/layout/book_grid_layout.dart';
 import '../../../shared/widgets/book_cover_grid_item.dart';
-import '../../../shared/widgets/state_views.dart';
+import '../../../shared/widgets/paged_grid.dart';
 
 /// 打开书籍详情：漫画必须带上系列名，详情页据此拉取系列信息。
-void openBookDetail(BuildContext context, BookListItem book) {
+///
+/// [fromSeries] 是「从哪个系列页点进来的」，详情页点标题回系列时据此原路返回，
+/// 而不是再往栈上压一个同样的系列页。
+void openBookDetail(
+  BuildContext context,
+  BookListItem book, {
+  String? fromSeries,
+}) {
   final isComic = book.type == BookType.comic;
   final query = <String, String>{
     'type': isComic ? 'Comic' : 'Novel',
     if (isComic) 'seriesTitle': book.seriesTitle ?? book.title,
+    if (fromSeries != null && fromSeries.isNotEmpty) 'fromSeries': fromSeries,
   };
   context.push(
     Uri(path: '/book/${book.id}', queryParameters: query).toString(),
   );
 }
 
-/// 目录/榜单共用的网格：下拉刷新 + 触底加载 + 骨架/空/错误态。
+/// 目录/榜单共用的书籍网格：把书卡接到通用的分页网格外壳上。
 class BookGrid extends StatelessWidget {
   const BookGrid({
     super.key,
@@ -55,119 +63,29 @@ class BookGrid extends StatelessWidget {
   final String emptyTitle;
   final String? emptyDescription;
 
-  static const EdgeInsets _gridPadding = EdgeInsets.fromLTRB(20, 12, 20, 0);
-
-  bool _onScroll(ScrollNotification notification) {
-    if (notification.metrics.axis != Axis.vertical) return false;
-    if (!hasMore || loading || loadingMore || onLoadMore == null) return false;
-    final metrics = notification.metrics;
-    // 距底不足 0.6 屏时预取下一页。
-    if (metrics.pixels >=
-        metrics.maxScrollExtent - metrics.viewportDimension * 0.6) {
-      onLoadMore!();
-    }
-    return false;
-  }
-
   @override
-  Widget build(BuildContext context) {
-    final windowHeight = MediaQuery.sizeOf(context).height;
-    return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final layout = BookGridLayout.of(constraints.maxWidth);
-          return NotificationListener<ScrollNotification>(
-            onNotification: _onScroll,
-            child: CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: <Widget>[
-                if (header != null)
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                    sliver: SliverToBoxAdapter(child: header),
-                  ),
-                ..._contentSlivers(context, layout, windowHeight),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  List<Widget> _contentSlivers(
-    BuildContext context,
-    BookGridLayout layout,
-    double windowHeight,
-  ) {
-    if (books.isEmpty) {
-      if (loading) {
-        return <Widget>[
-          SliverPadding(
-            padding: _gridPadding,
-            sliver: SliverGrid.builder(
-              gridDelegate: _delegate(layout),
-              itemCount: layout.skeletonCount(windowHeight),
-              itemBuilder: (_, _) => const BookGridSkeletonTile(),
-            ),
-          ),
-        ];
-      }
-      final message = errorMessage;
-      return <Widget>[
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: message != null
-              ? ErrorStateView(message: message, onRetry: onRetry)
-              : EmptyStateView(
-                  icon: emptyIcon,
-                  title: emptyTitle,
-                  description: emptyDescription,
-                ),
-        ),
-      ];
-    }
-
-    return <Widget>[
-      SliverPadding(
-        padding: _gridPadding,
-        sliver: SliverGrid(
-          gridDelegate: _delegate(layout),
-          delegate: _BookGridChildDelegate(
-            books: books,
-            onOpen: onOpen,
-            showRank: showRank,
-            coverHeight: layout.coverHeight,
-          ),
-        ),
-      ),
-      SliverPadding(
-        padding: const EdgeInsets.only(bottom: 40),
-        sliver: SliverToBoxAdapter(
-          child: onLoadMore == null
-              ? const SizedBox(height: 8)
-              : SizedBox(
-                  height: 58,
-                  child: ListFooterStatus(
-                    loading: loadingMore,
-                    hasMore: hasMore,
-                    error: loadMoreError,
-                    onRetry: onLoadMore,
-                  ),
-                ),
-        ),
-      ),
-    ];
-  }
-
-  SliverGridDelegate _delegate(BookGridLayout layout) =>
-      SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: layout.columns,
-        crossAxisSpacing: BookGridLayout.columnGap,
-        mainAxisSpacing: BookGridLayout.rowGap,
-        childAspectRatio: layout.childAspectRatio,
-      );
+  Widget build(BuildContext context) => PagedGrid<BookListItem>(
+    items: books,
+    header: header,
+    loading: loading,
+    loadingMore: loadingMore,
+    hasMore: hasMore,
+    onLoadMore: onLoadMore,
+    loadMoreError: loadMoreError,
+    errorMessage: errorMessage,
+    onRetry: onRetry,
+    onRefresh: onRefresh,
+    emptyIcon: emptyIcon,
+    emptyTitle: emptyTitle,
+    emptyDescription: emptyDescription,
+    itemBuilder: (book, index, coverHeight) => BookCoverGridItem.fromBook(
+      book,
+      key: ValueKey<int>(book.id),
+      rank: showRank ? index + 1 : null,
+      coverHeight: coverHeight,
+      onTap: () => onOpen(book),
+    ),
+  );
 }
 
 /// 首页分区里的静态网格：不滚动，按父级宽度自行分列。
@@ -228,43 +146,6 @@ class BookGridPreviewSkeleton extends StatelessWidget {
       );
     },
   );
-}
-
-/// 分页状态变化时复用现有子节点；只有书籍数据或卡片尺寸变化才重建网格项。
-///
-/// `SliverGrid.builder` 每次父级 build 都会创建一个默认必定重建的 delegate。
-/// 加载下一页开始时书籍未变，不应让屏内所有封面再次走 build/layout。
-class _BookGridChildDelegate extends SliverChildBuilderDelegate {
-  _BookGridChildDelegate({
-    required this.books,
-    required this.onOpen,
-    required this.showRank,
-    required this.coverHeight,
-  }) : super(
-         (context, index) {
-           final book = books[index];
-           return BookCoverGridItem.fromBook(
-             book,
-             key: ValueKey<int>(book.id),
-             rank: showRank ? index + 1 : null,
-             coverHeight: coverHeight,
-             onTap: () => onOpen(book),
-           );
-         },
-         childCount: books.length,
-         addAutomaticKeepAlives: false,
-       );
-
-  final List<BookListItem> books;
-  final void Function(BookListItem book) onOpen;
-  final bool showRank;
-  final double coverHeight;
-
-  @override
-  bool shouldRebuild(covariant _BookGridChildDelegate oldDelegate) =>
-      !identical(books, oldDelegate.books) ||
-      showRank != oldDelegate.showRank ||
-      coverHeight != oldDelegate.coverHeight;
 }
 
 /// 手动按行摆放，保证残行的卡片仍然左对齐且与整行同宽。
