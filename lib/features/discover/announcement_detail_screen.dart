@@ -25,7 +25,21 @@ class AnnouncementDetailScreen extends ConsumerWidget {
 
     final Widget header;
     if (item != null) {
-      header = _ArticleCard(item: item);
+      header = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          _ArticleCard(item: item),
+          const SizedBox(height: 14),
+          Text(
+            '评论',
+            style: TextStyle(
+              fontSize: 21,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        ],
+      );
     } else if (detail.isLoading) {
       header = const _ArticleSkeleton();
     } else {
@@ -55,7 +69,7 @@ class AnnouncementDetailScreen extends ConsumerWidget {
       body: CommentThreadList(
         target: target,
         header: header,
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 48),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 42),
       ),
     );
   }

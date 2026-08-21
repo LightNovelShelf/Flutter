@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../../data/api/community_models.dart';
 import '../../../shared/format.dart';
-import '../../../shared/widgets/user_avatar.dart';
+import '../../../shared/widgets/comments/thread_reply_row.dart';
 import 'community_primitives.dart';
 
-/// 帖子详情里的一条回复（父级/子级共用）。
+/// 帖子详情里的一条回复（父级/子级共用），版式与评论列表共用 [ThreadReplyRow]。
 class CommunityReplyRow extends StatelessWidget {
   const CommunityReplyRow({
     super.key,
@@ -28,233 +28,89 @@ class CommunityReplyRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     final name = displayUserName(
       reply.authorName,
       deleted: reply.authorIsDeleted,
     );
     final badge = reply.authorBadge?.trim() ?? '';
-    final replyToName = reply.replyTo == null
-        ? ''
-        : displayUserName(
-            reply.replyTo!.authorName,
-            deleted: reply.replyTo!.authorIsDeleted,
-          );
+    final iconSize = threadRowIconSize(isChild);
 
-    final Widget content = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        if (isChild)
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: <Widget>[
-              UserAvatar(url: reply.authorAvatar, name: name, size: 24),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text.rich(
-                  TextSpan(
-                    children: <InlineSpan>[
-                      TextSpan(
-                        text: name,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      if (replyToName.isNotEmpty)
-                        TextSpan(
-                          text: ' 回复了 $replyToName',
-                          style: TextStyle(color: colors.onSurfaceVariant),
-                        ),
-                    ],
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 16 / 12,
-                    color: colors.onSurface,
-                  ),
-                ),
-              ),
-              if (badge.isNotEmpty)
-                CommunityTagPill(
-                  label: badge,
-                  tone: CommunityTagTone.neutral,
-                  dense: true,
-                ),
-            ],
-          )
-        else
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              UserAvatar(url: reply.authorAvatar, name: name, size: 40),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Flexible(
-                          child: Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 14,
-                              height: 19 / 14,
-                              fontWeight: FontWeight.w700,
-                              color: colors.onSurface,
-                            ),
-                          ),
-                        ),
-                        if (badge.isNotEmpty) ...<Widget>[
-                          const SizedBox(width: 8),
-                          CommunityTagPill(
-                            label: badge,
-                            tone: CommunityTagTone.neutral,
-                            dense: true,
-                          ),
-                        ],
-                      ],
-                    ),
-                    if (replyToName.isNotEmpty) ...<Widget>[
-                      const SizedBox(height: 4),
-                      Text(
-                        '回复 $replyToName',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: colors.primary,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        const SizedBox(height: 4),
-        Padding(
-          padding: EdgeInsets.only(left: isChild ? 0 : 56),
-          child: SelectionArea(
-            child: Text(
-              reply.content.trim(),
-              style: TextStyle(
-                fontSize: 14,
-                height: 19 / 14,
-                color: colors.onSurface,
-              ),
+    return ThreadReplyRow(
+      userName: name,
+      avatarUrl: reply.authorAvatar,
+      content: reply.content,
+      publishedAt: reply.publishedAt,
+      isChild: isChild,
+      highlighted: highlighted,
+      replyToUserName: reply.replyTo == null
+          ? null
+          : displayUserName(
+              reply.replyTo!.authorName,
+              deleted: reply.replyTo!.authorIsDeleted,
             ),
-          ),
+      badge: badge.isEmpty
+          ? null
+          : CommunityTagPill(
+              label: badge,
+              tone: CommunityTagTone.neutral,
+              dense: true,
+            ),
+      actions: <Widget>[
+        _LikeButton(
+          liked: reply.liked,
+          likes: reply.likes,
+          iconSize: iconSize,
+          onPressed: busy ? null : onLike,
         ),
-        Padding(
-          padding: EdgeInsets.only(left: isChild ? 0 : 56),
-          child: _ReplyActions(
-            reply: reply,
-            compact: isChild,
-            canReply: canReply,
-            busy: busy,
-            onLike: onLike,
-            onReply: onReply,
-          ),
+        const SizedBox(width: 8),
+        ThreadRowIconButton(
+          icon: Icons.reply,
+          tooltip: '回复',
+          iconSize: iconSize,
+          onPressed: canReply && !busy ? onReply : null,
         ),
       ],
-    );
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      decoration: BoxDecoration(
-        color: highlighted ? colors.primaryContainer : Colors.transparent,
-        border: highlighted
-            ? Border(left: BorderSide(color: colors.primary, width: 3))
-            : null,
-        borderRadius: BorderRadius.circular(highlighted ? 12 : 0),
-      ),
-      padding: EdgeInsets.symmetric(
-        horizontal: highlighted ? 6 : 0,
-        vertical: isChild ? 2 : 8,
-      ),
-      child: content,
     );
   }
 }
 
-class _ReplyActions extends StatelessWidget {
-  const _ReplyActions({
-    required this.reply,
-    required this.compact,
-    required this.canReply,
-    required this.busy,
-    required this.onLike,
-    required this.onReply,
+class _LikeButton extends StatelessWidget {
+  const _LikeButton({
+    required this.liked,
+    required this.likes,
+    required this.iconSize,
+    required this.onPressed,
   });
 
-  final CommunityThreadReply reply;
-  final bool compact;
-  final bool canReply;
-  final bool busy;
-  final VoidCallback onLike;
-  final VoidCallback onReply;
+  final bool liked;
+  final int likes;
+  final double iconSize;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final iconSize = compact ? 16.0 : 18.0;
-    return SizedBox(
-      height: 32,
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: Text(
-              formatRelativeTimeFine(reply.publishedAt),
-              style: TextStyle(
-                fontSize: compact ? 10 : 12,
-                color: colors.onSurfaceVariant,
-              ),
+    final color = liked ? colors.primary : colors.onSurfaceVariant;
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(
+              liked ? Icons.favorite : Icons.favorite_border,
+              size: iconSize,
+              color: color,
             ),
-          ),
-          InkWell(
-            onTap: busy ? null : onLike,
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Icon(
-                    reply.liked ? Icons.favorite : Icons.favorite_border,
-                    size: iconSize,
-                    color: reply.liked
-                        ? colors.primary
-                        : colors.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    formatCompactCount(reply.likes),
-                    style: communityTabular.copyWith(
-                      fontSize: 12,
-                      color: reply.liked
-                          ? colors.primary
-                          : colors.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
+            const SizedBox(width: 4),
+            Text(
+              formatCompactCount(likes),
+              style: communityTabular.copyWith(fontSize: 12, color: color),
             ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 32,
-            height: 32,
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              iconSize: iconSize,
-              onPressed: canReply && !busy ? onReply : null,
-              icon: const Icon(Icons.reply),
-              tooltip: '回复',
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

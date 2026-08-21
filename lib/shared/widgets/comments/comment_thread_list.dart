@@ -7,7 +7,7 @@ import '../app_dialogs.dart';
 import '../skeleton.dart';
 import '../state_views.dart';
 import 'comment_compose_sheet.dart';
-import 'comment_row.dart';
+import 'thread_reply_row.dart';
 
 /// 扁平行：主评论后面直接跟它的回复，长列表能按行回收。
 sealed class _CommentRow {
@@ -15,29 +15,30 @@ sealed class _CommentRow {
 }
 
 class _RootRow extends _CommentRow {
-  const _RootRow(this.comment);
+  const _RootRow(this.comment, {required this.closesGroup});
 
   final CommentItem comment;
+  final bool closesGroup;
 }
 
 class _ReplyRow extends _CommentRow {
-  const _ReplyRow(this.parent, this.reply, {required this.isLast});
+  const _ReplyRow(this.parent, this.reply, {required this.closesGroup});
 
   final CommentItem parent;
   final CommentReply reply;
-  final bool isLast;
+  final bool closesGroup;
 }
 
 List<_CommentRow> _flatten(List<CommentItem> items) {
   final rows = <_CommentRow>[];
   for (final item in items) {
-    rows.add(_RootRow(item));
+    rows.add(_RootRow(item, closesGroup: item.replies.isEmpty));
     for (var index = 0; index < item.replies.length; index += 1) {
       rows.add(
         _ReplyRow(
           item,
           item.replies[index],
-          isLast: index == item.replies.length - 1,
+          closesGroup: index == item.replies.length - 1,
         ),
       );
     }
@@ -52,7 +53,7 @@ class CommentThreadList extends ConsumerStatefulWidget {
     super.key,
     required this.target,
     this.header,
-    this.padding = const EdgeInsets.fromLTRB(0, 8, 0, 48),
+    this.padding = const EdgeInsets.fromLTRB(16, 8, 16, 48),
   });
 
   final CommentTarget target;
@@ -117,20 +118,14 @@ class _CommentThreadListState extends ConsumerState<CommentThreadList> {
     if (state == null) {
       final body = async.hasError
           ? ErrorStateView(
-              message: describeCommentError(
-                async.error!,
-                fallback: '无法加载评论。',
-              ),
+              message: describeCommentError(async.error!, fallback: '无法加载评论。'),
               onRetry: () =>
                   ref.invalidate(commentThreadProvider(widget.target)),
             )
           : const _CommentThreadSkeleton();
       return ListView(
         padding: widget.padding,
-        children: <Widget>[
-          if (widget.header != null) widget.header!,
-          body,
-        ],
+        children: <Widget>[if (widget.header != null) widget.header!, body],
       );
     }
 
@@ -159,29 +154,41 @@ class _CommentThreadListState extends ConsumerState<CommentThreadList> {
           if (offset >= rows.length) return _footer(state);
           final row = rows[offset];
           return switch (row) {
-            _RootRow(:final comment) => CommentThreadRow(
-              userName: comment.user.userName,
-              avatarUrl: comment.user.avatarUrl,
-              content: comment.content,
-              createdAt: comment.createdAt,
-              canEdit: comment.canEdit,
-              isReply: false,
-              isLastReply: false,
-              onReply: () => _reply(comment, null),
-              onDelete: () => _delete(comment.id),
+            _RootRow(:final comment, :final closesGroup) => ThreadReplyGroup(
+              isChild: false,
+              closesGroup: closesGroup,
+              child: ThreadReplyRow(
+                userName: comment.user.userName,
+                avatarUrl: comment.user.avatarUrl,
+                content: comment.content,
+                publishedAt: comment.createdAt,
+                isChild: false,
+                actions: _actions(
+                  isChild: false,
+                  canEdit: comment.canEdit,
+                  onReply: () => _reply(comment, null),
+                  onDelete: () => _delete(comment.id),
+                ),
+              ),
             ),
-            _ReplyRow(:final parent, :final reply, :final isLast) =>
-              CommentThreadRow(
-                userName: reply.user.userName,
-                avatarUrl: reply.user.avatarUrl,
-                content: reply.content,
-                createdAt: reply.createdAt,
-                canEdit: reply.canEdit,
-                isReply: true,
-                isLastReply: isLast,
-                replyToUserName: reply.replyToUser?.userName,
-                onReply: () => _reply(parent, reply),
-                onDelete: () => _delete(reply.id),
+            _ReplyRow(:final parent, :final reply, :final closesGroup) =>
+              ThreadReplyGroup(
+                isChild: true,
+                closesGroup: closesGroup,
+                child: ThreadReplyRow(
+                  userName: reply.user.userName,
+                  avatarUrl: reply.user.avatarUrl,
+                  content: reply.content,
+                  publishedAt: reply.createdAt,
+                  isChild: true,
+                  replyToUserName: reply.replyToUser?.userName,
+                  actions: _actions(
+                    isChild: true,
+                    canEdit: reply.canEdit,
+                    onReply: () => _reply(parent, reply),
+                    onDelete: () => _delete(reply.id),
+                  ),
+                ),
               ),
           };
         },
@@ -197,6 +204,34 @@ class _CommentThreadListState extends ConsumerState<CommentThreadList> {
     onRetry: () =>
         ref.read(commentThreadProvider(widget.target).notifier).loadMore(),
   );
+
+  /// 评论行的操作：回复，以及自己的评论才有的删除。
+  List<Widget> _actions({
+    required bool isChild,
+    required bool canEdit,
+    required VoidCallback onReply,
+    required VoidCallback onDelete,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    final iconSize = threadRowIconSize(isChild);
+    return <Widget>[
+      ThreadRowIconButton(
+        icon: Icons.reply,
+        tooltip: '回复',
+        iconSize: iconSize,
+        color: colors.onSurfaceVariant,
+        onPressed: onReply,
+      ),
+      if (canEdit)
+        ThreadRowIconButton(
+          icon: Icons.delete_outline,
+          tooltip: '删除',
+          iconSize: iconSize,
+          color: colors.error,
+          onPressed: onDelete,
+        ),
+    ];
+  }
 }
 
 class _CommentThreadSkeleton extends StatelessWidget {
@@ -207,7 +242,7 @@ class _CommentThreadSkeleton extends StatelessWidget {
     children: List<Widget>.generate(
       8,
       (_) => const Padding(
-        padding: EdgeInsets.fromLTRB(16, 0, 16, 22),
+        padding: EdgeInsets.only(bottom: 22),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[

@@ -10,6 +10,7 @@ import '../../data/api/community_models.dart';
 import '../../shared/format.dart';
 import '../../shared/paging/scroll_prefetch.dart';
 import '../../shared/widgets/app_dialogs.dart';
+import '../../shared/widgets/comments/thread_reply_row.dart';
 import '../../shared/widgets/html/reader_content_style.dart';
 import '../../shared/widgets/image_preview.dart';
 import '../../shared/widgets/reader_html_block.dart';
@@ -217,7 +218,6 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
       showAppSnackBar(context, notice);
     });
 
-    final colors = Theme.of(context).colorScheme;
     final state = ref.watch(_provider);
     final detail = state.thread;
     final rows = _buildRows(detail);
@@ -258,8 +258,7 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 sliver: SliverList.builder(
                   itemCount: rows.length,
-                  itemBuilder: (_, index) =>
-                      _buildRow(state, rows[index], colors),
+                  itemBuilder: (_, index) => _buildRow(state, rows[index]),
                 ),
               ),
             SliverPadding(
@@ -500,28 +499,14 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
     );
   }
 
-  Widget _buildRow(
-    CommunityThreadState state,
-    _ReplyRow row,
-    ColorScheme colors,
-  ) {
+  Widget _buildRow(CommunityThreadState state, _ReplyRow row) {
     final busy = state.replyActionId != null;
-    final BorderSide hairline = BorderSide(
-      color: colors.outlineVariant,
-      width: 0.5,
-    );
 
     if (row.kind == _ReplyRowKind.more) {
       final loading = state.replyActionId == 'children:${row.parent.id}';
-      return Container(
-        margin: const EdgeInsets.only(left: 56),
-        padding: const EdgeInsets.only(left: 12, top: 6, bottom: 8),
-        decoration: BoxDecoration(
-          border: Border(
-            left: BorderSide(color: colors.outlineVariant, width: 2),
-            bottom: row.closesGroup ? hairline : BorderSide.none,
-          ),
-        ),
+      return ThreadReplyGroup(
+        isChild: true,
+        closesGroup: row.closesGroup,
         child: Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
@@ -542,44 +527,21 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
     }
 
     final reply = row.reply!;
-    final key = _rowKeys.putIfAbsent(reply.id, GlobalKey.new);
-    final content = CommunityReplyRow(
-      key: ValueKey<int>(reply.id),
-      reply: reply,
-      isChild: row.kind == _ReplyRowKind.child,
-      highlighted: _highlightedReplyId == reply.id,
-      canReply: state.canReply,
-      busy: busy,
-      onLike: () => ref.read(_provider.notifier).toggleReplyLike(reply),
-      onReply: () => _openComposer(target: reply),
-    );
-
-    if (row.kind == _ReplyRowKind.child) {
-      return Container(
-        key: key,
-        margin: const EdgeInsets.only(left: 56),
-        padding: EdgeInsets.only(
-          left: 12,
-          top: 6,
-          bottom: row.closesGroup ? 8 : 0,
-        ),
-        decoration: BoxDecoration(
-          border: Border(
-            left: BorderSide(color: colors.outlineVariant, width: 2),
-            bottom: row.closesGroup ? hairline : BorderSide.none,
-          ),
-        ),
-        child: content,
-      );
-    }
-
-    return Container(
-      key: key,
-      padding: EdgeInsets.only(top: 8, bottom: row.closesGroup ? 8 : 0),
-      decoration: BoxDecoration(
-        border: Border(bottom: row.closesGroup ? hairline : BorderSide.none),
+    final isChild = row.kind == _ReplyRowKind.child;
+    return ThreadReplyGroup(
+      key: _rowKeys.putIfAbsent(reply.id, GlobalKey.new),
+      isChild: isChild,
+      closesGroup: row.closesGroup,
+      child: CommunityReplyRow(
+        key: ValueKey<int>(reply.id),
+        reply: reply,
+        isChild: isChild,
+        highlighted: _highlightedReplyId == reply.id,
+        canReply: state.canReply,
+        busy: busy,
+        onLike: () => ref.read(_provider.notifier).toggleReplyLike(reply),
+        onReply: () => _openComposer(target: reply),
       ),
-      child: content,
     );
   }
 
