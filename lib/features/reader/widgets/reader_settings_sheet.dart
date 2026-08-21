@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../shared/widgets/app_sheet.dart';
 import '../../settings/reader_settings_screen.dart';
 
-/// 设置弹层：与设置页共用 `ReaderSettingsContent`，改动即时生效，阅读位置不丢。
+/// 设置弹层，与设置页共用 `ReaderSettingsContent`。
 Future<void> showReaderSettingsSheet(BuildContext context) =>
     showDraggableSheet<void>(
       context,

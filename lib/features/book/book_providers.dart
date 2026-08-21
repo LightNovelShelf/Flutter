@@ -13,7 +13,7 @@ import '../../shared/paging/paged_list.dart';
 /// 漫画与小说走不同接口，类型必须进缓存键。
 typedef BookDetailRequest = ({int id, BookType? type});
 
-/// 详情页数据包。漫画额外留一份 `ComicInfo`：版本/上传者入口要系列标题与分卷。
+/// 详情页数据包。漫画额外带 `ComicInfo`，版本与上传者入口需要系列标题和分卷。
 @immutable
 class BookDetailBundle {
   const BookDetailBundle({required this.detail, this.comic});
@@ -24,7 +24,7 @@ class BookDetailBundle {
   bool get isComic => detail.type == BookType.comic;
 }
 
-/// autoDispose：书籍数量无上限，常驻缓存会一直涨。
+/// autoDispose：书籍数量无上限，常驻缓存会持续增长。
 final FutureProviderFamily<BookDetailBundle, BookDetailRequest>
 bookDetailProvider = FutureProvider.family<BookDetailBundle, BookDetailRequest>(
   (ref, request) async {
@@ -38,7 +38,7 @@ bookDetailProvider = FutureProvider.family<BookDetailBundle, BookDetailRequest>(
   isAutoDispose: true,
 );
 
-/// 同步判定：只看缓存快照，不像 `ShelfController.contains` 那样回源查询。
+/// 只读缓存快照判定，不回源查询。
 final FutureProviderFamily<bool, int> bookInShelfProvider =
     FutureProvider.family<bool, int>((ref, bookId) async {
       final snapshot = await ref.watch(shelfProvider.future);
@@ -53,7 +53,7 @@ final FutureProviderFamily<ComicSeriesDetail, String> comicSeriesProvider =
       isAutoDispose: true,
     );
 
-/// 评论目标。漫画按系列聚合（`id` 恒为 0，靠 `seriesTitle` 定位），要值相等才能当 family 键。
+/// 评论目标。漫画按系列聚合，`id` 恒为 0，用 `seriesTitle` 定位；作为 family 键需要值相等。
 @immutable
 class CommentTarget {
   const CommentTarget({required this.type, required this.id, this.seriesTitle});
@@ -155,7 +155,7 @@ class CommentThreadController extends AsyncNotifier<CommentThreadState> {
     );
   }
 
-  /// 重新拉第一页并整份替换：刷新与删除后都要回到「干净的第一页」。
+  /// 重新拉取第一页并整份替换，用于刷新与删除后。
   Future<void> _replaceWithFirstPage() async {
     final page = await _fetch(1);
     state = AsyncValue<CommentThreadState>.data(
@@ -196,7 +196,7 @@ class CommentThreadController extends AsyncNotifier<CommentThreadState> {
     }
   }
 
-  /// 静默时只换第一页、不进 loading，避免骨架屏闪一下。
+  /// 静默时只替换第一页，不进 loading，避免骨架屏闪烁。
   Future<void> refresh({bool silent = true}) async {
     if (!silent) state = const AsyncValue<CommentThreadState>.loading();
     try {
@@ -242,7 +242,7 @@ class ShelfToggle {
   final String? error;
 }
 
-/// 点下去先翻转图标再发请求，失败回退到服务端状态并给出文案。
+/// 先翻转本地状态再发请求，失败回退到服务端状态并给出提示。
 class ShelfToggleController extends Notifier<ShelfToggle> {
   ShelfToggleController(this.arg);
 
@@ -271,7 +271,7 @@ class ShelfToggleController extends Notifier<ShelfToggle> {
   }
 }
 
-/// autoDispose：乐观状态只在详情页停留期间有意义，离开就该丢掉。
+/// autoDispose：乐观状态仅在详情页存续期间有效。
 final NotifierProviderFamily<ShelfToggleController, ShelfToggle, int>
 shelfToggleProvider =
     NotifierProvider.family<ShelfToggleController, ShelfToggle, int>(

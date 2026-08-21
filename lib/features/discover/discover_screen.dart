@@ -14,12 +14,12 @@ import 'widgets/book_grid.dart';
 class DiscoverScreen extends ConsumerWidget {
   const DiscoverScreen({super.key});
 
-  /// 单个分区失败不该影响整体刷新手势，各分区自己展示错误。
+  /// 吞掉单个分区的失败，避免整体刷新提前结束。
   static Future<void> _reload(Future<Object?> future) async {
     try {
       await future;
     } catch (_) {
-      // 忽略：错误已经反映在对应分区的状态里。
+      // 错误由对应分区的状态展示。
     }
   }
 
@@ -76,11 +76,10 @@ class DiscoverScreen extends ConsumerWidget {
   }
 }
 
-/// 五个分区只有文案 / 路由 / 数据源不同，集中成表，省掉五份几乎相同的字面量。
-/// 表里各分区数据类型不同，只能按 `Object` 存；但 [of] 把 provider 与两个回调
-/// 绑在一起构造，唯一的向下转型锁在这里，调用点全程带类型，配错了编译就过不去。
-/// （回调不能直接靠泛型协变：函数类型的参数是逆变的，`_SectionSpec<Object>`
-/// 视图下读取字段本身就会抛类型错误。）
+/// 分区配置表：文案、路由、数据源。
+///
+/// 字段按 `Object` 存，向下转型集中在 [of]。函数类型的参数逆变，泛型字段无法从
+/// `_SectionSpec<Object>` 视图读取。
 class _SectionSpec {
   const _SectionSpec._({
     required this.title,
@@ -124,7 +123,7 @@ class _SectionSpec {
 
   final String title;
 
-  /// 非空时标题右侧出现「查看全部」，点了跳这里。
+  /// 非空时标题右侧显示「查看全部」，点击跳转该路由。
   final String? route;
   final FutureProvider<Object> provider;
   final Widget Function(BuildContext context, Object value) body;
@@ -135,7 +134,7 @@ class _SectionSpec {
   final String errorTitle;
   final String errorDescription;
 
-  /// 排行榜标题要缀上当前周期，其余分区标题是静态文案。
+  /// 为 true 时标题附加当前排行周期。
   final bool showRankPeriod;
 }
 
@@ -186,7 +185,7 @@ final List<_SectionSpec> _sections = <_SectionSpec>[
     provider: onlineInfoProvider,
     body: (context, info) => _StatusMetrics(info: info),
     skeleton: const _StatusMetricsSkeleton(),
-    // 服务状态是单条记录，取到就不算空。
+    // 服务状态是单条记录，不存在空结果。
     isEmpty: (_) => false,
     emptyTitle: '暂无数据',
     emptyDescription: '服务状态暂不可用。',
@@ -224,7 +223,7 @@ class _AsyncSection extends StatelessWidget {
 
   final _SectionSpec spec;
 
-  /// 排行榜标题随周期变，与 spec 里的静态文案不同，单独传。
+  /// 分区标题，排行榜随周期变化，不使用 spec 中的静态文案。
   final String title;
   final AsyncValue<Object> value;
   final VoidCallback onRetry;

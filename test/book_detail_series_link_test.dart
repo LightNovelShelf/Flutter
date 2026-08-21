@@ -15,7 +15,7 @@ import 'package:lightnovel/features/book/book_detail_screen.dart';
 import 'package:lightnovel/features/book/book_providers.dart';
 import 'package:lightnovel/features/discover/novel_series_books_screen.dart';
 
-/// 详情页标题点进系列列表：系列键要和服务端 `SeriesTitle` 口径一致（中文名优先）。
+/// 详情页标题进入系列列表，系列键与服务端 `SeriesTitle` 一致（中文名优先）。
 const int _bookId = 42;
 const String _bookTitle = '某本小说 第一卷';
 
@@ -198,7 +198,7 @@ void main() {
 
     expect(find.byType(BookDetailScreen), findsNothing);
     expect(find.byType(NovelSeriesBooksScreen), findsOneWidget);
-    // 栈里只剩最初那个系列页：没有再压一个同名系列页。
+    // 没有重复压入同名系列页。
     expect(opened.router.canPop(), isFalse);
   });
 }

@@ -18,12 +18,12 @@ const Map<HomeRankType, String> rankPeriodLabels = <HomeRankType, String>{
   HomeRankType.monthly: '月榜',
 };
 
-/// 多取一些，抵消本地过滤后的缺口。
+/// 拉取条数大于展示条数，用于抵消本地过滤的缺口。
 const int _homeLatestFetchSize = 12;
 
 const int _homePreviewCount = 6;
 
-/// 只订阅影响列表结果的设置项，字号变化不该触发重新拉取。
+/// 只订阅影响列表结果的设置项，避免字号等变化触发重新拉取。
 AppSettings watchContentSettings(Ref ref) {
   ref.watch(
     appSettingsProvider.select(
@@ -67,7 +67,7 @@ final FutureProvider<List<BookListItem>> homeComicsProvider =
         order: ComicOrder.latest,
         size: _homePreviewCount,
       );
-      // 漫画不参与内容过滤：后端没有对应分类信息。
+      // 后端没有漫画的分类信息，不做内容过滤。
       return page.items.map((item) => item.toBookListItem()).toList();
     }, isAutoDispose: true);
 

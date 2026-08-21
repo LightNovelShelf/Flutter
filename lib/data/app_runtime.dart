@@ -99,7 +99,7 @@ class AppRuntime {
   }
 }
 
-/// HTTP 头只允许 ASCII，因此不能直接用本地化的应用名，固定用英文标识加版本号。
+/// HTTP 头只允许 ASCII，固定用英文标识加版本号。
 Future<String> _backendUserAgent() async {
   const String name = 'LightNovelShelf';
   try {

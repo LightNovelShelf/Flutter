@@ -4,8 +4,7 @@ import '../layout/book_grid_layout.dart';
 import 'book_cover_grid_item.dart';
 import 'state_views.dart';
 
-/// 分页网格外壳：下拉刷新 + 触底加载 + 骨架/空/错误态。
-/// 卡片长什么样交给 [itemBuilder]，书籍网格与系列网格共用同一套滚动与状态逻辑。
+/// 分页网格外壳：下拉刷新、触底加载、骨架/空/错误态，卡片由 [itemBuilder] 构建。
 class PagedGrid<T> extends StatelessWidget {
   const PagedGrid({
     super.key,
@@ -153,10 +152,9 @@ class PagedGrid<T> extends StatelessWidget {
       );
 }
 
-/// 分页状态变化时复用现有子节点；只有数据列表或卡片尺寸变化才重建网格项。
+/// 分页状态变化时复用现有子节点，只有数据列表或卡片尺寸变化才重建网格项。
 ///
-/// `SliverGrid.builder` 每次父级 build 都会创建一个默认必定重建的 delegate。
-/// 加载下一页开始时数据未变，不应让屏内所有封面再次走 build/layout。
+/// `SliverGrid.builder` 每次父级 build 都会创建默认必定重建的 delegate。
 class _PagedGridChildDelegate<T> extends SliverChildBuilderDelegate {
   _PagedGridChildDelegate({
     required this.items,

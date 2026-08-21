@@ -10,11 +10,10 @@ import '../../../shared/widgets/image_preview.dart';
 
 const double bookHeroHeight = 280;
 
-/// 详情页封面的显示高度。模糊底图、主封面、取色三处共用它，好让三者算出同一个
-/// 尺寸档、同一个缓存键 —— 整页只下载并解码一张封面。
+/// 详情页封面显示高度，单位逻辑像素。模糊底图、主封面、取色三处共用，得到同一
+/// 尺寸档与同一缓存键，整页只下载解码一张封面。
 ///
-/// 主封面外层容器固定 100×150，是三者里唯一对清晰度有要求的，所以按它定档。
-/// 改这里之前先确认三处仍然共用，否则会静默退化成多次下载。
+/// 档位按主封面的 100×150 容器定，改动前确认三处仍共用，否则会退化成多次下载。
 const double bookCoverDisplayHeight = 150;
 
 class BookHero extends StatelessWidget {
@@ -22,7 +21,7 @@ class BookHero extends StatelessWidget {
 
   final BookDetail detail;
 
-  /// 点标题进系列列表；为空时标题就是普通文本（漫画详情本身就是系列）。
+  /// 点标题打开系列列表，为空时标题为普通文本。
   final VoidCallback? onTitleTap;
 
   Widget _title(BuildContext context) {
@@ -78,8 +77,7 @@ class BookHero extends StatelessWidget {
             imageFilter: ui.ImageFilter.blur(sigmaX: 28, sigmaY: 28),
             child: Opacity(
               opacity: 0.65,
-              // 28px 高斯模糊后细节全失，本可以只要最小档；但主封面那张整页反正
-              // 都要下，跟它同档就能直接复用，多下一张最小档反而更亏。
+              // 与主封面同档以复用同一张图，模糊底图本身不需要这个清晰度。
               child: BookImage(
                 url: detail.coverUrl,
                 displayHeight: bookCoverDisplayHeight,

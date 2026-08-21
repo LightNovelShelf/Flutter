@@ -65,7 +65,7 @@ ReaderGeometry? collectReaderGeometry(RenderBox root, int blockCount) {
   );
 }
 
-/// 行顶取 `includeLineSpacingTop`：切页落在行距里，不会削掉字。
+/// 行顶取 `includeLineSpacingTop`，切页落在行距内而不截断字形。
 void _collectLineTops(
   RenderParagraph paragraph,
   double top,

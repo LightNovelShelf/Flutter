@@ -3,10 +3,10 @@ import '../../shared/widgets/html/reader_content_style.dart';
 import 'reader_html_blocks.dart';
 import 'reader_html_text.dart';
 
-/// 小说正文块交给渲染器前的最后一道加工：纯字符串变换，方便单测。
+/// 小说正文块交给渲染器前的字符串加工。
 ///
-/// 脚注标记要变成可点的 `[n]` 上标（点击经私有 scheme 回到 Dart）；段首缩进要变成
-/// 固定宽度的内联占位，避免普通空白被两端对齐拉伸。
+/// 脚注标记转成 `[n]` 上标链接（点击经私有 scheme 回到 Dart），段首缩进转成固定
+/// 宽度的内联占位，避免普通空白被两端对齐拉伸。
 
 final RegExp _footnoteMarkerPattern = RegExp(
   r'<a\b[^>]*\bdata-reader-footnote-id\s*=\s*"([^"]*)"[^>]*>.*?</a>',
@@ -35,7 +35,7 @@ List<String> buildReaderBlockMarkup(
   ];
 }
 
-/// 缩进占位只能插在块内，插到块外会跟着外层对齐方式跑偏。
+/// 缩进占位插在块内，插到块外会跟随外层对齐方式偏移。
 String _indentBlock(String html, ReaderContentStyle style) {
   final opening = _openingTagPattern.firstMatch(html);
   if (opening == null) return html;
@@ -56,7 +56,7 @@ String _indentBlock(String html, ReaderContentStyle style) {
       '${html.substring(opening.end)}';
 }
 
-/// 正文里的 `href` 是转义过的属性值，回到 Dart 前要还原成 `processNovelFootnotes`
-/// 交出来的原始 id，否则查不到注文。
+/// href 是转义过的属性值，需还原成 `processNovelFootnotes` 输出的原始 id，否则
+/// 查不到注文。
 String _unescapeHtmlAttribute(String value) =>
     value.replaceAll('&quot;', '"').replaceAll('&amp;', '&');

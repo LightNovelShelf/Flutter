@@ -29,7 +29,7 @@ class _ResetPasswordNewScreenState
   void initState() {
     super.initState();
     final PasswordResetDraft? draft = AuthFlowSession.instance.passwordReset;
-    // 没有验证码说明用户没走完前两步，退回流程起点。
+    // 没有验证码说明前两步未完成，退回流程起点。
     if (draft == null || draft.code.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) context.go('/reset-password');
@@ -73,7 +73,7 @@ class _ResetPasswordNewScreenState
           );
       AuthFlowSession.instance.clearPasswordReset();
       if (!mounted) return;
-      // 带回邮箱，登录页直接预填。
+      // 带回邮箱供登录页预填。
       context.go(
         '/sign-in/credentials?email=${Uri.encodeQueryComponent(draft.email)}',
       );

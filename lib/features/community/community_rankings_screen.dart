@@ -9,7 +9,7 @@ import 'community_providers.dart';
 import 'widgets/community_primitives.dart';
 import 'widgets/community_rank_panels.dart';
 
-/// 排行榜直接读社区首页缓存，只有用户主动刷新才回源。
+/// 排行榜读社区首页缓存，用户主动刷新时才回源。
 class CommunityRankingsScreen extends ConsumerStatefulWidget {
   const CommunityRankingsScreen({super.key});
 

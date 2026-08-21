@@ -5,7 +5,7 @@ import 'api_error.dart';
 /// 交互请求优先于预加载。
 enum RequestPriority { interactive, preload }
 
-/// 等价于 RN 侧的 `AbortSignal`。
+/// 取消令牌，语义同 `AbortSignal`。
 class CancelToken {
   bool _cancelled = false;
   final List<void Function()> _listeners = <void Function()>[];

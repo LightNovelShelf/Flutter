@@ -29,7 +29,7 @@ const Map<AvatarSource, ({String label, String placeholder, String hint})>
   ),
 };
 
-/// 头像设置：分来源保存草稿、实时预览、保存后返回。
+/// 头像设置页，按来源分别保存草稿并实时预览。
 class AvatarSettingsScreen extends ConsumerStatefulWidget {
   const AvatarSettingsScreen({super.key});
 
@@ -54,7 +54,7 @@ class _AvatarSettingsScreenState extends ConsumerState<AvatarSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    // 输入变化要驱动实时预览。
+    // 输入变化需要重建预览。
     _controller.addListener(_onInputChanged);
     final profile = ref.read(profileProvider).value;
     if (profile != null) _hydrate(profile);
@@ -71,7 +71,7 @@ class _AvatarSettingsScreenState extends ConsumerState<AvatarSettingsScreen> {
     if (mounted) setState(() {});
   }
 
-  /// 用当前头像回填草稿；以账号 id 为准，避免刷新时冲掉正在输入的内容。
+  /// 用当前头像回填草稿，按账号 id 去重，避免刷新覆盖正在输入的内容。
   void _hydrate(UserProfile profile) {
     if (_hydratedProfileId == profile.id) return;
     _hydratedProfileId = profile.id;
@@ -97,7 +97,7 @@ class _AvatarSettingsScreenState extends ConsumerState<AvatarSettingsScreen> {
     try {
       return resolveAvatarUrl(_source, input);
     } on ArgumentError {
-      // 输入还没写完时不报错，先继续显示现有头像。
+      // 输入未完成时不报错，继续显示现有头像。
       return profile.avatarUrl;
     }
   }

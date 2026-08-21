@@ -5,8 +5,8 @@ import 'decode.dart';
 import 'endpoints.dart';
 import 'models.dart';
 
-/// 账号与个人数据：公告、历史、书架、资料，以及五个走裸 HTTP 的鉴权端点
-/// （SignalR 建连本身要带令牌，登录/刷新只能走 HTTP）。
+/// 账号与个人数据：公告、历史、书架、资料，以及五个走裸 HTTP 的鉴权端点。
+/// SignalR 建连本身需要令牌，登录与刷新只能走 HTTP。
 extension ApiClientAccount on ApiClient {
   Future<OnlineInfo> getOnlineInfo() =>
       invoke('GetOnlineInfo', null, OnlineInfo.decode);
@@ -61,7 +61,7 @@ extension ApiClientAccount on ApiClient {
       body: <String, Object?>{'email': email, 'password': passwordHash},
     );
     ensureOk(response, '无法登录。');
-    // 不走 envelopeOf：SessionTokens.decode 自己会查信封失败位。
+    // 不走 envelopeOf，SessionTokens.decode 自己检查信封失败位。
     return SessionTokens.decode(decodeHttpBody(response));
   }
 
@@ -99,7 +99,7 @@ extension ApiClientAccount on ApiClient {
       path,
       query: <String, String>{'email': email},
     );
-    // 验证码接口的 401 只是「这次不给发」，不能当登录失效把用户踢下线。
+    // 验证码接口的 401 表示本次发送被拒，不是登录失效。
     ensureOk(response, '无法发送验证码。', authStatuses: const <int>{});
     envelopeOf(response, '无法发送验证码。');
   }
@@ -131,7 +131,7 @@ extension ApiClientAccount on ApiClient {
       ServiceEndpoints.refreshTokenPath,
       body: <String, Object?>{'token': refreshToken},
     );
-    // 会话过期在这个端点上是 404；不归到 auth 就走不到重新登录的引导。
+    // 该端点用 404 表示会话过期，归入 auth 类别才能触发重新登录引导。
     ensureOk(
       response,
       '登录状态已过期，请重新登录。',

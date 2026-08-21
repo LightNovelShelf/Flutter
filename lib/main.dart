@@ -14,8 +14,7 @@ import 'data/providers.dart';
 import 'data/session/auth_controller.dart';
 import 'data/settings/app_settings.dart';
 
-/// 开发期可通过 `--dart-define=REFRESH_TOKEN=...` 注入刷新令牌，
-/// 免去在模拟器上反复手动登录。
+/// 开发期通过 `--dart-define=REFRESH_TOKEN=...` 注入的刷新令牌，用于跳过手动登录。
 const String _injectedRefreshToken =
     String.fromEnvironment('REFRESH_TOKEN');
 
@@ -29,7 +28,7 @@ Future<void> main() async {
       _injectedRefreshToken,
     );
   }
-  // 会话恢复与实时连接在后台进行，不阻塞首帧。
+  // 会话恢复与实时连接放到后台，不阻塞首帧。
   unawaited(runtime.start());
 
   runApp(
@@ -47,7 +46,7 @@ class LightNovelShelfApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(appSettingsProvider);
     final router = ref.watch(routerProvider);
-    // `themeMode` 已经表达了亮/暗选择，这里只需要把两套主题都构建出来。
+    // 亮暗由 `themeMode` 决定，两套主题都要构建。
 
     return DynamicColorBuilder(
       builder: (lightDynamic, darkDynamic) {

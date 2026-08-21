@@ -6,10 +6,9 @@ import '../../../shared/layout/book_grid_layout.dart';
 import '../../../shared/widgets/book_cover_grid_item.dart';
 import '../../../shared/widgets/paged_grid.dart';
 
-/// 打开书籍详情：漫画必须带上系列名，详情页据此拉取系列信息。
+/// 打开书籍详情，漫画需带上系列名，详情页据此拉取系列信息。
 ///
-/// [fromSeries] 是「从哪个系列页点进来的」，详情页点标题回系列时据此原路返回，
-/// 而不是再往栈上压一个同样的系列页。
+/// [fromSeries] 为来源系列页的名称，详情页返回系列时据此出栈而不是重复压栈。
 void openBookDetail(
   BuildContext context,
   BookListItem book, {
@@ -26,7 +25,7 @@ void openBookDetail(
   );
 }
 
-/// 目录/榜单共用的书籍网格：把书卡接到通用的分页网格外壳上。
+/// 目录与榜单共用的书籍网格，基于通用分页网格外壳。
 class BookGrid extends StatelessWidget {
   const BookGrid({
     super.key,
@@ -88,7 +87,7 @@ class BookGrid extends StatelessWidget {
   );
 }
 
-/// 首页分区里的静态网格：不滚动，按父级宽度自行分列。
+/// 首页分区的静态网格，不滚动，按父级宽度分列。
 class BookGridPreview extends StatelessWidget {
   const BookGridPreview({
     super.key,
@@ -106,7 +105,7 @@ class BookGridPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      // 父级已经扣掉内边距，这里不再重复扣。
+      // 内边距已由父级扣除。
       final layout = BookGridLayout.of(
         constraints.maxWidth,
         horizontalPadding: 0,
@@ -148,7 +147,7 @@ class BookGridPreviewSkeleton extends StatelessWidget {
   );
 }
 
-/// 手动按行摆放，保证残行的卡片仍然左对齐且与整行同宽。
+/// 手动按行摆放，使不满一行的卡片左对齐且宽度与整行一致。
 Widget _gridRows({
   required BookGridLayout layout,
   required int itemCount,

@@ -8,7 +8,7 @@ final DateFormat _dateTime = DateFormat('yyyy-MM-dd HH:mm', 'zh_CN');
 
 String formatCount(int value) => _decimalFormat.format(value);
 
-/// 紧凑计数（1.2万）：卡片里的点赞/浏览数用，长数字会撑破布局。
+/// 紧凑计数（1.2万），用于卡片里的点赞/浏览数。
 String formatCompactCount(int value) => _compactNumber.format(value);
 
 String formatMediumDate(DateTime? value) =>
@@ -32,8 +32,8 @@ String formatRelativeTime(DateTime? value) {
   return _shortDate.format(value);
 }
 
-/// 更细粒度的相对时间：月/年一直往上摊，且能显示未来时间（「3 分钟后」）。
-/// 与 [formatRelativeTime] 并存：后者超过 30 天就回落到日期，别的页面依赖这条粗规则。
+/// 更细粒度的相对时间：按月/年继续换算，支持未来时间（3 分钟后）。
+/// 与 [formatRelativeTime] 并存，后者超过 30 天回落到日期。
 String formatRelativeTimeFine(DateTime? value) {
   if (value == null) return '';
   final delta = DateTime.now().difference(value);
@@ -59,7 +59,7 @@ String cleanChapterTitle(String title) {
   return stripped.isEmpty ? trimmed : stripped;
 }
 
-/// 用户名兜底：空名字要区分「已注销」与「取不到」。
+/// 用户名兜底，空名字按是否已注销返回不同占位。
 String displayUserName(String name, {required bool deleted}) {
   final trimmed = name.trim();
   if (trimmed.isNotEmpty) return trimmed;

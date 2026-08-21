@@ -186,8 +186,8 @@ Future<void> main(List<String> args) async {
     stdout.writeln('   ${page.items.length} 条评论 / 共 ${page.totalPages} 页');
   });
 
-  // 用一个不存在的书籍 ID 触发服务端的业务校验：既能确认枚举名参数被正确绑定
-  // （绑定失败会返回「error on the server」），又不会真的产生评论。
+  // 用不存在的书籍 ID 触发业务校验，确认枚举名参数已正确绑定且不会真的产生评论。
+  // 绑定失败时服务端返回 error on the server。
   await check('postComment(编码校验)', () async {
     try {
       await api.postComment(

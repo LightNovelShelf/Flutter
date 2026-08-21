@@ -13,7 +13,7 @@ import 'home_providers.dart';
 /// 目录页每页目标条数。
 const int discoverPageSize = 24;
 
-/// 离开页面后短时保活，来回切换排序/周期直接命中缓存。
+/// 离开页面后的保活时长，用于切换排序或周期时命中缓存。
 const Duration _catalogKeepAlive = Duration(minutes: 5);
 
 class BookCatalogController
@@ -68,10 +68,10 @@ class BookCatalogController
   }
 }
 
-/// 系列内书籍列表的参数：系列名 + 排序。
+/// 系列内书籍列表的参数：系列名与排序。
 typedef SeriesBooksArg = ({String name, BookListOrder order});
 
-/// 全部小说的「按系列」视图：一页就是一页系列，没有本地补充过滤。
+/// 全部小说的按系列视图，每页一页系列，不做本地补充过滤。
 class NovelSeriesCatalogController
     extends PagedListController<NovelSeriesListItem, BookListOrder> {
   NovelSeriesCatalogController(super.arg);
@@ -108,7 +108,7 @@ class NovelSeriesCatalogController
   }
 }
 
-/// 单个系列下的全部小说。系列通常只有几本，不做「过滤后补页」的循环。
+/// 单个系列下的全部小说，不做过滤后补页的循环。
 class SeriesBooksController
     extends PagedListController<BookListItem, SeriesBooksArg> {
   SeriesBooksController(super.arg);

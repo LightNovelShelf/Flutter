@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_color_utilities/material_color_utilities.dart';
 import 'package:lightnovel/shared/cover_seed.dart';
 
-/// 造一张 `width * height` 的 rawRgba 像素图：`colors` 按顺序平铺。
+/// 构造 rawRgba 像素数据，`colors` 按顺序每种各占 `repeat` 个像素。
 Uint8List _rawRgba(List<Color> colors, {int repeat = 64}) {
   final bytes = Uint8List(colors.length * repeat * 4);
   var i = 0;
@@ -52,7 +52,7 @@ void main() {
 
       expect(seed, isNotNull);
       expect(Hct.fromInt(seed!.toARGB32()).chroma, lessThan(5));
-      // Score 的兜底是 Google Blue（0xFF4285F4），必须没被用上。
+      // Score 的兜底色是 Google Blue（0xFF4285F4），此处不应命中。
       expect(seed.toARGB32(), isNot(0xFF4285F4));
     });
 

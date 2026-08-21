@@ -36,7 +36,7 @@ class BookDetailScreen extends ConsumerStatefulWidget {
   final BookType? type;
   final String? seriesTitle;
 
-  /// 从系列页点进来时带上的系列键；点标题回系列时原路返回，不再压一个同样的页面。
+  /// 从系列页进入时带的系列键，用于点标题时原路返回。
   final String? fromSeries;
 
   @override
@@ -46,8 +46,8 @@ class BookDetailScreen extends ConsumerStatefulWidget {
 class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   BookDetailRequest get _request => (id: widget.id, type: widget.type);
 
-  /// 系列键必须与服务端 `SeriesTitle` 口径一致：中文名优先、空回落原名、再空回落书名。
-  /// 列表页带来的提示值本身就是这个键，优先用它。
+  /// 系列键需与服务端 `SeriesTitle` 一致：中文名优先，为空回落原名，再为空回落书名。
+  /// 列表页传入的提示值即为该键，优先使用。
   String _seriesTitleOf(BookDetailBundle bundle) {
     final hinted = widget.seriesTitle?.trim();
     if (hinted != null && hinted.isNotEmpty) return hinted;
@@ -57,10 +57,10 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
         bundle.detail.title;
   }
 
-  /// 小说：点标题看同系列的其它书。
+  /// 小说详情页点标题打开同系列列表。
   void _openSeries(BookDetailBundle bundle) {
     final name = _seriesTitleOf(bundle);
-    // 就是从这个系列点进来的，回去而不是叠一层重复页面。
+    // 从该系列进入的，返回而不是叠加重复页面。
     if (widget.fromSeries == name && context.canPop()) {
       context.pop();
       return;
@@ -81,7 +81,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     await context.push(
       '/reader/${widget.id}/$sortNum${isComic ? '?type=Comic' : ''}',
     );
-    // 阅读器把进度写进了 ReadPositionCache，回来要立刻反映。
+    // 阅读器把进度写入 ReadPositionCache，返回后需重建以刷新。
     if (mounted) setState(() {});
   }
 
@@ -173,7 +173,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                     );
                     return;
                   }
-                  // 用 State 的 context：弹窗要沿用应用主题，不跟着封面取色走。
+                  // 用 State 的 context，使弹窗沿用应用主题而非封面取色主题。
                   showBookUploaderSheet(this.context, detail.user);
                 },
                 itemBuilder: (_) => const <PopupMenuEntry<String>>[
@@ -303,7 +303,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
 
   Widget _introduction(BuildContext context, BookDetail detail) {
     final colors = Theme.of(context).colorScheme;
-    // 带 ruby 的简介不折叠，注音会被切掉半行。
+    // 带 ruby 的简介不折叠，否则注音被截断。
     final clampable = !htmlHasRuby(detail.introduction);
     final content = BookHtmlContent(
       html: detail.introduction,

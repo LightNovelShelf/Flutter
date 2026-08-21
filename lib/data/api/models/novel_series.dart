@@ -1,7 +1,7 @@
 import '../decode.dart';
 
-/// 小说系列列表项：服务端按分类器的系列名分组（中文名优先、空回落原名、再空回落书名），
-/// 分组键就是系列名，没有独立 id。
+/// 小说系列列表项。分组键是服务端分类器给出的系列名（中文名优先，为空回落原名、
+/// 再回落书名），没有独立 id。
 class NovelSeriesListItem {
   const NovelSeriesListItem({
     required this.name,
@@ -13,7 +13,7 @@ class NovelSeriesListItem {
 
   final String name;
 
-  /// 代表封面（系列内最新一本）；服务端偶尔取不到封面，此时为空串。
+  /// 系列内最新一本的封面，服务端取不到时为空串。
   final String coverUrl;
   final String? coverPlaceholder;
   final int bookCount;

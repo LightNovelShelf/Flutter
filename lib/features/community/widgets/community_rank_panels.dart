@@ -5,7 +5,7 @@ import '../../../shared/format.dart';
 import '../../../shared/widgets/user_avatar.dart';
 import 'community_primitives.dart';
 
-/// 前三名的固定配色，第四名往后回落到中性色。
+/// 前三名的固定配色，第四名起使用中性色。
 const List<Color> _rankColors = <Color>[
   Color(0xFFF59E0B),
   Color(0xFFFB7185),

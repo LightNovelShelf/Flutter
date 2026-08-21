@@ -82,14 +82,14 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
     super.dispose();
   }
 
-  /// 深链要等首屏落地，否则回复树还是空的，翻页找不到锚点。
+  /// 等首屏加载完成再定位，否则回复树为空，翻页找不到锚点。
   Future<void> _bootstrapFocus(int replyId) async {
     await ref.read(_provider.notifier).initialLoad;
     if (!mounted) return;
     await _focusReply(replyId, widget.parentReplyId);
   }
 
-  /// 深链：分页找到目标回复，高亮 1200ms 再滚过去。
+  /// 深链定位：翻页直到找到目标回复，高亮 1200ms 后滚动过去。
   Future<void> _focusReply(int replyId, int? parentReplyId) async {
     final controller = ref.read(_provider.notifier);
     final anchorId = parentReplyId ?? replyId;
@@ -141,7 +141,7 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
         );
         return;
       }
-      // 目标行还没懒加载出来，先滚到底部撑开列表再重试。
+      // 目标行尚未构建，先滚到底部撑开列表再重试。
       if (_controller.hasClients) {
         _controller.jumpTo(_controller.position.maxScrollExtent);
       }
@@ -207,7 +207,7 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 互动失败是一次性提示，靠 noticeTag 区分同一句文案的第二次失败。
+    // 互动失败是一次性提示，用 noticeTag 区分文案相同的重复失败。
     ref.listen<CommunityThreadState>(_provider, (previous, next) {
       final notice = next.notice;
       if (notice == null || next.noticeTag == (previous?.noticeTag ?? 0)) {

@@ -90,7 +90,7 @@ class AuthFormScaffold extends StatelessWidget {
   }
 }
 
-/// 认证表单输入框：高 52（由装饰的内边距决定）、圆角 14、发丝边框。
+/// 认证表单输入框，高 52 由装饰的内边距决定，圆角 14，发丝边框。
 class AuthTextField extends StatelessWidget {
   const AuthTextField({
     super.key,
@@ -172,7 +172,7 @@ class _AuthPasswordFieldState extends State<AuthPasswordField> {
       onSubmitted: widget.onSubmitted,
       style: authFieldTextStyle(context),
       decoration: authFieldDecoration(context, hintText: widget.hintText).copyWith(
-        // 不要让图标约束反过来决定输入框高度：48 小于 52，高度仍由内边距给出。
+        // 48 小于 52，避免图标约束决定输入框高度。
         suffixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
         suffixIcon: InkResponse(
           radius: 22,
@@ -189,7 +189,7 @@ class _AuthPasswordFieldState extends State<AuthPasswordField> {
   }
 }
 
-/// 表单主按钮：提交中转圈 + 「进行中」文案，整体降透明度。
+/// 表单主按钮，提交中显示转圈与 [submittingLabel] 并降低透明度。
 class AuthSubmitButton extends StatelessWidget {
   const AuthSubmitButton({
     super.key,

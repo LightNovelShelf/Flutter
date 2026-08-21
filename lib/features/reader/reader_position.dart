@@ -50,7 +50,7 @@ int resolveReaderInitialIndex(
   };
 }
 
-/// 未同步的本地进度是用户刚刚的操作，优先级最高；已同步的只作兜底，跨设备以服务端为准。
+/// 未同步的本地进度优先，已同步的仅作兜底，跨设备以服务端为准。
 ReaderRestorePosition? resolveReaderRestorePosition(
   int chapterId,
   ReaderRestorePosition? server,
@@ -66,7 +66,7 @@ ReaderRestorePosition? resolveReaderRestorePosition(
 }
 
 /// 打开章节时的续读位置：把进程内缓存与服务端返回的两种形态归一后交给
-/// [resolveReaderRestorePosition]，免得每个阅读器各写一遍转换。
+/// [resolveReaderRestorePosition]。
 ReaderRestorePosition? resolveReaderRestore({
   required int bookId,
   required int chapterId,
@@ -97,7 +97,7 @@ String cleanReaderLocator(String locator) => locator
     .replaceFirst(_locatorHeadPattern, '')
     .replaceAll(_locatorEdgeSlashPattern, '');
 
-/// 定位失配时逐级回退父路径，旧进度也能落到最近的段落。
+/// 定位失配时逐级回退父路径，落到最近的段落。
 int findReaderBlockIndex(List<NovelReaderBlock> blocks, String? locator) {
   if (locator == null || locator.isEmpty) return 0;
   final exact = blocks.indexWhere(

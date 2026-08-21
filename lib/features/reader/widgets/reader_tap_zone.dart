@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// 全站唯一的阅读点击热区：沿 [axis] 两端各 30% 翻页，中间 40% 切换工具栏。
+/// 阅读点击热区：沿 [axis] 两端各 30% 翻页，中间 40% 切换工具栏。
 ///
-/// 带 [child] 时作为正文的父节点（正文里的链接/图片先拿到点击）；不带 [child] 时
-/// 铺在内容之上，用于 PhotoView 这类自己吃掉点击的子树。
+/// 带 [child] 时作为正文的父节点，正文里的链接与图片先收到点击；不带 [child] 时铺
+/// 在内容之上，用于 PhotoView 这类自身消费点击的子树。
 class ReaderTapZoneLayer extends StatelessWidget {
   const ReaderTapZoneLayer({
     super.key,

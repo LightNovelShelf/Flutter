@@ -7,10 +7,9 @@ import 'reader_font_cache.dart';
 import 'reader_footnotes.dart';
 import 'reader_html_blocks.dart';
 
-/// 小说章节预渲染：取数、分块、摘脚注、装字体一次做完，供阅读器的章节窗口取用。
+/// 小说章节预渲染：取数、分块、脚注抽取、字体注册一次完成，供章节窗口取用。
 
-/// 预渲染好的一章：正文已分块、脚注注文已摘出、章节字体已注册进引擎。
-/// 交给阅读视图后只剩排版，没有任何异步等待，翻到相邻章因此不再有加载态。
+/// 预渲染好的一章：正文已分块、注文已摘出、章节字体已注册进引擎。
 class ReaderPreparedChapter {
   const ReaderPreparedChapter({
     required this.content,
@@ -34,16 +33,12 @@ class _PrerenderEntry {
   final CancelToken token;
   late final Future<ReaderPreparedChapter> future;
 
-  /// 只有确实是所请求那一章时才落值：服务端偶尔会回退到别的章节，
-  /// 错位的内容不能被当成相邻章塞进翻页条。
+  /// 仅在返回的确实是所请求那一章时落值，服务端可能回退到别的章节。
   ReaderPreparedChapter? value;
   bool failed = false;
 }
 
 /// 章节预渲染：当前章与前后各一章常驻，取数、分块、脚注、字体一次备齐。
-///
-/// 与旧的「预加载后续 N 章」不同，这里备的是可以直接排版的成品，且向前向后
-/// 对称——翻页条要靠它把相邻章接在当前章两端，跨章翻页才没有接缝。
 class ReaderChapterPrerenderer {
   ReaderChapterPrerenderer({required ApiClient api, required int bookId})
     : _api = api,
@@ -54,8 +49,8 @@ class ReaderChapterPrerenderer {
   final Map<(int, String?), _PrerenderEntry> _entries =
       <(int, String?), _PrerenderEntry>{};
 
-  /// 打开某一章。已备好或在途的结果直接复用；[fresh] 强制重取——按保存的进度
-  /// 打开时必须拿到服务端最新的 ReadPosition。
+  /// 打开某一章，已备好或在途的结果直接复用。[fresh] 强制重取，用于需要服务端
+  /// 最新 ReadPosition 的场景。
   Future<ReaderPreparedChapter> open({
     required int sortNum,
     required String? convert,
@@ -75,8 +70,7 @@ class ReaderChapterPrerenderer {
     ).future;
   }
 
-  /// 后台备好某一章并等它就绪。失败、错位或期间被 [retain] 丢弃都返回 null，
-  /// 上层据此决定不把它接进翻页条；正式打开时会重新请求。
+  /// 后台备好某一章并等待就绪。失败、错位或期间被 [retain] 丢弃时返回 null。
   Future<ReaderPreparedChapter?> prerender({
     required int sortNum,
     required String? convert,
@@ -100,7 +94,7 @@ class ReaderChapterPrerenderer {
     return identical(_entries[key], entry) ? entry.value : null;
   }
 
-  /// 只保留这些章，其余连同在途请求一起丢掉。
+  /// 只保留这些章，其余连同在途请求一起丢弃。
   void retain(Iterable<int> sortNums, String? convert) {
     final keep = <(int, String?)>{
       for (final sortNum in sortNums) (sortNum, convert),
@@ -133,7 +127,7 @@ class ReaderChapterPrerenderer {
       fontCacheEnabled: fontCacheEnabled,
       fontCacheLimit: fontCacheLimit,
     );
-    // 预渲染没人 await，失败不该冒泡成未捕获异常。
+    // 预渲染结果没有 await，异常在此吞掉。
     unawaited(entry.future.then((_) {}, onError: (_) {}));
     return entry;
   }
@@ -159,7 +153,7 @@ class ReaderChapterPrerenderer {
         cacheLimit: fontCacheLimit,
       );
       final footnotes = processNovelFootnotes(content.chapter.content);
-      // 一个字都不动：分块文本与渲染出来的正文逐字一致，保存的定位才不漂。
+      // 分块文本与渲染出来的正文必须逐字一致，否则保存的定位会漂。
       final prepared = ReaderPreparedChapter(
         content: content,
         blocks: normalizeNovelBlocks(footnotes.html),

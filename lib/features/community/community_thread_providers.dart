@@ -36,19 +36,19 @@ class CommunityThreadState {
   final String? error;
   final String? loadMoreError;
 
-  /// 帖子级动作（点赞/收藏）和回复级动作分开，免得互相禁用。
+  /// 帖子级动作（点赞/收藏）的忙碌位，与回复级动作分开，避免互相禁用。
   final bool threadActionBusy;
 
-  /// 形如 `like:12` / `children:12`；带 id 才能把展开中的菊花画在发起的那一行上。
+  /// 进行中的回复级动作，形如 `like:12` / `children:12`，id 用于定位进度指示。
   final String? replyActionId;
 
-  /// 一次性提示（操作失败），`noticeTag` 递增，UI 靠它区分同一句文案的第二次失败。
+  /// 操作失败的一次性提示，`noticeTag` 每次递增，用于区分文案相同的重复失败。
   final String? notice;
   final int noticeTag;
 
   bool get canReply => thread != null && !thread!.item.locked;
 
-  /// 深链定位用：在整棵回复树里找一条回复。
+  /// 在回复树中按 id 查找回复。
   CommunityThreadReply? findReply(int id) {
     final detail = thread;
     return detail == null ? null : _findReply(detail.replyItems, id);
@@ -87,22 +87,22 @@ class CommunityThreadState {
   );
 }
 
-/// 帖子详情的分页 + 乐观互动状态机。页面只留滚动/高亮这类纯 UI 状态。
+/// 帖子详情的分页与乐观互动状态，滚动、高亮等 UI 状态留在页面。
 class CommunityThreadController extends Notifier<CommunityThreadState> {
   CommunityThreadController(this.threadId);
 
   final int threadId;
 
-  /// 世代号：慢的旧响应一律丢弃。
+  /// 世代号，用于丢弃过期请求的响应。
   int _operation = 0;
   bool _disposed = false;
 
-  /// 浏览量只算首次加载那一次，下拉刷新不再重复计数。
+  /// 浏览量只在首次加载时上报，刷新不重复计数。
   bool _viewTracked = false;
 
   late Future<void> _initialLoad;
 
-  /// 深链要等首屏落地才能开始找目标回复。
+  /// 首屏加载的 Future，深链定位需要等它完成。
   Future<void> get initialLoad => _initialLoad;
 
   @override
@@ -121,7 +121,7 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
   Future<void> retry() => _load();
 
   Future<void> _load({bool refresh = false}) async {
-    // 首屏加载排在微任务里，页面可能已经被弹掉了。
+    // 首屏加载在微任务里执行，此时页面可能已销毁。
     if (_disposed) return;
     final token = ++_operation;
     state = state.copyWith(
@@ -300,7 +300,7 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
           (item) => item.copyWith(liked: result.liked, likes: result.likes),
         ),
       ),
-      // 只把这一条回滚回去，期间展开的子回复要保住。
+      // 只回滚这一条，保留期间展开的子回复。
       revert: (current) => current.copyWith(
         replyItems: _updateReplies(
           current.replyItems,
@@ -312,7 +312,7 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
     );
   }
 
-  /// 发布回复；文案由发布面板自己给，这里只负责发请求。
+  /// 发布回复，不更新本地状态。
   Future<void> postReply({required String content, int? replyToId}) async {
     await _api.createCommunityReply(
       threadId: threadId,
@@ -321,8 +321,8 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
     );
   }
 
-  /// 三个乐观开关共用：先本地翻转，服务端返回后用真实计数覆盖，失败回滚并提示。
-  /// `busyKey` 为空表示帖子级动作，否则占用回复级的忙碌位。
+  /// 乐观更新：先本地翻转，服务端返回后用真实计数覆盖，失败回滚并提示。
+  /// `busyKey` 为空表示帖子级动作，否则占用回复级忙碌位。
   Future<void> _optimistic<R>({
     required CommunityThreadDetail Function(CommunityThreadDetail detail) apply,
     required Future<R> Function() commit,
@@ -356,7 +356,7 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
     } catch (error) {
       if (_disposed) return;
       final current = state.thread;
-      // 没给 revert 就整份回到发起前的快照（帖子级动作原本就是这么做的）。
+      // 未提供 revert 时整份回到发起前的快照。
       final CommunityThreadDetail? rolledBack = revert == null
           ? snapshot
           : (current == null ? null : revert(current));
@@ -398,7 +398,7 @@ communityThreadProvider =
       int
     >(CommunityThreadController.new, isAutoDispose: true);
 
-/// 只更新计数的帖子副本（`CommunityFeedItem` 没有 copyWith）。
+/// 复制帖子并替换计数，`CommunityFeedItem` 没有 copyWith。
 CommunityThreadDetail _withCounts(
   CommunityThreadDetail detail, {
   int? likes,

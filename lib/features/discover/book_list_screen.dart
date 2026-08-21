@@ -10,10 +10,10 @@ import 'widgets/book_grid.dart';
 import 'widgets/novel_order_selector.dart';
 import 'widgets/novel_series_tile.dart';
 
-/// 全部小说的展示方式：平铺到单本，或先按系列分组。
+/// 全部小说的展示方式：平铺或按系列分组。
 enum BookListViewMode { flat, series }
 
-/// 全部小说：展示方式 + 排序切换 + 无限滚动。
+/// 全部小说：展示方式与排序切换，无限滚动。
 class BookListScreen extends ConsumerStatefulWidget {
   const BookListScreen({super.key});
 
@@ -51,7 +51,7 @@ class _BookListScreenState extends ConsumerState<BookListScreen> {
       books: state.items,
       loading: state.loading,
       loadingMore: state.loadingMore,
-      // 加载更多失败后停止自动预取，交给底部的手动重试。
+      // 加载更多失败后停止自动预取，改由底部按钮手动重试。
       hasMore: state.hasMore && state.loadMoreError == null,
       loadMoreError: state.loadMoreError,
       errorMessage: state.error,
@@ -107,7 +107,7 @@ class _BookListScreenState extends ConsumerState<BookListScreen> {
   );
 }
 
-/// 展示方式切换：标题栏右侧的图标按钮 + M3 下拉菜单，当前项打勾。
+/// 展示方式切换：标题栏图标按钮加下拉菜单。
 class _ViewModeMenu extends StatelessWidget {
   const _ViewModeMenu({required this.mode, required this.onChanged});
 

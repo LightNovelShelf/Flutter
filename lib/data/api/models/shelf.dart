@@ -135,8 +135,8 @@ class UserShelf {
 
   static UserShelf decode(Object? value) {
     final record = asRecordOrEmpty(value);
-    // 老接口直接回数组，新接口包一层 `{data, ver}`，两种大小写都出现过；
-    // 从没保存过书架的账号服务端回空对象 `{}`，两个键都取不到，此时按空书架处理。
+    // 老接口直接回数组，新接口包一层 `{data, ver}`，两种大小写都出现过。
+    // 从未保存过书架的账号返回空对象 `{}`，按空书架处理。
     final rawItems = value is List
         ? value
         : decodeOptionalList<Object?>(

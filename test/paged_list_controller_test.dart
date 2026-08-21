@@ -6,7 +6,7 @@ import 'package:lightnovel/core/network/api_error.dart';
 import 'package:lightnovel/shared/paging/paged_list.dart';
 import 'package:lightnovel/shared/paging/paged_list_controller.dart';
 
-/// 用可控的 fetch 桩驱动分页状态机，断言首屏/刷新/翻页/世代守卫的可观察行为。
+/// 分页控制器测试桩：每页的 fetch 行为由 [handler] 决定。
 class _TestController extends PagedListController<int, void> {
   _TestController() : super(null);
 

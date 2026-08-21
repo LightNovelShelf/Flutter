@@ -1,7 +1,6 @@
 import '../api/models.dart';
 
-/// 进程内阅读进度缓存：阅读器写入后，详情页/书架能立刻读到最新章节，
-/// 不必等待服务端往返。
+/// 进程内阅读进度缓存，阅读器写入后详情页与书架可直接读到最新章节。
 class ReadPositionCache {
   ReadPositionCache._();
 
@@ -15,8 +14,7 @@ class ReadPositionCache {
 
   static void clear() => _positions.clear();
 
-  /// 用缓存覆盖服务端返回的旧进度：取 `readAt` 更晚的一份，
-  /// 时间相同或缺失时以缓存为准（本机刚写的更可信）。
+  /// 与服务端返回的进度合并，取 `readAt` 更晚的一份；时间相同或缺失时以缓存为准。
   static BookReadPosition? merge(int bookId, BookReadPosition? remote) {
     final cached = _positions[bookId];
     if (cached == null) return remote;

@@ -1,7 +1,7 @@
 /// 服务端地址常量。
 ///
 /// `API_ORIGIN` 可在编译期覆盖（`--dart-define` / `dart run -D`），用于把客户端
-/// 指向本地起的服务端做联调，正式构建不传就走线上。
+/// 指向本地服务端。
 class ServiceEndpoints {
   const ServiceEndpoints._();
 

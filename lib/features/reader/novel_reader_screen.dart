@@ -25,13 +25,11 @@ import 'widgets/reader_status_pills.dart';
 
 /// 小说阅读器。
 ///
-/// 正文字形被服务端混淆过，必须配合章节自带字体才能读：WOFF2 先经 libwoff2 转成
-/// TTF，再注册进 Flutter 引擎，正文由 [ReaderContentView] 原生渲染。Dart 侧负责
-/// 取数、定位换算与进度保存。
+/// 正文字形被服务端混淆，必须配合章节自带字体渲染：WOFF2 经 libwoff2 转成 TTF 后
+/// 注册进 Flutter 引擎，正文由 [ReaderContentView] 渲染。
 ///
-/// 当前章与前后各一章由 [ReaderChapterPrerenderer] 预渲染，三章一起交给正文视图
-/// 接成一条连续的翻页条：跨章翻页不重新加载、不重排、没有加载态，落定后本屏只是
-/// 把窗口挪一格，再把新露出来的那一侧补上。
+/// 当前章与前后各一章由 [ReaderChapterPrerenderer] 预渲染，三章一起交给正文视图组
+/// 成连续的翻页条，跨章翻页把窗口平移一格。
 class NovelReaderScreen extends ConsumerStatefulWidget {
   const NovelReaderScreen({
     super.key,
@@ -53,7 +51,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   late final ReaderProgressController _progress;
   late final ReaderChapterPrerenderer _prerenderer;
 
-  /// 正在看的章号；加载中就是要打开的那一章，落地后一律以窗口里的当前章为准。
+  /// 当前章号；加载中为待打开的章号，加载完成后与窗口当前章一致。
   late int _sortNum;
   late ReaderOpenPosition _openPosition;
 
@@ -63,7 +61,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   bool _contentReady = false;
   bool _chromeVisible = false;
 
-  /// 当前章与前后各一章；跨章翻页只是把它整体挪一格。
+  /// 当前章与前后各一章，跨章翻页把窗口平移一格。
   ReaderChapterWindow _window = const ReaderChapterWindow.empty();
 
   int _totalChapters = 0;
@@ -74,7 +72,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   double _restoreProgression = 0;
   int _restoreToken = 0;
 
-  /// 每一章最近上报的位置：跨章翻页要拿它给刚离开的那一章提交进度。
+  /// 每章最近上报的位置，跨章翻页时用于给离开的章提交进度。
   final Map<int, String> _locators = <int, String>{};
   double _progression = 0;
 
@@ -112,7 +110,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
       final prepared = await _prerenderer.open(
         sortNum: _sortNum,
         convert: convert,
-        // 按保存的进度打开必须拿到服务端最新的 ReadPosition，不能吃预渲染的旧值。
+        // 按保存进度打开需要服务端最新的 ReadPosition，不能用预渲染的旧值。
         fresh: _openPosition == ReaderOpenPosition.saved,
         fontCacheEnabled: settings.fontCacheEnabled,
         fontCacheLimit: settings.fontCacheLimit,
@@ -121,7 +119,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
       final restore = _resolveRestore(prepared, _openPosition);
 
       setState(() {
-        // 服务端偶尔会回退到别的章节，窗口以真正拿到的那一章为准。
+        // 服务端可能返回别的章节，以实际返回的章号为准。
         _sortNum = prepared.sortNum;
         _window = ReaderChapterWindow.only(prepared);
         _totalChapters = prepared.chapter.chapterTitles.length;
@@ -165,7 +163,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     }
   }
 
-  /// 让预渲染窗口跟上当前章：只留 [_sortNum] 及其前后各一章，缺的补上、多的丢掉。
+  /// 让预渲染窗口跟上当前章，只保留 [_sortNum] 及其前后各一章。
   void _syncWindow() {
     if (_window.isEmpty) return;
     final settings = ref.read(appSettingsProvider);
@@ -183,7 +181,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     }
   }
 
-  /// 备好一章相邻章就接进窗口；期间窗口挪走、换了繁简或关了预渲染就丢弃。
+  /// 预渲染完成后把相邻章接进窗口，期间窗口移动、繁简变更或关闭预渲染则丢弃结果。
   Future<void> _adopt(
     int sortNum,
     String? convert,
@@ -235,7 +233,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
           style: _contentStyle(settings, foreground, prepared.fontFamily),
         );
 
-  /// 滚动模式的状态栏留白由外层让位，翻页模式必须落在每一页里。
+  /// 滚动模式的状态栏留白由外层给出，翻页模式需要计入每一页的内边距。
   EdgeInsets _contentPadding(AppSettings settings) {
     final padding = MediaQuery.paddingOf(context);
     final paged = settings.readerViewMode == ReaderViewMode.paged;
@@ -248,8 +246,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   }
 
   void _onSettingsChanged(AppSettings? previous, AppSettings next) {
-    // 排版、分页方式与图片手势都是 [ReaderContentView] 的入参，随 build 生效；
-    // 只有换繁简需要重新取正文。
+    // 排版与分页参数随 build 生效，只有繁简变更需要重新取正文。
     if (previous == null || _window.isEmpty) return;
     if (previous.convertType != next.convertType) {
       unawaited(_load());
@@ -265,7 +262,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     if (position.locator.isNotEmpty) {
       _locators[position.sortNum] = position.locator;
     }
-    // 拖到一半才露出来的相邻章还不是当前章：页码与进度等落定切章后再跟上。
+    // 相邻章在切章落定前不是当前章，页码与进度等切换后再更新。
     if (position.sortNum != _sortNum) return;
     _progression = position.progression;
     final pageChanged =
@@ -281,7 +278,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     _progress.stage(chapter.id, position.locator);
   }
 
-  /// 翻页条走进了相邻章：窗口整体挪一格，正文不重排、不加载。
+  /// 翻页条进入相邻章时把窗口平移一格。
   void _onChapterChanged(int sortNum) {
     final target = _window.at(sortNum);
     if (target == null || sortNum == _sortNum) return;
@@ -301,7 +298,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     _syncWindow();
   }
 
-  /// 换章时的进度交接：给刚离开的那一章落一次盘，再把新章的位置挂上。
+  /// 换章时先提交离开章的进度，再挂上新章的位置。
   void _handoffProgress(
     ReaderPreparedChapter? leaving,
     ReaderPreparedChapter entering,
@@ -335,8 +332,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     if (sortNum < 1 || (_totalChapters > 0 && sortNum > _totalChapters)) return;
     await _commitPosition();
     if (!mounted) return;
-    // 已经预渲染好的章直接换过去，没有加载态；按保存的进度打开除外——
-    // 那要服务端最新的 ReadPosition。
+    // 已预渲染的章直接切换；按保存进度打开除外，需要服务端最新的 ReadPosition。
     final prepared = position == ReaderOpenPosition.saved
         ? null
         : _window.at(sortNum);
@@ -351,12 +347,12 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     await _load();
   }
 
-  /// 切到窗口里已经备好的一章，并把位置钉到 [position]。
+  /// 切到窗口内已预渲染的一章，位置定位到 [position]。
   void _switchTo(ReaderPreparedChapter prepared, ReaderOpenPosition position) {
     final restore = _resolveRestore(prepared, position);
     setState(() {
       _openPosition = position;
-      // 目标就是当前章时窗口原样不动，只按新的恢复点重新钉一次位置。
+      // 目标是当前章时窗口不变，只按新的恢复点重新定位。
       _window = _window.moveTo(prepared.sortNum);
       _sortNum = prepared.sortNum;
       _restoreLocator = restore.$1;
@@ -368,7 +364,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     if (locator != null && locator.isNotEmpty) {
       _locators[prepared.sortNum] = locator;
     }
-    // 离开那一章的进度已经由 [_openChapter] 提交过，这里只把新位置挂上。
+    // 离开章的进度已由 [_openChapter] 提交，只需挂上新位置。
     _handoffProgress(null, prepared);
     _syncWindow();
   }

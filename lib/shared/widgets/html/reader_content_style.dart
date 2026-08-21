@@ -1,7 +1,6 @@
 import 'package:flutter/painting.dart';
 
-/// 正文 class/标签的排版语义原本住在 `assets/css/novel_reader.css`，那份 CSS 随 WebView
-/// 阅读器一并删除，此后只由本文件维护。
+/// 正文 class/标签的排版语义由本文件维护。
 
 /// 正文样式来源。`stylesFor` 的返回值直接交给 HtmlWidget 的 `customStylesBuilder`，
 /// 因此取值必须是它能解析的 CSS：`px`/`em`/`%` 长度、`bold`、`italic`、`center`、`#RRGGBB` 等。
@@ -55,7 +54,7 @@ class ReaderContentStyle {
     3,
   ];
 
-  /// 这些 class 在原 CSS 里就带 `text-indent: 0`，段首不该再缩进。
+  /// 这些 class 在原 CSS 里带 `text-indent: 0`，段首不缩进。
   static const Set<String> _indentCancelling = <String>{
     'center',
     'left',
@@ -69,8 +68,7 @@ class ReaderContentStyle {
     'ph4',
   };
 
-  /// HtmlWidget 不解析 `text-indent`，段首缩进只能由调用方往正文里插全角空格，
-  /// 缩进与否的判定留在这里跟 CSS 语义放一起。
+  /// HtmlWidget 不解析 `text-indent`，段首缩进由调用方往正文里插全角空格，此处只做判定。
   bool indentsParagraph({
     required String? tag,
     required Iterable<String> classes,
@@ -99,7 +97,7 @@ class ReaderContentStyle {
       case 'h4':
         styles.addAll(_subheading());
       case 'a':
-        // 颜色留给继承：正文里的脚注/外链不该跳出正文色，只去掉下划线。
+        // 颜色继承正文色，只去掉下划线。
         styles['text-decoration'] = 'none';
       case 'img':
         styles['max-width'] = '100%';
@@ -171,7 +169,7 @@ class ReaderContentStyle {
         case 'dot':
         case 'em-dot':
           // 0.17.2 的解析器只认 text-emphasis / -color / -style，标记恒画在字上方，
-          // 原 CSS 的 text-emphasis-position 没有对应实现，不吐。
+          // 不支持 text-emphasis-position。
           styles['text-emphasis'] = 'circle';
         case 'pius1':
         case 'pius2':

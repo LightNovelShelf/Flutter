@@ -1,9 +1,9 @@
 import 'dart:async';
 
-/// 串行化写入：慢的旧请求不会覆盖新值。[schedule] 合并防抖窗口内的多次更新，
-/// [commit] 保留调用顺序的快照，[flush] 把在途的写全部落地。
+/// 串行化写入队列，旧请求不会覆盖新值。[schedule] 合并防抖窗口内的多次更新，
+/// [commit] 按调用顺序立即入队，[flush] 等待在途写入落地。
 ///
-/// 指纹相同的连续写会被跳过，避免重复上报同一状态。
+/// 指纹相同的连续写会被跳过。
 class DebouncedWriteQueue<T> {
   DebouncedWriteQueue(
     this._persist, {

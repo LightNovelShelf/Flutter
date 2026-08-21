@@ -52,6 +52,6 @@ List<int> createComicPrefetchPlan(int current, int total, int direction) {
   return plan;
 }
 
-/// 宽屏/矮屏下限制连续模式正文宽度，免得单页被拉太宽。
+/// 宽屏或矮屏下限制连续模式的正文宽度，避免单页过宽。
 double getContinuousComicContentWidth(double width, double height) =>
     height > 0 && width / height > 0.7 ? math.min(width, height * 0.7) : width;

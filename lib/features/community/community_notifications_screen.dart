@@ -150,7 +150,7 @@ class _CommunityNotificationsScreenState
     );
   }
 
-  /// 翻页失败保留社区风格的错误卡，其余状态交给全站统一的列表尾。
+  /// 翻页失败时显示社区风格的错误卡，其余状态用通用列表尾。
   Widget _buildFooter(
     PagedList<AppNotificationItem> state,
     CommunityNotificationsController controller,

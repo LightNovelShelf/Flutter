@@ -36,7 +36,7 @@ class _RegisterVerifyScreenState extends ConsumerState<RegisterVerifyScreen> {
     super.initState();
     _draft = AuthFlowSession.instance.registration;
     if (_draft == null) {
-      // 草稿只存在于内存中：进程重启或深链直达时退回流程起点。
+      // 草稿只在内存中，进程重启或深链直达时退回流程起点。
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) context.go('/register');
       });
@@ -59,7 +59,7 @@ class _RegisterVerifyScreenState extends ConsumerState<RegisterVerifyScreen> {
     setState(() => _showInvalid = false);
   }
 
-  /// initState 也会调用，所以这里不能 setState，重建由调用方决定。
+  /// initState 也会调用，因此不能 setState，重建由调用方负责。
   void _startCooldown() {
     _ticker?.cancel();
     _cooldown = _cooldownSeconds;

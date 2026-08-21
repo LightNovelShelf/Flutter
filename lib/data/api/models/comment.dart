@@ -2,8 +2,8 @@ import '../decode.dart';
 
 enum CommentTargetType { book, announcement, series }
 
-/// 枚举型参数按服务端枚举名发送：JSON 协议已挂上 `JsonStringEnumConverter`，
-/// 名字比序号更抗重排（枚举中间插一个成员不会让旧客户端指向错的值）。
+/// 枚举型参数按服务端枚举名发送（服务端已挂 `JsonStringEnumConverter`），
+/// 名字比序号更抗成员重排。
 extension CommentTargetTypeWire on CommentTargetType {
   String get wire => switch (this) {
     CommentTargetType.book => 'Book',

@@ -9,14 +9,14 @@ import 'decode.dart';
 import 'endpoints.dart';
 import 'envelope.dart';
 
-// 端点按领域拆成 extension，调用点只 import 这一个文件就能全都看见。
+// 端点按领域拆成 extension，在此统一导出。
 export 'api_client_account.dart';
 export 'api_client_catalog.dart';
 export 'api_client_comments.dart';
 export 'api_client_community.dart';
 export 'requests.dart';
 
-/// 401 时调用去刷新令牌；返回 false 表示刷不动了。
+/// 401 时调用以刷新令牌，返回 false 表示刷新失败。
 typedef AuthRetryHandler = Future<bool> Function();
 
 class SessionTokens {
@@ -50,7 +50,7 @@ class ApiClient {
        _scheduler = scheduler,
        _headers = headers;
 
-  /// 服务端对批量取书有硬上限。
+  /// 服务端对批量取书的数量上限。
   static const int batchIdLimit = 24;
 
   final SignalRConnection _signalR;
@@ -86,7 +86,7 @@ class ApiClient {
         }
         final apiError = toApiError(error);
         if (!apiError.isAuth || hasRetried || authRetry == null) throw apiError;
-        // 会话令牌只在建连时校验，刷新后必须重连才带得上新令牌。
+        // 会话令牌只在建连时校验，刷新后必须重连。
         if (!await authRetry!()) throw apiError;
         await _signalR.reset();
         continue;
@@ -95,7 +95,7 @@ class ApiClient {
     }
   }
 
-  // 以下四个是内部管道，只因 extension 在别的库里看不见 `_` 成员才公开。
+  // 以下四个方法公开，是因为 extension 在其它库里访问不到 `_` 成员。
   Future<http.Response> request(
     String method,
     String path, {
@@ -133,8 +133,8 @@ class ApiClient {
     }
   }
 
-  /// 裸 HTTP 的状态码 → ApiError 唯一映射点。哪些状态算「登录失效」由调用方定：
-  /// 刷新令牌过期回的是 404，而验证码填错回 401 却不该把用户踢下线。
+  /// 裸 HTTP 状态码转 ApiError 的唯一入口。哪些状态算登录失效由
+  /// [authStatuses] 指定：刷新令牌过期返回 404，验证码填错返回 401。
   void ensureOk(
     http.Response response,
     String message, {
@@ -151,14 +151,14 @@ class ApiClient {
     );
   }
 
-  /// 2xx 之后还要看信封里的失败位；正文不是对象时（例如空响应）返回 null。
+  /// 2xx 之后再检查信封失败位；正文不是对象（如空响应）时返回 null。
   Map<String, dynamic>? envelopeOf(http.Response response, String fallback) {
     final body = asRecordOrNull(decodeHttpBody(response));
     if (body != null) throwIfFailed(body, fallback);
     return body;
   }
 
-  /// 分页参数下界：服务端拿到 0 页会返回空列表，静默变成「没有更多」。
+  /// 分页参数下界，服务端收到第 0 页会返回空列表。
   static int atLeastOne(int value) => value < 1 ? 1 : value;
 
   static List<int> normalizeBatchIds(List<int> ids) {

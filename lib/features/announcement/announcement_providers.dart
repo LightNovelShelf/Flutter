@@ -45,7 +45,6 @@ announcementCenterProvider =
 
 final FutureProviderFamily<AnnouncementItem, int> announcementDetailProvider =
     FutureProvider.family<AnnouncementItem, int>((ref, id) async {
-      // 非法 id 直接短路，避免拿一条无关公告糊弄用户。
       if (id <= 0) {
         throw const ApiError('公告地址无效。', ApiErrorCategory.unknown);
       }

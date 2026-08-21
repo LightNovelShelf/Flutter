@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 
-/// 精选星标用固定的琥珀色，不随主题走。
+/// 精选星标的固定琥珀色，不随主题变化。
 const Color communityFeaturedColor = Color(0xFFF59E0B);
 const Color _lockedBackground = Color(0xFFFEF3C7);
 const Color _lockedForeground = Color(0xFFB45309);
 
-/// 等宽数字：计数变化时不该让整行文字左右抖动。
+/// 等宽数字，避免计数变化时行内文字抖动。
 const TextStyle communityTabular = TextStyle(
   fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
 );
 
-/// 社区通用卡片：不投阴影，只有一条发丝边框。
+/// 社区通用卡片，无阴影，只有一条细边框。
 class CommunityCard extends StatelessWidget {
   const CommunityCard({
     super.key,
@@ -138,8 +138,8 @@ class CommunityFilterCaption extends StatelessWidget {
   }
 }
 
-/// 静态标签胶囊：版面用强调色，子分类/状态用中性色。
-/// `dense` 供回复行里的徽章用，padding 收紧一圈以免顶开单行文字。
+/// 静态标签胶囊，版面用强调色，子分类和状态用中性色。
+/// `dense` 收紧 padding，用于回复行内的徽章。
 class CommunityTagPill extends StatelessWidget {
   const CommunityTagPill({
     super.key,
@@ -191,7 +191,7 @@ class CommunityTagPill extends StatelessWidget {
 
 enum CommunityTagTone { accent, neutral, locked }
 
-/// 卡片形态的空/错误状态，夹在列表中间用。
+/// 卡片形态的空状态与错误状态，用于列表内部。
 class CommunityStateCard extends StatelessWidget {
   const CommunityStateCard({
     super.key,

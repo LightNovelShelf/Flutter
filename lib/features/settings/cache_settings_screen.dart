@@ -76,7 +76,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
     }
   }
 
-  /// 返回被删除的文件数量，供提示文案使用。
+  /// 删除阅读字体缓存目录，返回删除的文件数量。
   Future<int> _removeReaderFontCache() async {
     final temporary = await getTemporaryDirectory();
     final directory = Directory(

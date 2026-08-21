@@ -176,7 +176,7 @@ class AppSettings {
 
   static final RegExp _seedPattern = RegExp(r'^#[0-9A-Fa-f]{6}$');
 
-  /// 解码同时执行钳制/校验，写入路径也会走这里。
+  /// 解码时同时执行钳制与校验，写入路径也走此方法。
   static AppSettings decode(Map<String, dynamic> raw) {
     final scopes = raw['cleanChapterTitleScopes'];
     return AppSettings(

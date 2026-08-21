@@ -13,7 +13,7 @@ import 'package:lightnovel/features/discover/book_list_screen.dart';
 import 'package:lightnovel/features/discover/novel_series_books_screen.dart';
 import 'package:lightnovel/features/discover/widgets/novel_series_tile.dart';
 
-/// 全部小说的「单本 / 系列」切换：菜单换视图、系列卡片进系列内书籍。
+/// 全部小说列表的单本 / 系列视图切换。
 
 Map<String, dynamic> _book(int id, String title) => <String, dynamic>{
   'Id': id,

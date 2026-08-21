@@ -1,7 +1,6 @@
-// 原生阅读器的分页几何：纯数值变换，不碰 Flutter，测量层与渲染层共用一套翻页语义。
+// 分页几何：纯数值变换，测量层与渲染层共用一套翻页语义。
 
-/// 行高与块高都是测量出来的浮点数，逐段累加后与视口高度往往差出零点几像素；
-/// 放行 0.5 逻辑像素，免得每页最后一行被误判成溢出、被硬推到下一页。
+/// 累加测量高度的浮点误差容差，单位逻辑像素。避免每页最后一行被误判成溢出。
 const double _tolerance = 0.5;
 
 /// 翻页模式的页顶偏移表；`breaks` 升序去重，元素落在 (0, contentHeight] 区间。
@@ -10,15 +9,14 @@ List<double> paginateReaderContent({
   required double pageHeight,
   required List<double> breaks,
 }) {
-  // 还没测量到尺寸时也要给渲染层一页，否则页数为 0、翻页控件无从下手。
+  // 未测量到尺寸时也返回一页，否则页数为 0。
   if (contentHeight <= 0 || pageHeight <= 0) return const <double>[0];
 
   final pageTops = <double>[0];
   var top = 0.0;
   while (top < contentHeight - _tolerance) {
     final limit = top + pageHeight;
-    // 贪心取本页装得下的最后一个可断处；超高原子（整页插图）没有可断处时硬切一页，
-    // 页顶一定推进，避免死循环。
+    // 取本页装得下的最后一个断点；无断点时按页高硬切，保证页顶推进。
     final next = _lastBreakWithin(breaks, top, limit + _tolerance) ?? limit;
     if (next >= contentHeight - _tolerance) break;
     pageTops.add(next);
@@ -65,7 +63,7 @@ int readerPageIndexForOffset(List<double> pageTops, double offset) {
   return index;
 }
 
-/// 偏移处最靠上的可见块下标；块可能有间距，落在缝隙里取下一个块。
+/// 偏移处最靠上的可见块下标；偏移落在块间距内时取下一个块。
 int readerBlockIndexAtOffset({
   required List<double> blockTops,
   required List<double> blockBottoms,
@@ -73,7 +71,7 @@ int readerBlockIndexAtOffset({
 }) {
   if (blockBottoms.isEmpty) return 0;
   final limit = offset + _tolerance;
-  // 顶部留白与滚动回弹会给出小于首块 top 的偏移，进度必须落在首块而不是靠二分兜底。
+  // 顶部留白与滚动回弹会给出小于首块 top 的偏移，此时取首块。
   if (blockTops.isNotEmpty && limit < blockTops.first) return 0;
 
   var low = 0;
@@ -93,9 +91,7 @@ int readerBlockIndexAtOffset({
 
 /// 跨章翻页条：把相邻章的页首尾相接，摊平成一个全局页序。
 ///
-/// 只做下标换算，不认识章节本身——[T] 是调用方的章节表示，页数由 `pageCount` 取。
-/// 翻页视图靠它把「第几页」和「哪一章的第几页」互相翻译，跨章翻页因此只是走到
-/// 条上的下一页。
+/// 只做下标换算，[T] 是调用方的章节表示，页数由 `pageCount` 取。
 class ReaderPageStrip<T> {
   const ReaderPageStrip._(
     this.chapters,

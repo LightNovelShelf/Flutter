@@ -36,7 +36,7 @@ class UnavailableBookTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: colors.outlineVariant, width: 0.5),
               ),
-              // 这里的容器只画描边不裁剪，蒙层要自己裁到同样的圆角。
+              // DecoratedBox 只画描边不裁剪，蒙层需自行裁到同样的圆角。
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Stack(

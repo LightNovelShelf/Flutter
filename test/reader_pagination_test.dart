@@ -184,7 +184,7 @@ void main() {
       expect(empty.pages, 0);
       expect(empty.isEmpty, isTrue);
       expect(empty.locate(0), isNull);
-      // 还没接进条的章：页码原样返回，翻页条按单章处理。
+      // 未接入条的章按单章处理，页码原样返回。
       expect(empty.globalPageOf('本章', 2), 2);
     });
   });

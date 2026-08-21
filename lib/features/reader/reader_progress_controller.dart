@@ -8,8 +8,8 @@ import '../../data/api/models.dart';
 import '../../data/repositories/read_position_cache.dart';
 import 'reader_position.dart';
 
-/// 两个阅读器共用的阅读进度写入：合并防抖窗口内的上报、切章前提交快照、
-/// 退到后台时把在途的写落地。
+/// 两个阅读器共用的阅读进度写入：合并防抖窗口内的上报，切章前提交，退到后台时
+/// 落盘在途的写。
 class ReaderProgressController {
   ReaderProgressController({required ApiClient api, required int bookId})
     : _api = api,
@@ -26,7 +26,7 @@ class ReaderProgressController {
   late final DebouncedWriteQueue<ReaderRestorePosition> _queue;
   late final AppLifecycleListener _lifecycle;
 
-  /// 阅读中持续上报：先写进程内缓存，详情页/书架不必等服务端往返就能看到最新进度。
+  /// 阅读中持续上报。先写进程内缓存，详情页与书架无需等待服务端往返即可读到最新进度。
   void stage(int chapterId, String position) {
     ReadPositionCache.stage(
       _bookId,

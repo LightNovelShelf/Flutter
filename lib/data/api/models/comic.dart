@@ -103,8 +103,8 @@ class ComicInfo {
     );
   }
 
-  /// 归一化为 `BookDetail`，让详情页对小说/漫画使用同一套 UI。
-  /// 漫画章节的排序号由章节顺序推导（1..N），与阅读器的解析方式一致。
+  /// 归一化为 `BookDetail`，供详情页复用小说的 UI。
+  /// 漫画章节的排序号按章节顺序推导（1..N）。
   BookDetail toBookDetail() => BookDetail(
     id: id,
     type: BookType.comic,

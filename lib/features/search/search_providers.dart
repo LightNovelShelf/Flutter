@@ -51,7 +51,7 @@ class SearchHistoryController extends AsyncNotifier<List<String>> {
     return result;
   }
 
-  /// 写盘串行、不阻塞搜索；写失败不影响本次搜索，忽略即可。
+  /// 写盘串行且不阻塞搜索，失败忽略。
   void _persist(List<String> values) {
     final store = ref.read(appRuntimeProvider).keyValueStore;
     _writes
@@ -110,7 +110,7 @@ class BookSearchState {
       loadingMore = false,
       error = null;
 
-  /// 已提交的关键词；空表示还没搜过，此时展示历史。
+  /// 已提交的关键词，为空表示尚未搜索。
   final String query;
   final BookSearchMode mode;
   final bool comic;
@@ -178,7 +178,7 @@ class BookSearchController extends Notifier<BookSearchState> {
     return const BookSearchState.initial();
   }
 
-  /// 防抖：只提交最后一次输入，并取消在飞的请求。
+  /// 输入防抖，只提交最后一次输入并取消在途请求。
   void onInputChanged(String value) {
     _debounce?.cancel();
     final trimmed = value.trim();
@@ -209,7 +209,7 @@ class BookSearchController extends Notifier<BookSearchState> {
     _run(1);
   }
 
-  /// 详情页标签/系列跳过来时预置条件并立即搜。
+  /// 预置搜索条件并立即搜索，供详情页标签/系列跳转使用。
   void seed({
     required String query,
     required BookSearchMode mode,
@@ -259,8 +259,7 @@ class BookSearchController extends Notifier<BookSearchState> {
     final comic = state.comic;
     final mode = state.mode;
 
-    // 换关键词/切模式/切小说漫画都会重跑第一页：清空旧结果，让骨架接手，
-    // 否则会拿着上一次的结果干等新数据。
+    // 第一页重跑时清空旧结果，否则加载期间仍显示上一次的结果。
     state = page == 1
         ? state.copyWith(
             items: const <BookListItem>[],

@@ -5,8 +5,7 @@ import 'dart:typed_data';
 import '../../core/network/api_error.dart';
 import 'decode.dart';
 
-/// 信封失败位是全站唯一的「业务失败 → ApiError」判定点，
-/// SignalR 与裸 HTTP 两条链路都要走它，所以是公开的。
+/// 把信封的失败位转成 ApiError，SignalR 与裸 HTTP 两条链路共用。
 void throwIfFailed(Map<String, dynamic> envelope, String fallbackMessage) {
   final success = envelope['Success'] ?? envelope['success'];
   if (success != false) return;
@@ -53,8 +52,7 @@ Object? _decompress(Object? value) {
   }
 }
 
-/// 融合解码：`utf8.decoder.fuse(json.decoder)` 直接吃 UTF-8 字节，
-/// 省掉整份正文的 String 中间体。
+/// 融合解码器，直接从 UTF-8 字节解析 JSON，不产生中间 String。
 final Converter<List<int>, Object?> _utf8Json =
     const Utf8Decoder().fuse<Object?>(const JsonDecoder());
 

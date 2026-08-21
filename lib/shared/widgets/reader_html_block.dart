@@ -12,8 +12,7 @@ import 'image_preview.dart';
 
 /// 小说阅读器与社区正文共用的 HTML 块渲染器。
 ///
-/// 调用方决定滚动容器与排版预设；这里统一负责正文样式、图片占位、BlurHash、图片尺寸
-/// 回填和长按预览。社区使用固定滚动排版，小说阅读器则把这些块交给分页测量层。
+/// 调用方决定滚动容器与排版预设，本组件负责正文样式、图片占位、BlurHash、图片尺寸回填和长按预览。
 class ReaderHtmlBlock extends StatefulWidget {
   const ReaderHtmlBlock({
     super.key,
@@ -108,14 +107,14 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
 
   Widget _html() => HtmlWidget(
     _markup,
-    // 每块的 HTML 各不相同，缓存只会白占内存。
+    // 每块的 HTML 各不相同，缓存无收益。
     enableCaching: false,
     renderMode: RenderMode.column,
     textStyle: widget.style.textStyle,
     customStylesBuilder: (element) => widget.style.stylesFor(
       tag: element.localName,
       classes: element.classes,
-      // 只有 `<font size>` 会读属性，其余标签不必为此建表。
+      // 只有 `<font size>` 需要读属性，其余标签不建表。
       attributes: element.localName == 'font'
           ? <String, String>{
               for (final entry in element.attributes.entries)
@@ -171,7 +170,7 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
             child: image,
           )
         : image;
-    // 段落里夹着文字的图片必须留在行内，否则会把段落劈成两截。
+    // 段落里夹着文字的图片必须留在行内，否则段落会被断开。
     return siblingText.trim().isEmpty
         ? spaced
         : InlineCustomWidget(
@@ -267,7 +266,7 @@ class _ReaderBlockImageState extends State<_ReaderBlockImage> {
         info.image.height.toDouble(),
       );
       info.dispose();
-      // 缓存命中时回调可能发生在 build 中，延后上报避免当场 setState。
+      // 缓存命中时回调可能发生在 build 期间，延后上报避免同步 setState。
       if (synchronousCall) {
         scheduleMicrotask(() {
           if (mounted) widget.onResolved(url, size);

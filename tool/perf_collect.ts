@@ -49,7 +49,7 @@ let seq = 0;
 const pending = new Map<string, (value: RpcResult) => void>();
 
 ws.addEventListener("message", (ev: MessageEvent) => {
-	// VM Service JSON-RPC 响应；结构由协议保证，仅在此边界断言一次。
+	// VM Service JSON-RPC 响应，结构由协议保证，类型断言只在此边界做一次。
 	const msg = JSON.parse(String(ev.data)) as { id?: string; result?: RpcResult; error?: unknown };
 	const resolve = msg.id ? pending.get(msg.id) : undefined;
 	if (!msg.id || !resolve) return;
@@ -79,7 +79,7 @@ console.log("isolates:", isolates.map((i) => `${i.id}:${i.name}`).join(", "));
 
 await call("setVMTimelineFlags", { recordedStreams: ["Dart", "Embedder", "GC", "API"] });
 
-// 逐 widget/RenderObject 的 timeline 事件，不开的话只有 BUILD/LAYOUT/PAINT 三个粗粒度区间。
+// 逐 widget/RenderObject 的 timeline 事件，不开启时只有 BUILD/LAYOUT/PAINT 三个粗粒度区间。
 const TRACKING_EXTS = [
 	"ext.flutter.profileWidgetBuilds",
 	"ext.flutter.profileUserWidgetBuilds",
@@ -88,7 +88,7 @@ const TRACKING_EXTS = [
 	"ext.flutter.profilePlatformChannels",
 ] as const;
 
-// `--lean`：不开追踪。追踪每帧多发上百个事件，绝对 ms 会被抬高，只看帧率/掉帧率时用它。
+// `--lean` 关闭追踪：追踪每帧多发上百个事件会抬高绝对耗时，只看帧率或掉帧率时使用。
 const lean = process.argv.includes("--lean");
 
 async function enableTracking(): Promise<void> {
@@ -190,7 +190,7 @@ async function poll(): Promise<void> {
 		return;
 	}
 	const events = res.traceEvents ?? [];
-	// 原始事件先原样落盘，分析全部离线做，避免任何信息在采集期被丢掉。
+	// 原始事件原样落盘，分析离线进行，避免采集期丢失信息。
 	if (events.length > 0) {
 		appendFileSync(`${outDir}/raw_timeline.jsonl`, `${events.map((e) => JSON.stringify(e)).join("\n")}\n`);
 	}
@@ -262,7 +262,7 @@ async function dumpCpu(): Promise<void> {
 	console.log(`cpu dump: +${samples.length} samples (session ${cpuSamples})`);
 }
 
-// 1s 拉一次：ring buffer 容量有限，拉得勤才不丢事件。
+// ring buffer 容量有限，1s 拉一次避免丢事件。
 setInterval(() => void poll(), 1000);
 setInterval(() => void dumpCpu(), 3000);
 setInterval(() => void enableTracking(), 10_000);

@@ -20,7 +20,7 @@ final RegExp _repeatedBreak = RegExp(
 final RegExp _leadingBreak = RegExp(r'^\s*<br\s*\/?>', caseSensitive: false);
 final RegExp _trailingBreak = RegExp(r'<br\s*\/?>\s*$', caseSensitive: false);
 
-/// 简介预览：块级标签压成 `<br>`、去掉图片脚本，折叠高度里塞的才是纯文本行。
+/// 简介预览源：块级标签压成 `<br>`，去掉图片与脚本，折叠高度按纯文本行计算。
 String createHtmlPreviewSource(String html) {
   final flattened = html
       .replaceAll(_scriptOrStyle, '')
@@ -32,7 +32,7 @@ String createHtmlPreviewSource(String html) {
   return '<div class="html-preview-root">$flattened</div>';
 }
 
-/// 带 ruby 注音的简介不能按行高裁剪，注音会被切掉半截。
+/// 带 ruby 注音的简介不能按行高裁剪，否则注音被截断。
 final RegExp _rubyTag = RegExp(r'<ruby[\s>]', caseSensitive: false);
 
 bool htmlHasRuby(String html) => _rubyTag.hasMatch(html);
@@ -144,7 +144,7 @@ class BookHtmlContent extends StatelessWidget {
         'padding-left': '1.333em',
       };
 
-  /// 站内自造的 `em05`…`em30` 类名表示相对字号（跳过 em10）。
+  /// 站内 `em05`…`em30` 类名表示相对字号，跳过 em10。
   static double? _emScale(String className) {
     if (className.length != 4 || !className.startsWith('em')) return null;
     final value = int.tryParse(className.substring(2));

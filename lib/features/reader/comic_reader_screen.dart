@@ -97,7 +97,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
       _failedBatches.clear();
     });
     try {
-      // 章节列表只在首次进入时取一次；换章时服务端进度已不适用，直接从第一页开始。
+      // 章节列表只在首次进入时取一次，换章时服务端进度不适用，从第一页开始。
       final info = _chapters.isEmpty
           ? await ref.read(readerComicInfoProvider(widget.bookId).future)
           : null;
@@ -184,7 +184,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
     );
   }
 
-  /// 旧控制器要等这一帧的 widget 换掉之后再释放，否则仍挂在树上的列表会用到已释放的控制器。
+  /// 旧控制器在下一帧释放，否则仍挂在树上的列表会用到已释放的控制器。
   void _resetControllers(int page) {
     final previousPage = _pageController;
     final previousScroll = _scrollController?..removeListener(_onScroll);
@@ -257,7 +257,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
     }
   }
 
-  /// 当前页两侧优先取图，再沿阅读方向预取，翻页时几乎不会看到空白。
+  /// 当前页两侧优先取图，再沿阅读方向预取。
   Future<void> _prefetch() async {
     final plan = createComicPrefetchPlan(_page, _slots.length, _direction);
     for (final index in plan) {
@@ -267,8 +267,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
     for (final index in plan) {
       final image = _slots[index].image;
       if (image == null) continue;
-      // 必须和 `BookImage` 落到同一个尺寸档，否则 URL 与缓存键都对不上，
-      // 预取的字节一个字节都命不中。
+      // 必须和 `BookImage` 落到同一个尺寸档，否则 URL 与缓存键对不上，预取不会命中。
       final url = sizedImageUrl(
         image.url,
         logicalHeight: _pageHeight(index),
@@ -315,7 +314,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
       ? MediaQuery.sizeOf(context).width
       : _continuousWidth();
 
-  /// 整页高度。展示与预取都走这里，尺寸档才不会分叉。
+  /// 整页高度，展示与预取共用，避免尺寸档分叉。
   double _pageHeight(int index) => _pageWidth() * _aspect(index);
 
   double _offsetForPage(int page) {
@@ -451,7 +450,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
         child: _pageContent(index, size.width, size.width * _aspect(index)),
       ),
     );
-    // PhotoView 自己先吃掉子树里的点按，热区只能铺在它上面才拿得到。
+    // PhotoView 会先消费子树里的点按，热区必须铺在它上面。
     return Stack(
       children: <Widget>[
         Positioned.fill(child: gallery),
@@ -493,7 +492,6 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
     final settings = ref.watch(appSettingsProvider);
     final (:background, :foreground) = readerSurfaceColors(context, settings);
     final paged = settings.readerViewMode == ReaderViewMode.paged;
-    // 切换阅读模式时保留当前页码。
     if (_mode != settings.readerViewMode) {
       _mode = settings.readerViewMode;
       if (!_loading) {

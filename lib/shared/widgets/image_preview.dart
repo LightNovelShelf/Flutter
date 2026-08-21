@@ -19,7 +19,7 @@ Rect? globalRectOf(BuildContext context) {
   return object.localToGlobal(Offset.zero) & object.size;
 }
 
-/// 图片地址附带的 BlurHash 与原始尺寸；布局可在网络请求完成前占好空间。
+/// 图片地址附带的 BlurHash 与原始尺寸，用于在网络请求完成前占位。
 typedef ContentImageMetadata = ({String? blurHash, Size? size});
 
 ContentImageMetadata contentImageMetadata(String url) {
@@ -140,13 +140,12 @@ class ContentImage extends StatelessWidget {
   }
 }
 
-/// 预览的变换层：进入/退出/下拉的位移与缩放都落在它身上。
+/// 预览的变换层，承载进入、退出、下拉的位移与缩放。
 const Key imagePreviewTransformKey = Key('image-preview-transform');
 
-/// 全屏图片预览：从来源位置放大进入，退出时缩回原位；可捏合缩放、下拉关闭。
+/// 全屏图片预览：从来源位置放大进入，退出时缩回原位，支持捏合缩放与下拉关闭。
 ///
-/// [sourceRect] 是来源缩略图在屏幕上的矩形（[globalRectOf]）。缺省时退化成
-/// 居中的淡入淡出＋轻微缩放，仍然有过渡，不会像直接切页那样生硬。
+/// [sourceRect] 是来源缩略图在屏幕上的矩形（[globalRectOf]），缺省时改用居中的淡入淡出加轻微缩放。
 Future<void> showImagePreview(
   BuildContext context, {
   required String url,
@@ -173,7 +172,7 @@ class _ImagePreview extends StatefulWidget {
   final Rect? sourceRect;
   final Animation<double> animation;
 
-  /// 下拉超过这个距离（或够快）就关闭，未达到则弹回。
+  /// 下拉关闭的位移阈值（逻辑像素），未达到则弹回。
   static const double _dismissDistance = 120;
 
   @override
@@ -188,7 +187,7 @@ class _ImagePreviewState extends State<_ImagePreview>
     reverseCurve: Curves.easeInCubic,
   );
 
-  /// 松手后把拖拽位移弹回原位。
+  /// 松手后把拖拽位移弹回原位的控制器。
   late final AnimationController _settle = AnimationController(
     duration: const Duration(milliseconds: 220),
     vsync: this,
@@ -235,7 +234,7 @@ class _ImagePreviewState extends State<_ImagePreview>
     _settle.forward(from: 0);
   }
 
-  /// 进入时的缩放起点：贴住来源缩略图的尺寸。
+  /// 进入动画的缩放起点，按来源缩略图与屏幕的尺寸比算。
   double _beginScale(Size screen) {
     final rect = widget.sourceRect;
     if (rect == null || rect.isEmpty || screen.isEmpty) return 0.92;

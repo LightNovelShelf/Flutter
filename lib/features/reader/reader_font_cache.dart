@@ -11,15 +11,15 @@ import 'package:path_provider/path_provider.dart';
 import 'woff2.dart';
 import '../../data/api/endpoints.dart';
 
-/// 正文字形被服务端混淆过，只有配套的章节字体认得。WOFF2 一律先经 libwoff2 转成
-/// TTF，再整份注册进 Flutter 引擎，正文拿族名直接排版。
+/// 章节字体缓存。正文字形被服务端混淆，需配套字体才能正确显示；WOFF2 先经
+/// libwoff2 转成 TTF 再注册进 Flutter 引擎，正文按族名排版。
 class ReaderFontCache {
   const ReaderFontCache._();
 
   static const String _directoryName = 'reader-fonts';
   static final Map<String, Future<String>> _inflight =
       <String, Future<String>>{};
-  // 引擎里的字体注册无法撤销，重复注册纯属浪费，记下族名短路掉后续下载与磁盘读。
+  // 引擎的字体注册无法撤销，记下族名以跳过重复的下载与磁盘读取。
   static final Set<String> _registered = <String>{};
 
   /// 相对地址按 API 源站补全；空地址表示该章节不用字体。
@@ -48,8 +48,8 @@ class ReaderFontCache {
 
     final pending = _inflight[url];
     if (pending != null) return pending;
-    // 回调不能返回值：`Map.remove` 会把正在完成的那个 Future 返回出去，
-    // `whenComplete` 就会等自己，永久挂起。
+    // whenComplete 回调不能返回值，`Map.remove` 返回的正是当前 Future，
+    // 回调等待自身会永久挂起。
     final request =
         _load(
           url,
@@ -76,7 +76,7 @@ class ReaderFontCache {
       final cached = await file.readAsBytes();
       final prepared = await _prepare(cached);
       if (_isEngineFont(prepared)) {
-        // 旧缓存可能存的还是 WOFF2 原件，顺手回写转换结果，省掉下次解码。
+        // 旧缓存可能是 WOFF2 原件，回写转换结果避免下次重复解码。
         if (!identical(prepared, cached)) {
           await file.writeAsBytes(prepared, flush: true);
         }
@@ -142,7 +142,7 @@ class ReaderFontCache {
     return Isolate.run(() => decodeWoff2(bytes));
   }
 
-  /// WOFF1 没有原生解码路径，和认不出魔数一样只能当作不可用字体。
+  /// WOFF1 没有解码路径，与无法识别的魔数一样视为不可用字体。
   static bool _isEngineFont(List<int> bytes) => switch (_fontMime(bytes)) {
     'font/ttf' || 'font/otf' => true,
     _ => false,

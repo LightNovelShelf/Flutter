@@ -36,7 +36,7 @@ class ComicSeriesListItem {
     );
   }
 
-  /// 把漫画系列映射到通用书卡形状，让小说与漫画共用同一个网格卡片。
+  /// 转为通用书卡，与小说共用网格卡片。
   BookListItem toBookListItem() => BookListItem(
     id: id,
     type: BookType.comic,

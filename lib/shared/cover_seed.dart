@@ -6,10 +6,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/painting.dart';
 import 'package:material_color_utilities/material_color_utilities.dart';
 
-/// 从封面里取一个适合当主题种子的颜色。
+/// 从封面取一个适合当主题种子的颜色。
 ///
-/// 用的是 Material 3 自己的量化 + 打分算法（`QuantizerCelebi` + `Score`），
-/// 它挑的就是「适合做 seed」的颜色，比按 vibrant/dominant/muted 分档更贴近用途。
+/// 用 Material 3 的量化与打分算法（`QuantizerCelebi` + `Score`）挑选。
 Future<Color?> resolveCoverSeedColor(
   ImageProvider<Object> provider, {
   required Size size,
@@ -28,12 +27,10 @@ Future<Color?> resolveCoverSeedColor(
   }
 }
 
-/// `rawRgba` 是四字节一像素；全透明像素不参与统计。
-/// 所有颜色都不适合当 seed 时（例如纯灰阶封面），退回出现最多的那个，
-/// 而不是 `Score` 内置的 Google Blue 兜底色。
+/// `rawRgba` 四字节一像素，全透明像素不参与统计；所有颜色都不适合当 seed 时退回
+/// 出现最多的那个，而不是 `Score` 内置的兜底色。
 ///
-/// 量化是 k-means，96×144 的封面就有上万像素，整段跑在 [Isolate.run] 上：
-/// 入参是 [Uint8List]，出参只有一个 ARGB 整数。
+/// 量化是 k-means，整段放在 [Isolate.run] 上执行。
 Future<Color?> seedColorFromRawRgba(
   Uint8List bytes, {
   int maximumColorCount = 8,
@@ -45,7 +42,7 @@ Future<Color?> seedColorFromRawRgba(
 }
 
 Future<int?> _seedArgbFromRawRgba(Uint8List bytes, int maximumColorCount) async {
-  // 预分配到像素数上限，避免 growable List 一路扩容重分配。
+  // 预分配到像素数上限，避免 growable List 反复扩容。
   final packed = Uint32List(bytes.length ~/ 4);
   var count = 0;
   for (var i = 0; i + 3 < bytes.length; i += 4) {

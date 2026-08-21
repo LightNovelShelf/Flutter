@@ -38,7 +38,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _input.addListener(_syncInputState);
   }
 
-  /// 只有「空/非空」翻转才需要重建（清空按钮显隐）。
+  /// 仅在输入由空变非空或反之时重建，用于清空按钮显隐。
   void _syncInputState() {
     final hasInput = _input.text.isNotEmpty;
     if (hasInput == _hasInput) return;
@@ -88,7 +88,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final controller = ref.read(bookSearchProvider.notifier);
     final layout = BookGridLayout.of(MediaQuery.sizeOf(context).width);
 
-    // 详情页标签跳转直接改写 provider，输入框要跟上外部提交的关键词。
+    // 详情页标签跳转会直接改写 provider，输入框需同步外部提交的关键词。
     ref.listen<BookSearchState>(bookSearchProvider, (previous, next) {
       if (previous?.query == next.query) return;
       if (_input.text.trim() == next.query) return;

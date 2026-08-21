@@ -21,9 +21,8 @@ InputDecoration authFieldDecoration(
     filled: true,
     fillColor: colors.surfaceContainer,
     isDense: true,
-    // 高度只能由竖向内边距给：InputDecorator 按自己算出的容器高度画填充和边框，
-    // 外面套 SizedBox 只占位、撑不开。17 号字行高 26，配 13 的上下内边距正好 52；
-    // minHeight 兜底，字号放大时跟着长高而不是裁字。
+    // 高度只能由竖向内边距给，InputDecorator 按自身算出的容器高度绘制填充与边框，
+    // 外层 SizedBox 撑不开。17 号字行高 26 加上下各 13 得 52，minHeight 用于字号放大时兜底。
     contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
     constraints: const BoxConstraints(minHeight: 52),
     border: border,

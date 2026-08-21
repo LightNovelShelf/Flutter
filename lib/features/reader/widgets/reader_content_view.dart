@@ -12,8 +12,7 @@ import '../reader_position.dart';
 import 'reader_measure_box.dart';
 import 'reader_tap_zone.dart';
 
-/// 一章正文及其排版参数。章节字体各章不同（正文字形是逐章混淆的），
-/// 所以样式随章走，而不是整个阅读器共用一份。
+/// 一章正文及其排版参数。正文字形逐章混淆，字体各章不同，所以样式随章走。
 class ReaderChapterContent {
   const ReaderChapterContent({
     required this.sortNum,
@@ -27,7 +26,7 @@ class ReaderChapterContent {
 }
 
 /// 正文位置上报。`page`/`pages` 从 1 开始，滚动模式恒为 0。
-/// 跨章翻页时先于上层切章，因此必须自带 [sortNum]。
+/// 上报发生在上层切章之前，因此自带 [sortNum]。
 class ReaderContentPosition {
   const ReaderContentPosition({
     required this.sortNum,
@@ -44,21 +43,18 @@ class ReaderContentPosition {
   final int pages;
 }
 
-/// 某一页的绘制区域；高度就是该页实际占用的正文高度，末尾空白不在其内。
+/// 某一页的绘制区域，高度为该页实际占用的正文高度，不含末尾空白。
 Key readerPageBodyKey(int sortNum, int index) =>
     ValueKey<String>('reader-page-$sortNum-$index');
 
 /// 原生正文视图。
 ///
-/// 正文用 `HtmlWidget` 渲染，翻页与定位由 Flutter 侧完成：先把整章排在一个零尺寸的
-/// 测量层里，读出每个块的纵向区间与每一行的行顶，再按视口高度切页；翻页模式的每一页
-/// 只把落在该页区间的块按测量偏移摆进 `Stack` 并裁掉溢出，行的位置与测量层逐像素一致。
-/// 排版/视口/图片尺寸变化都会重新测量，并把阅读位置钉回当前 locator。
+/// 正文用 `HtmlWidget` 渲染，翻页与定位在 Flutter 侧完成：先把整章排进零尺寸的测量层，
+/// 读出每个块的纵向区间与每行行顶，再按视口高度切页；翻页模式的每一页只摆落在该页区间的块
+/// 并裁掉溢出。排版、视口、图片尺寸变化会重新测量，并把阅读位置定回当前 locator。
 ///
-/// 前后章一并预渲染：[previous]/[next] 各有自己的测量层，测完就把页接在当前章两端，
-/// 拼成一条连续的翻页条。跨章翻页因此只是走到条上的下一页——不重排、不加载、不闪屏，
-/// 落定后由 [onChapterChanged] 通知上层把窗口挪过去。相邻章还没备好时越界翻页仍走
-/// [onBoundary] 的加载流程。
+/// [previous]/[next] 各有自己的测量层，测完后接在当前章两端组成翻页条，跨章翻页即走到条上的
+/// 下一页，落定后由 [onChapterChanged] 通知上层平移窗口。相邻章未备好时越界翻页走 [onBoundary]。
 class ReaderContentView extends StatefulWidget {
   const ReaderContentView({
     super.key,
@@ -80,29 +76,29 @@ class ReaderContentView extends StatefulWidget {
 
   final ReaderChapterContent chapter;
 
-  /// 已预渲染好的相邻章；为空表示还没备好，跨章翻页退回加载流程。
+  /// 已预渲染的相邻章，为空表示未备好，跨章翻页退回加载流程。
   final ReaderChapterContent? previous;
   final ReaderChapterContent? next;
 
   final bool paged;
 
-  /// 正文四周留白：翻页模式下上下留白作用在每一页上。
+  /// 正文四周留白，翻页模式下上下留白作用在每一页上。
   final EdgeInsets padding;
 
   final String? restoreLocator;
   final double restoreProgression;
 
-  /// 上层要求重新定位（目录跳转、章节按钮）时自增：视图据此丢掉当前位置，
-  /// 改按 [restoreLocator]/[restoreProgression] 重新钉。翻页翻出来的切章不动它。
+  /// 上层要求重新定位（目录跳转、章节按钮）时自增，视图据此丢掉当前位置，
+  /// 改按 [restoreLocator]/[restoreProgression] 定位。翻页导致的切章不改动它。
   final int restoreToken;
 
   final ValueChanged<ReaderContentPosition> onPosition;
   final VoidCallback onTapCenter;
 
-  /// 翻页条走进了相邻章：上层把窗口挪过去，正文不重排。
+  /// 翻页条进入了相邻章，上层据此平移窗口，正文不重排。
   final ValueChanged<int> onChapterChanged;
 
-  /// 相邻章没备好时的越界翻页：交给上层翻章。
+  /// 相邻章未备好时的越界翻页，交给上层翻章。
   final ValueChanged<bool> onBoundary;
 
   /// 脚注锚点所在的章与脚注 id。
@@ -115,7 +111,7 @@ class ReaderContentView extends StatefulWidget {
   State<ReaderContentView> createState() => _ReaderContentViewState();
 }
 
-/// 一章在视图里的槽位：正文块、自己的测量层入口与测量结果。
+/// 一章在视图里的槽位，含正文块、测量层入口与测量结果。
 class _ChapterSlot {
   _ChapterSlot(this.content);
 
@@ -126,13 +122,13 @@ class _ChapterSlot {
   ReaderGeometry? geometry;
   List<double> pageTops = const <double>[0];
 
-  /// 排版参数变了、测量结果已经不作数。
+  /// 排版参数变化后测量结果失效。
   bool stale = true;
 
   int get sortNum => content.sortNum;
   int get pageCount => pageTops.length;
 
-  /// 换过样式的那一帧里正文块已重建、几何还是旧的，块数对不上就不能照它摆块。
+  /// 几何与当前正文块是否匹配。换样式那一帧正文块已重建而几何仍是旧的，块数对不上不能照它摆块。
   bool get renderable {
     final geometry = this.geometry;
     return geometry != null && geometry.blockTops.length == blockWidgets.length;
@@ -143,15 +139,14 @@ class _ReaderContentViewState extends State<ReaderContentView> {
   final List<_ChapterSlot> _slots = <_ChapterSlot>[];
   _ChapterSlot? _active;
 
-  /// 翻页条：当前章与两侧已测量好的章接成的全局页序。拖动期间冻结——
-  /// 前一章半路接进来会把当前页的全局下标整体挪走，手指底下就跳了。
+  /// 翻页条：当前章与两侧已测量的章接成的全局页序。拖动期间冻结，
+  /// 否则前一章中途接入会整体挪动当前页的全局下标。
   ReaderPageStrip<_ChapterSlot> _strip =
       const ReaderPageStrip<_ChapterSlot>.empty();
   bool _stripDirty = false;
   bool _scrolling = false;
 
-  /// 已经通知过上层、但窗口还没挪过来的那一章：`jumpTo` 与惯性收尾会连报几次
-  /// 落定，重复通知没有意义。
+  /// 已通知上层、窗口尚未平移的那一章。`jumpTo` 与惯性收尾会多次上报落定，用于去重。
   int? _notifiedChapter;
 
   Size _viewport = Size.zero;
@@ -159,7 +154,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
   ScrollController? _scrollController;
   PageController? _pageController;
 
-  /// 最近一次重排钉下的滚动偏移，控制器还没挂载时的上报靠它。
+  /// 最近一次重排定下的滚动偏移，控制器未挂载时的上报用它。
   double _installedOffset = 0;
 
   bool _measureScheduled = false;
@@ -188,7 +183,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     final known = _slotFor(widget.chapter.sortNum);
     if (known == null ||
         !identical(known.content.blocks, widget.chapter.blocks)) {
-      // 跳到窗口外的章节：正文全换，测量结果与位置一律作废。
+      // 跳到窗口外的章节，正文全换，测量结果与位置作废。
       _resetSlots();
       return;
     }
@@ -232,8 +227,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     _syncSlots();
   }
 
-  /// 按上层给的窗口重建槽位：同一章且正文没换的槽位连同测量结果一起留用，
-  /// 窗口平移（跨章翻页后）因此不会触发任何重排。
+  /// 按上层给的窗口重建槽位，同一章且正文未换的槽位连同测量结果留用。
   void _syncSlots() {
     final incoming = <ReaderChapterContent>[
       if (widget.previous != null) widget.previous!,
@@ -260,7 +254,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       }
       slots.add(slot);
     }
-    // 正在看的那一章优先：跨章翻页落定前上层还没切过来，别把位置拽回去。
+    // 优先保留正在看的那一章，跨章翻页落定前上层还没切章。
     final active = _active;
     _slots
       ..clear()
@@ -270,7 +264,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
         _slotFor(widget.chapter.sortNum);
   }
 
-  /// 上层要求重新定位：丢掉当前 locator，按新的恢复点把当前章钉回去。
+  /// 丢掉当前 locator，按新的恢复点重新定位当前章。
   void _restore() {
     _locator = '';
     _progression = widget.restoreProgression;
@@ -281,7 +275,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     if (geometry == null) return;
     _syncStrip();
     _installControllers(_anchorOffset(geometry, _viewport));
-    // didUpdateWidget 还在上层的 build 里，上报必须等这一帧画完。
+    // didUpdateWidget 处于上层的 build 中，上报要等这一帧画完。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _report(force: true);
     });
@@ -313,7 +307,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     });
   }
 
-  /// 相邻章的测量层要等当前章就绪后再挂：首屏只排一章，别被三章的排版拖慢。
+  /// 相邻章的测量层等当前章就绪后再挂，避免首屏一次排三章。
   bool _measurable(_ChapterSlot slot) => identical(slot, _active) || _ready;
 
   void _scheduleMeasure(Size viewport) {
@@ -325,7 +319,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     });
   }
 
-  /// 布局没就绪时再试一帧。`addPostFrameCallback` 自己不会催帧，得主动要一帧。
+  /// 布局未就绪时再试一帧。`addPostFrameCallback` 不会催帧，需要主动请求一帧。
   void _retryMeasure(Size viewport) {
     if (_measureAttempts++ >= 5) return;
     _scheduleMeasure(viewport);
@@ -349,8 +343,8 @@ class _ReaderContentViewState extends State<ReaderContentView> {
           ? collectReaderGeometry(root, slot.blockWidgets.length)
           : null;
       if (geometry == null) {
-        // 布局没就绪，或还有块没排完（异步 build 的正文），再等一帧；
-        // 重试有上限，免得空转掉帧。
+        // 布局未就绪，或仍有块没排完（正文异步 build），再等一帧。
+        // 重试有上限，避免空转掉帧。
         pending = true;
         continue;
       }
@@ -389,7 +383,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     widget.onReady();
   }
 
-  /// 重排后钉回当前 locator；首次进入才用上层给的进度。
+  /// 重排后定位回当前 locator，首次进入才用上层给的进度。
   double _anchorOffset(ReaderGeometry geometry, Size viewport) {
     final slot = _active;
     if (slot == null) return 0;
@@ -410,7 +404,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     return progression * math.max(0, geometry.height - viewport.height);
   }
 
-  /// 当前章与两侧已测量好的章接成翻页条。
+  /// 当前章与两侧已测量的章接成翻页条。
   void _syncStrip() {
     final active = _active;
     if (active == null || active.geometry == null) {
@@ -432,8 +426,8 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     );
   }
 
-  /// 翻页条变了（相邻章测好了、或窗口挪过）：重排页序并把控制器挪到同一页上。
-  /// 拖动期间只记脏，落定后再改，免得手指底下的页码原地平移。
+  /// 翻页条变化（相邻章测好、或窗口平移）后重排页序，并把控制器移到同一页上。
+  /// 拖动期间只记脏，落定后再改，避免手指下的页码原地平移。
   void _refreshStrip() {
     if (_scrolling) {
       _stripDirty = true;
@@ -463,14 +457,14 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     }
     _pageController?.dispose();
     _pageController = null;
-    // 控制器带着初始偏移新建，省掉「先挂载再 jumpTo」那一帧的跳动。
+    // 控制器带初始偏移新建，避免先挂载再 jumpTo 造成一帧跳动。
     _scrollController = ScrollController(initialScrollOffset: _installedOffset)
       ..addListener(_onScroll);
   }
 
-  /// 换控制器必须连 `PageView` 一起换（见 [_pagedContent] 的 key）：`Scrollable`
-  /// 认领新控制器时会把旧 position 的像素原样吸收过来，`initialPage` 形同虚设，
-  /// 前一章接进翻页条后页序整体后移，画面就会停在错位的那一页上。
+  /// 换控制器要连 `PageView` 一起换，见 [_pagedContent] 的 key。`Scrollable` 认领新控制器时
+  /// 会沿用旧 position 的像素，`initialPage` 不生效，前一章接入翻页条后页序整体后移，
+  /// 画面会停在错位的那一页上。
   void _installPageController() {
     _pageController?.dispose();
     _pageController = PageController(initialPage: _globalPage());
@@ -489,7 +483,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     return false;
   }
 
-  /// 翻页落定：迟到的翻页条改动补上，走进相邻章就通知上层挪窗口。
+  /// 翻页落定，补上挂起的翻页条改动，进入相邻章时通知上层平移窗口。
   void _settle() {
     if (_stripDirty) setState(_refreshStrip);
     final slot = _active;
@@ -509,13 +503,13 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     _report(force: true);
   }
 
-  /// 与旧 WebView 版本一致的 250ms 节流，尾巴上补一次，停下来的位置不会漏报。
+  /// 250ms 节流上报，末尾补一次，避免漏报停下来的位置。
   void _report({required bool force}) {
     final slot = _active;
     final geometry = slot?.geometry;
     if (slot == null || geometry == null || !mounted) return;
 
-    // locator 与进度先算准：跨章翻页后紧跟的重排要靠它把位置钉在新章上，
+    // 先算准 locator 与进度，跨章翻页后紧跟的重排要用它把位置定在新章上，
     // 节流只挡上报，不挡计算。
     final offset = _contentOffset(slot);
     final index = _locatorIndex(slot, geometry, offset);
@@ -556,8 +550,8 @@ class _ReaderContentViewState extends State<ReaderContentView> {
 
   /// 进度落在哪个块上。
   ///
-  /// 翻页模式下页顶那个块常常是从上一页跨过来的：进度要记在本页第一个整块上，
-  /// 否则按 locator 重开会退回上一页，报出去的位置也不再幂等。
+  /// 翻页模式下页顶的块常常跨自上一页，进度要记在本页第一个整块上，
+  /// 否则按 locator 重开会退回上一页，上报的位置也不幂等。
   int _locatorIndex(_ChapterSlot slot, ReaderGeometry geometry, double offset) {
     final index = readerBlockIndexAtOffset(
       blockTops: geometry.blockTops,
@@ -570,7 +564,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
         geometry.blockTops[candidate] < offset - 0.5) {
       candidate++;
     }
-    // 整块都挤不进本页（跨多页的长段/整页插图）时，仍以跨页那个块为准。
+    // 没有整块能放进本页（跨多页的长段、整页插图）时，仍以跨页的那个块为准。
     return candidate < geometry.blockTops.length &&
             geometry.blockTops[candidate] < offset + _viewport.height
         ? candidate
@@ -582,7 +576,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       return _pageIndex < slot.pageCount ? slot.pageTops[_pageIndex] : 0;
     }
     final controller = _scrollController;
-    // 控制器挂载前（重排后紧跟的那次上报）只有刚钉下的偏移可用，读 0 会把定位打回章首。
+    // 控制器挂载前（重排后紧跟的那次上报）只有刚定下的偏移可用，读 0 会把定位打回章首。
     if (controller == null || !controller.hasClients) return _installedOffset;
     return math.max(0, controller.offset);
   }
@@ -591,20 +585,20 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     final controller = _pageController;
     final target = _globalPage() + (next ? 1 : -1);
     if (controller == null || target < 0 || target >= _strip.pages) {
-      // 相邻章还没接进翻页条：交给上层走加载流程。
+      // 相邻章未接入翻页条，交给上层走加载流程。
       widget.onBoundary(next);
       return;
     }
-    // 直接跳页而不是动画：动画期间 PageView 的拖拽识别器会抢下一次点按（原本用来
-    // 停住惯性滚动），连点翻页就会丢一次。滑动翻页仍走 PageView 自己的动画。
+    // 直接跳页而非动画。动画期间 PageView 的拖拽识别器会抢走下一次点按（该点按用于停住
+    // 惯性滚动），连点翻页会丢一次。滑动翻页仍走 PageView 自己的动画。
     _applyPage(target);
     if (controller.hasClients) {
       // jumpTo 自带 start/end 通知，落定处理走 _onPageScroll。
       controller.jumpToPage(target);
       return;
     }
-    // 重排刚换过控制器、PageView 还没挂上就点了：`jumpToPage` 会撞 assert，
-    // 只能换一个带新初始页的控制器，由下一帧的 PageView 认领。
+    // 重排刚换过控制器、PageView 还没挂载时调 `jumpToPage` 会触发 assert，
+    // 改为换一个带新初始页的控制器，由下一帧的 PageView 认领。
     setState(_installPageController);
     _settle();
   }
@@ -623,11 +617,11 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       final active = _active;
       return Stack(
         children: <Widget>[
-          // 测量层：每章照正文宽度各排一遍，尺寸恒为 0、不绘制、不参与命中测试。
+          // 测量层：每章按正文宽度各排一遍，尺寸恒为 0，不绘制、不参与命中测试。
           //
-          // 每一层都要带 key：窗口挪动会增删测量层，而 Stack 的孩子没有 key 时按
-          // 下标配对——正文层会被拿去复用某个测量层的 element，`PageView` 连同它的
-          // 滚动位置一起重建，画面当场闪回 `initialPage` 那一页。
+          // 每一层都要带 key。窗口变动会增删测量层，Stack 的孩子没有 key 时按下标配对，
+          // 正文层会复用某个测量层的 element，`PageView` 连同滚动位置一起重建，
+          // 画面回到 `initialPage` 那一页。
           for (final slot in _slots)
             if (_measurable(slot))
               Positioned(
@@ -694,8 +688,8 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       return const SizedBox.shrink();
     }
     final top = slot.pageTops[index];
-    // 页底一律裁到下一页的页顶，而不是裁满一屏：装不下的那一行行顶就在视口之内，
-    // 按整屏画会把它的上半截留在页底，看着像最后一行印了两遍。
+    // 页底裁到下一页的页顶而非整屏高度，否则装不下的那一行行顶落在视口内，
+    // 上半截会留在页底。
     final bottom = index + 1 < slot.pageCount
         ? slot.pageTops[index + 1]
         : math.min(top + viewport.height, geometry.height);

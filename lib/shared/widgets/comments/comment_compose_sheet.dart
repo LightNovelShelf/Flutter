@@ -5,11 +5,10 @@ import '../../../data/api/api_client.dart';
 import '../../../data/providers.dart';
 import '../../../features/book/book_providers.dart';
 
-/// 底部发表弹窗；成功后刷新对应列表并返回 true。
+/// 底部发表弹窗，成功后刷新对应列表并返回 true。
 ///
-/// 这里刻意不走 `showDraggableSheet`：输入框要跟着键盘顶起来（viewInsets 内边距 +
-/// 内容高度自适应），而 `DraggableScrollableSheet` 固定占屏幕的某个比例，键盘弹起时
-/// 会把输入框压在软键盘底下。
+/// 不走 `showDraggableSheet`：输入框需要跟随键盘上移，而 `DraggableScrollableSheet` 固定占屏幕比例，
+/// 键盘弹起时会挡住输入框。
 Future<bool> showCommentComposeSheet(
   BuildContext context, {
   required CommentTarget target,

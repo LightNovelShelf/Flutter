@@ -43,7 +43,7 @@ class HistoryTabState {
 
   bool get hasMore => loadedPages < totalPages;
 
-  /// 首页没落地才铺骨架，翻页失败保留已有内容。
+  /// 首页尚未加载且无错误，此时展示骨架屏。
   bool get isInitialLoading => loadedPages == 0 && ids.isNotEmpty && error == null;
 
   HistoryTabState copyWith({
@@ -160,8 +160,7 @@ class HistoryController extends AsyncNotifier<HistoryState> {
     );
   }
 
-  /// 不是通用的按 id 合并：以请求的 id 顺序为准重排，
-  /// 并丢掉服务端没返回的 id（历史里的书可能已下架）。
+  /// 按请求的 id 顺序合并，服务端未返回的 id 丢弃（书可能已下架）。
   static List<BookListItem> _orderBySlice(
     List<BookListItem> existing,
     List<BookListItem> fetched,
@@ -212,7 +211,7 @@ class HistoryController extends AsyncNotifier<HistoryState> {
     }
   }
 
-  /// 触底加载：出错后停下，等用户显式重试。
+  /// 触底加载，出错后不再自动重试。
   Future<void> loadMore(HistoryTab which) async {
     if (state.value?.tab(which).error != null) return;
     await _appendPage(which);
@@ -227,7 +226,7 @@ class HistoryController extends AsyncNotifier<HistoryState> {
     await _appendPage(which);
   }
 
-  /// 下拉刷新：重拉索引，旧网格留到新数据落地；清空过程中忽略。
+  /// 下拉刷新，重拉索引；清空过程中直接返回。
   Future<void> reload() async {
     if (state.value?.clearing ?? false) return;
     _generation += 1;
@@ -235,7 +234,7 @@ class HistoryController extends AsyncNotifier<HistoryState> {
     await future;
   }
 
-  /// 清空阅读历史；失败时抛出，由界面提示。
+  /// 清空阅读历史，失败时抛出。
   Future<void> clear() async {
     final current = state.value;
     if (current == null || current.clearing) return;

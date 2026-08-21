@@ -10,14 +10,14 @@ import 'community_providers.dart';
 
 const int _notificationPageSize = 20;
 
-/// 通知列表：分页部分完全交给 [PagedListController]，只额外挂已读提交。
+/// 通知列表，在 [PagedListController] 的分页之上增加已读提交。
 class CommunityNotificationsController
     extends PagedListController<AppNotificationItem, void> {
   CommunityNotificationsController() : super(null);
 
   bool _disposed = false;
 
-  /// 一次只允许一笔已读提交，否则乐观翻转会和对账刷新打架。
+  /// 同时只允许一笔已读提交，否则乐观翻转会被对账刷新覆盖。
   bool _marking = false;
 
   bool get hasUnread => state.items.any((item) => !item.isRead);
@@ -63,7 +63,7 @@ class CommunityNotificationsController
     try {
       await ref.read(apiClientProvider).markNotifications(ids);
     } catch (_) {
-      // 服务端其实已提交，只是返回值解不出来，交给随后的对账。
+      // 返回值可能解析失败，但服务端已提交，以随后的对账为准。
     }
     if (_disposed) return;
     _marking = false;
@@ -80,7 +80,7 @@ class CommunityNotificationsController
         .toList(growable: false),
   );
 
-  /// 对账刷新：失败就沉默，页面上留着刚翻转好的乐观结果，不该再弹错误条。
+  /// 对账刷新，失败时清除错误并保留乐观结果。
   Future<void> _reconcile() async {
     await refresh();
     if (_disposed || state.error == null) return;

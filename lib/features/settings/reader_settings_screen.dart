@@ -61,7 +61,7 @@ class ReaderSettingsContent extends ConsumerWidget {
                 divisions: 15,
                 format: (value) => '${value.toStringAsFixed(1)} 倍',
                 onChanged: (value) => controller.update(
-                  // 滑块步进 0.1，先取整到一位小数再落库，免得浮点误差堆积。
+                  // 滑块步进 0.1，取整到一位小数后落库，避免浮点误差堆积。
                   (settings) => settings.copyWith(
                     readerLineHeight: (value * 10).roundToDouble() / 10,
                   ),

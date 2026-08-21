@@ -6,7 +6,7 @@ import '../../../shared/widgets/skeleton.dart';
 import '../../../shared/widgets/user_avatar.dart';
 import 'community_primitives.dart';
 
-/// 帖子卡片：社区首页、我的社区共用。
+/// 帖子卡片，社区首页与我的社区共用。
 class CommunityFeedCard extends StatelessWidget {
   const CommunityFeedCard({super.key, required this.item, required this.onTap});
 
@@ -268,7 +268,7 @@ class CommunityFeedCardSkeleton extends StatelessWidget {
   );
 }
 
-/// 帖子流底部的翻页态：加载中给骨架，失败给可重试的错误卡。
+/// 帖子流底部的翻页状态，加载中显示骨架，失败显示可重试的错误卡。
 class CommunityLoadMoreFooter extends StatelessWidget {
   const CommunityLoadMoreFooter({
     super.key,

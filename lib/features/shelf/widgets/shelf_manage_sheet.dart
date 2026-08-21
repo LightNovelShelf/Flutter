@@ -70,7 +70,7 @@ class ShelfManageSheet extends StatelessWidget {
 
   final List<ShelfManageCommand> commands;
 
-  /// 当前交互模式对应的命令，用于把该行标成「正在…」。
+  /// 当前交互模式对应的命令，该行显示为进行中状态。
   final ShelfManageCommand activeMode;
 
   static Future<ShelfManageCommand?> show(

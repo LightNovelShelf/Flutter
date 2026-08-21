@@ -21,7 +21,7 @@ class ShelfEditorState {
     this.saving = false,
   });
 
-  /// 非空表示正在编辑；保存或放弃后回到快照。
+  /// 非空表示正在编辑；为空时以服务端快照为准。
   final ShelfDraft? draft;
   final Set<String> selected;
   final ShelfMode mode;
@@ -48,7 +48,7 @@ class ShelfEditorState {
 /// 所以按编码后的路径分桶。
 String shelfEditorKey(List<String> parents) => jsonEncode(parents);
 
-/// 书架编辑状态机：所有草稿变更都在这里，界面只负责问用户与渲染。
+/// 书架编辑状态机，草稿的增删改都在这里完成。
 class ShelfEditorController extends Notifier<ShelfEditorState> {
   ShelfEditorController(this.arg);
 
@@ -137,7 +137,7 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
     );
   }
 
-  /// 编辑一律落在草稿上；校验失败只弹横幅，草稿不动。
+  /// 变更写入草稿，校验失败时只记录错误，草稿保持不变。
   void _applyMutation(ShelfDraft Function(ShelfDraft draft) apply) {
     final snapshot = ref.read(shelfProvider).value;
     if (snapshot == null || state.saving) return;
@@ -156,7 +156,7 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
 
   void setMode(ShelfMode mode) => state = state.copyWith(
     mode: mode,
-    // 离开多选或进入排序时清空选择，避免选中项跨模式残留。
+    // 避免选中项跨模式残留。
     selected: mode == ShelfMode.select ? null : const <String>{},
   );
 
@@ -199,7 +199,7 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
   }
 
   void createFolder(String name) {
-    // 服务端的书架结构里文件夹只有根层级，新建的一律落在根目录。
+    // 服务端的书架结构中文件夹只有根层级，新建文件夹落在根目录。
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     _applyMutation(
       (draft) => createShelfFolder(draft, id: id, title: name, now: _now()),
@@ -242,7 +242,7 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
     _clearSelection();
   }
 
-  /// 保存草稿；返回是否已写回服务端，提示由界面负责。
+  /// 保存草稿，返回是否已写回服务端。
   Future<bool> save() async {
     final draft = state.draft;
     if (draft == null || state.saving) return false;
@@ -262,7 +262,6 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
     }
   }
 
-  /// 放弃草稿；是否需要二次确认由界面判断。
   void discard() => state = ShelfEditorState(saving: state.saving);
 }
 

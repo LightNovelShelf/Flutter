@@ -3,8 +3,8 @@ import 'package:lightnovel/features/reader/reader_footnotes.dart';
 import 'package:lightnovel/features/reader/reader_html_blocks.dart';
 import 'package:lightnovel/features/reader/reader_position.dart';
 
-/// 服务端存的阅读进度就是一条 xpath（`//*/div[2]/p[76]`），Web 端与客户端必须算出
-/// 同一套路径，否则跨端续读会跳段。
+/// 服务端的阅读进度是一条 xpath（`//*/div[2]/p[76]`），客户端须与 Web 端算出同一
+/// 路径，否则跨端续读会跳段。
 const String _html =
     '<div><p>封面</p></div>'
     '<div>'
@@ -45,11 +45,11 @@ void main() {
         final source = before[findReaderBlockIndex(before, locator)];
         final target = after[findReaderBlockIndex(after, locator)];
         expect(target.locator, source.locator, reason: locator);
-        // 带脚注标记那段只多了统一锚点，正文本身没动。
+        // 带脚注标记的段落只多出统一锚点，正文不变。
         expect(_textOf(target), startsWith(_textOf(source)), reason: locator);
       }
 
-      // 注文连同被它清空的 `<ol>` 一起摘走，正文里不留空壳。
+      // 注文与随之清空的 `<ol>` 一并移除。
       expect(_textOf(before[3]), '注文');
       expect(before[3].locator, '//*/div[2]/ol[1]/li[1]');
       expect(processNovelFootnotes(_html).html, isNot(contains('<ol')));

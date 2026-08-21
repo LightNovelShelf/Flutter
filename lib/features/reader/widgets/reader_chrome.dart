@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../data/settings/app_settings.dart';
 
-/// 阅读器整屏的底/前景色。OLED 纯黑模式要真黑真白，深色主题的浅灰底在 OLED 上会发亮。
+/// 阅读器整屏的底色与前景色。OLED 纯黑模式用纯黑与纯白，深色主题的浅灰底在 OLED 上会发亮。
 ({Color background, Color foreground}) readerSurfaceColors(
   BuildContext context,
   AppSettings settings,
@@ -17,7 +17,7 @@ import '../../../data/settings/app_settings.dart';
   );
 }
 
-/// 阅读器悬浮工具栏：默认隐藏，点中间区域才出现，不挡正文。
+/// 阅读器悬浮工具栏，默认隐藏，点中间区域显示。
 class ReaderChrome extends StatelessWidget {
   const ReaderChrome({
     super.key,

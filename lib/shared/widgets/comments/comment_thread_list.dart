@@ -46,7 +46,7 @@ List<_CommentRow> _flatten(List<CommentItem> items) {
 }
 
 /// 评论列表，自带分页/骨架/空态/错误态。
-/// `header` 作为列表首项渲染（公告详情把正文塞这儿，整页共用一个滚动视图）。
+/// `header` 作为列表首项渲染，与列表共用一个滚动视图。
 class CommentThreadList extends ConsumerStatefulWidget {
   const CommentThreadList({
     super.key,

@@ -5,10 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_error.dart';
 import 'paged_list.dart';
 
-/// 分页列表通用状态机：refresh 保留旧数据，retry 清空重来，
-/// 每次请求带世代号，慢的旧响应一律丢弃。
+/// 分页列表通用状态机：refresh 保留旧数据，retry 清空重来。
+/// 每次请求带世代号，世代号过期的响应丢弃。
 ///
-/// 子类只需给出「怎么取一页」「怎么取 id」「订阅哪些依赖」。
+/// 子类实现取页、取主键与依赖订阅。
 abstract class PagedListController<T, Arg> extends Notifier<PagedList<T>> {
   PagedListController(this.arg);
 
@@ -29,7 +29,7 @@ abstract class PagedListController<T, Arg> extends Notifier<PagedList<T>> {
   /// 离开页面后的保活时长；null 表示随页面一起丢弃。
   Duration? get keepAliveFor => null;
 
-  /// 错误文案，子类可覆盖成本功能的措辞。
+  /// 错误文案，子类可覆盖。
   String describeError(Object error) => describeApiError(error);
 
   @override
@@ -71,7 +71,7 @@ abstract class PagedListController<T, Arg> extends Notifier<PagedList<T>> {
         totalPages: result.totalPages,
       );
     } catch (error) {
-      // 取消一定由更新的请求发起，收尾交给那个请求。
+      // 取消由更新的请求发起，状态收尾交给该请求。
       if (isCancellation(error) || _isStale(generation)) return;
       state = state.copyWith(
         loading: false,

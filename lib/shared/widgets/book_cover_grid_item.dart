@@ -95,7 +95,7 @@ class BookCoverGridItem extends StatelessWidget {
                       url: coverUrl,
                       displayHeight: coverHeight,
                       blurHash: coverPlaceholder,
-                      // 滚动中的高频封面细节需要更稳定的亚像素重采样。
+                      // 封面在滚动中缩放，需要更稳定的亚像素重采样。
                       filterQuality: FilterQuality.high,
                     ),
                     if (levelBadge != null)

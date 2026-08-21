@@ -1,26 +1,21 @@
 /// 图床按尺寸取图的客户端约定。
 ///
-/// 图床支持用 `height` 查询参数要一张缩放过的图，但只接受 256 的整倍数，其它值一律
-/// 无效并原样返回未缩放的图。档位高于图片自身高度时同样不生效。
-///
-/// 步进的意义是把同一张图的变体收敛成有限几档，客户端必须先量化再请求，直接把像素
-/// 高度塞进地址会让缓存彻底散掉。
+/// `height` 查询参数只接受 256 的整倍数，其它值无效并返回未缩放的图，档位高于
+/// 图片自身高度时同样不生效。请求前必须先量化，否则缓存键分散。
 library;
 
 /// 图床认可的高度步进。
 const int imageHeightStep = 256;
 
-/// 请求上限。再往上基本都超过图片自身高度、拿不到缩放版本，只会多出无用的档位。
+/// 请求上限，再往上通常超过图片自身高度、拿不到缩放版本。
 const int maxImageHeightRequest = 4096;
 
 /// 把逻辑高度按 DPR 折成物理像素，再就近取档。
 ///
-/// 客户端不再用 `memCacheHeight` 二次限制解码，所以这个档位是尺寸的唯一控制点 ——
-/// 它同时决定下载的字节数和解码后位图占的内存。
+/// 档位是尺寸的唯一控制点，同时决定下载的字节数和解码后位图占的内存。
 ///
-/// 就近而不是向上取整：站内封面本身就不算大，向上取整很容易整档跨过图片自身高度，
-/// 那样缩放不生效、白白拿回整张原图。就近取档最坏让图比显示区矮半档，`BoxFit` 补上
-/// 3~4% 的放大，肉眼无感。
+/// 取就近档而不是向上取整，否则容易跨过图片自身高度导致缩放不生效；代价是最坏
+/// 比显示区矮半档，由 `BoxFit` 放大补足。
 int imageHeightBucketFor(double logicalHeight, double devicePixelRatio) {
   final double physical = logicalHeight * devicePixelRatio;
   if (!physical.isFinite || physical <= 0) return imageHeightStep;
@@ -30,7 +25,7 @@ int imageHeightBucketFor(double logicalHeight, double devicePixelRatio) {
 
 /// 写入 `height` 查询参数，保留地址上已有的其它参数。
 ///
-/// 已存在 `height` 时就地替换，避免同一张图裂成两个缓存键。
+/// 已存在 `height` 时就地替换，避免同一张图产生两个缓存键。
 String withImageHeight(String url, int height) {
   if (url.isEmpty || height <= 0) return url;
   final int queryStart = url.indexOf('?');
@@ -55,7 +50,7 @@ String withImageHeight(String url, int height) {
   return '$url&height=$height';
 }
 
-/// 按显示尺寸取档并写进地址。展示与预取必须共用它，否则缓存键分叉、预取字节作废。
+/// 按显示尺寸取档并写进地址，展示与预取必须共用，否则预取的缓存键对不上。
 String sizedImageUrl(
   String url, {
   required double logicalHeight,

@@ -6,10 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lightnovel/shared/widgets/blurhash_image.dart';
 import 'package:lightnovel/shared/widgets/book_image.dart';
 
-/// 封面「BlurHash → 真实封面」过渡的结构不变量。
+/// 封面从 BlurHash 占位过渡到真实封面的结构约束。
 ///
-/// 占位层必须是缓存网络图的同级下层，并在真图淡入期间保持不透明，避免两层
-/// 同时淡出露出背景。
+/// 占位层是缓存网络图的同级下层，真图淡入期间保持不透明，否则两层同时淡出会露出背景。
 void main() {
   const String hash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj';
   const String url = 'https://img.example/cover.webp?placeholder=abc&t=sig';
@@ -62,7 +61,7 @@ void main() {
     expect(blurHashLayer(), findsOneWidget);
     expect(networkImageLayer(), findsOneWidget);
 
-    // 层序：占位层必须排在网络图之前，才能在淡入期间一直垫底。
+    // Stack 子节点顺序决定层序，占位层须排在网络图之前。
     final Stack stack = tester.widget<Stack>(
       find
           .ancestor(of: networkImageLayer(), matching: find.byType(Stack))
@@ -88,7 +87,7 @@ void main() {
     expect(image.fadeInDuration, const Duration(milliseconds: 200));
     // 180dp × dpr 3 = 540px，就近取档落到 512。
     expect(image.imageUrl, contains('height=512'));
-    // 解码尺寸不再由客户端限制：到手的字节已经是服务端缩好的。
+    // 字节已由服务端缩放，客户端不限制解码尺寸。
     expect(image.memCacheWidth, isNull);
     expect(image.memCacheHeight, isNull);
     final Widget rendered = image.imageBuilder!(
@@ -162,8 +161,8 @@ void main() {
     await tester.pump();
 
     final Image placeholder = tester.widget<Image>(blurHashLayer());
-    // 占位层不能跟着真图用 contain：16 宽的解码高度取整后比例有 1/16 的台阶，
-    // 信箱留白会让它比真图窄几个像素，淡入时边缘可见地跳一下。
+    // 占位层用 fill 而非 contain：16 宽解码的高度取整后宽高比有 1/16 台阶，
+    // contain 的留白会让它比真图窄几个像素。
     expect(placeholder.fit, BoxFit.fill);
     expect(placeholder.gaplessPlayback, isTrue);
     final BlurHashImage provider = placeholder.image as BlurHashImage;
@@ -233,7 +232,7 @@ void main() {
         home: Scaffold(
           body: Column(
             children: <Widget>[
-              // 详情页模糊底图：铺满、cover、不同淡入时长。
+              // 详情页模糊底图。
               SizedBox(
                 width: 400,
                 height: 280,
@@ -243,7 +242,7 @@ void main() {
                   fadeInDuration: Duration(milliseconds: 80),
                 ),
               ),
-              // 详情页主封面：100×150、默认参数。
+              // 详情页主封面。
               SizedBox(
                 width: 100,
                 height: 150,
@@ -264,7 +263,7 @@ void main() {
         .widgetList<CachedNetworkImage>(networkImageLayer())
         .toList();
     expect(images, hasLength(2));
-    // 布局尺寸、fit、淡入时长都不同，但只要显示高度同档，就是同一次请求。
+    // 显示高度同档即同一次请求，与布局尺寸、fit、淡入时长无关。
     expect(images[0].imageUrl, images[1].imageUrl);
     expect(images[0].cacheKey, images[1].cacheKey);
     expect(images[0].imageUrl, contains('height=512'));

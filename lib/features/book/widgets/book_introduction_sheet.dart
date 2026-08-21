@@ -4,7 +4,7 @@ import '../../../data/api/models.dart';
 import '../../../shared/widgets/app_sheet.dart';
 import 'book_html_content.dart';
 
-/// 详情页折叠简介的「展开」目标：整段简介另开一个可拖到全屏的抽屉。
+/// 在可拖到全屏的抽屉里展示完整简介。
 void showBookIntroductionSheet(BuildContext context, BookDetail detail) {
   showDraggableSheet<void>(
     context,

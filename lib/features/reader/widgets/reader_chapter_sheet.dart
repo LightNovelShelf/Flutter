@@ -77,7 +77,7 @@ const double _rowHeight = 58;
 class _ReaderChapterSheetState extends ConsumerState<_ReaderChapterSheet> {
   bool _scrolled = false;
 
-  /// 打开目录时直接定位到当前章节，长目录不必手动翻找。
+  /// 打开目录时滚动到当前章节。
   void _revealCurrent(int index) {
     if (_scrolled || index < 0) return;
     _scrolled = true;

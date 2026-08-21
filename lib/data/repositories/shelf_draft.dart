@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../api/models.dart';
 
-/// 书架草稿代数：纯同步函数，不碰网络与 Riverpod，方便直接单测。
+/// 书架草稿代数：纯同步函数，不依赖网络与 Riverpod。
 
 /// 书架快照：条目 + 已解析的书籍信息。
 @immutable
@@ -56,7 +56,7 @@ bool _sameParents(List<String> left, List<String> right) {
   return true;
 }
 
-/// 「书在书架里」的唯一判定，快照与草稿共用，避免各处重写谓词。
+/// 判断书籍是否在书架中，快照与草稿共用。
 bool shelfContainsBook(List<ShelfItem> items, int bookId) =>
     items.any((item) => item.isBook && item.bookId == bookId);
 

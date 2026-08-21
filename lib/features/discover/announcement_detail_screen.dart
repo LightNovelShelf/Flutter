@@ -31,7 +31,7 @@ class AnnouncementDetailScreen extends ConsumerWidget {
     } else {
       header = _ArticleError(
         message: describeApiError(detail.error!),
-        // 地址本身非法时重试没有意义。
+        // id 非法时重试无效。
         onRetry: id <= 0
             ? null
             : () => ref.invalidate(announcementDetailProvider(id)),
@@ -46,7 +46,7 @@ class AnnouncementDetailScreen extends ConsumerWidget {
             IconButton(
               tooltip: '写评论',
               icon: const Icon(Icons.edit_outlined),
-              // 弹窗成功后自己会刷新评论列表。
+              // 弹窗提交成功后自行刷新评论列表。
               onPressed: () =>
                   showCommentComposeSheet(context, target: target),
             ),

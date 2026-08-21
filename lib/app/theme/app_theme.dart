@@ -35,8 +35,8 @@ Color onAccentColor(Color accent) {
   return luminance > 186 ? Colors.black : Colors.white;
 }
 
-/// 按输入缓存主题实例。换新 `ThemeData` 对象会让 `AnimatedTheme` 判定主题变更，
-/// 把所有 `Theme.of` 依赖者标脏（含 indexedStack 里的离屏 tab），实测一次导航多 30~43ms。
+/// 按输入缓存主题实例。新建 `ThemeData` 会让 `AnimatedTheme` 判定主题变更，标脏所有
+/// `Theme.of` 依赖者（含 indexedStack 里的离屏 tab），实测一次导航多 30~43ms。
 typedef _ThemeKey = (Brightness, bool, String, bool, ColorScheme?);
 
 final Map<_ThemeKey, ThemeData> _themeCache = <_ThemeKey, ThemeData>{};
@@ -55,7 +55,7 @@ ThemeData buildAppTheme({
   );
   final ThemeData? cached = _themeCache[key];
   if (cached != null) return cached;
-  // 组合本就是个位数，配色改动会不断产生新键，设个上限。
+  // 配色改动会不断产生新键，超过上限就整体清空。
   if (_themeCache.length >= 8) _themeCache.clear();
   return _themeCache[key] = _buildAppTheme(
     brightness: brightness,

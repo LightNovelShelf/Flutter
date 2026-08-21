@@ -1,4 +1,4 @@
-/// 线上枚举与请求参数对象：与传输层无关，单独放一处避免夹在客户端方法中间。
+/// 线上枚举与请求参数对象，与传输层无关。
 enum BookSearchMode { fuzzy, exact, title, author, name, tags }
 
 enum BookListOrder { latest, newest, view }
@@ -11,7 +11,7 @@ extension BookListOrderWire on BookListOrder {
   };
 }
 
-/// 路由参数回解：未知取值交给调用点决定默认排序。
+/// 路由参数回解，未知取值返回 null。
 BookListOrder? bookListOrderFromWire(String? value) => switch (value) {
   'latest' => BookListOrder.latest,
   'new' => BookListOrder.newest,

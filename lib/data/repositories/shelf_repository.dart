@@ -8,7 +8,7 @@ import '../api/models.dart';
 import '../providers.dart';
 import 'shelf_draft.dart';
 
-/// 书架错误文案：草稿代数抛的 [ArgumentError] 本身就是给用户看的校验提示。
+/// 书架错误文案，草稿代数抛出的 [ArgumentError] 消息直接展示给用户。
 String describeShelfError(Object error, {String fallback = '书架暂时不可用。'}) {
   if (error is ArgumentError) return error.message?.toString() ?? fallback;
   return describeApiError(
@@ -103,7 +103,7 @@ class ShelfController extends AsyncNotifier<ShelfSnapshot?> {
     return operation;
   }
 
-  /// 没有缓存快照时回源查询，与 `bookInShelfProvider` 的同步判定刻意分工。
+  /// 没有缓存快照时回源查询。
   Future<bool> contains(int bookId) async {
     final snapshot = state.value;
     if (snapshot != null) return shelfContainsBook(snapshot.items, bookId);

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// 骨架屏占位块：全站统一的灰底圆角矩形。
-/// `widthFactor` 用于「占父级 x%」的文本行，与 `width` 二选一。
+/// `widthFactor` 按父级宽度的比例取宽，与 `width` 二选一。
 class SkeletonBox extends StatelessWidget {
   const SkeletonBox({
     super.key,

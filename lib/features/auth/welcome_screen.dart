@@ -10,7 +10,7 @@ import '../../data/api/models.dart';
 import '../../data/providers.dart';
 import 'widgets/auth_cover_mosaic.dart';
 
-/// 拼贴用的封面：最新书单前 6 本。失败就降级成骨架，不报错。
+/// 拼贴封面来源，取最新书单前 6 本。失败时降级为骨架，不报错。
 final FutureProvider<List<BookListItem>> welcomeCoversProvider =
     FutureProvider<List<BookListItem>>((ref) async {
   final BookListPage page =
@@ -35,7 +35,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     final double safeBottom = MediaQuery.paddingOf(context).bottom;
     final double mosaicHeight = (screen.height * 0.76).clamp(470.0, 670.0);
 
-    // 不在栈顶或系统要求减少动效时冻结跑马灯，别让它后台空转。
+    // 不在栈顶或系统要求减少动效时冻结跑马灯，避免后台空转。
     final bool isActive = (ModalRoute.of(context)?.isCurrent ?? true) &&
         !MediaQuery.disableAnimationsOf(context);
 

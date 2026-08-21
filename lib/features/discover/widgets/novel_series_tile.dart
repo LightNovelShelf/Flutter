@@ -5,7 +5,7 @@ import '../../../shared/layout/book_grid_layout.dart';
 import '../../../shared/widgets/book_image.dart';
 import '../../../shared/widgets/grid_tile_parts.dart';
 
-/// 小说系列卡片：与书卡同尺寸，封面取系列内最新一本，角标给出系列册数。
+/// 小说系列卡片，尺寸同书卡，封面取系列内最新一本，角标为系列册数。
 class NovelSeriesTile extends StatelessWidget {
   const NovelSeriesTile({
     super.key,
@@ -16,7 +16,7 @@ class NovelSeriesTile extends StatelessWidget {
 
   final NovelSeriesListItem series;
 
-  /// 封面区高度，交给图床按尺寸档取图。
+  /// 封面区高度，用于图床按尺寸档取图。
   final double coverHeight;
   final VoidCallback? onTap;
 

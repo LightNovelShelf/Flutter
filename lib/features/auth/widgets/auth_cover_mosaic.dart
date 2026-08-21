@@ -56,7 +56,7 @@ const List<_TrackSpec> _trackSpecs = <_TrackSpec>[
   ),
 ];
 
-/// 轨道叠放次序（z 分别为 1 / 3 / 2），中间那条画在最上层。
+/// 轨道绘制顺序，z 分别为 1 / 3 / 2，中间一条在最上层。
 const List<int> _paintOrder = <int>[0, 2, 1];
 
 const double _trackAngle = -13 * math.pi / 180;
@@ -65,8 +65,8 @@ const double _trackAngle = -13 * math.pi / 180;
 const int _booksPerTrack = 2;
 const int _repeatCount = 5;
 
-/// 欢迎页背景：三条 −13° 倾斜的竖向封面跑马灯。
-/// 没数据（加载中或失败）时整体降级成脉冲骨架，不展示错误。
+/// 欢迎页背景，三条 −13° 倾斜的竖向封面跑马灯。
+/// 无数据时降级为脉冲骨架，不展示错误。
 class AuthCoverMosaic extends StatefulWidget {
   const AuthCoverMosaic({
     super.key,
@@ -106,7 +106,7 @@ class _AuthCoverMosaicState extends State<AuthCoverMosaic>
     super.dispose();
   }
 
-  /// 只有骨架可见时才让脉冲动画空转。
+  /// 仅在骨架可见时运行脉冲动画。
   void _syncPulse() {
     final bool shouldRun = widget.books.isEmpty && widget.isActive;
     if (shouldRun) {
@@ -144,7 +144,7 @@ class _AuthCoverMosaicState extends State<AuthCoverMosaic>
           clipBehavior: Clip.hardEdge,
           children: <Widget>[
             for (final int index in _paintOrder)
-              // 给死宽高拿到紧约束，轨道才能高过可视区而不被 Stack 夹回去。
+              // 指定宽高得到紧约束，否则轨道高度会被 Stack 约束回可视区。
               Positioned(
                 left: _trackSpecs[index].leftRatio * width,
                 top: safeTop - 100,
@@ -205,7 +205,7 @@ class _MarqueeTrackState extends State<_MarqueeTrack>
       _marquee.repeat();
       _entrance.forward();
     } else {
-      // 非活动状态下直接停在入场结束帧，避免看到半透明的中间态。
+      // 非活动状态直接停在入场结束帧，避免停在半透明中间态。
       _entrance.value = 1;
     }
   }
@@ -238,7 +238,7 @@ class _MarqueeTrackState extends State<_MarqueeTrack>
     final double entranceOffset = widget.spec.movesDown ? 24 : -24;
 
     final Widget column = OverflowBox(
-      // 内容总高远超可视区，得解开纵向约束交给 ClipRect 裁。
+      // 内容总高超过可视区，解开纵向约束，由 ClipRect 裁剪。
       alignment: Alignment.topCenter,
       minHeight: 0,
       maxHeight: double.infinity,
@@ -271,7 +271,7 @@ class _MarqueeTrackState extends State<_MarqueeTrack>
               animation: Listenable.merge(<Listenable>[_marquee, _entrance]),
               builder: (BuildContext context, Widget? child) {
                 final double progress = (_marquee.value + widget.spec.phase) % 1.0;
-                // 向下滚动时内容从 −loop 平移到 0，循环处首尾同形，肉眼无跳变。
+                // 向下滚动时内容从 −loop 平移到 0，首尾同形以保证循环无跳变。
                 final double scroll = widget.spec.movesDown
                     ? (progress - 1) * loopDistance
                     : -progress * loopDistance;

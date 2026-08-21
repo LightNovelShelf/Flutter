@@ -164,8 +164,7 @@ extension ApiClientCatalog on ApiClient {
     }, decodeResolvableBookListItems);
   }
 
-  /// 超过单次上限的 id 串行分片取回：并发发出去只会被限流器排队，
-  /// 还会让失败时的部分结果更难解释。
+  /// 超过单次上限的 id 分片串行取回，并发发出只会被限流器排队。
   Future<List<BookListItem>> getBooksByIdsBatched(List<int> ids) async {
     if (ids.length <= ApiClient.batchIdLimit) return getBookListByIds(ids);
     final books = <BookListItem>[];

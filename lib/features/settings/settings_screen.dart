@@ -73,7 +73,7 @@ class SettingsScreen extends StatelessWidget {
           SliverAppBar(
             pinned: true,
             title: const Text('设置'),
-            // 设置页可能由深链直接进入，此时回退到发现页而不是留在空栈。
+            // 设置页可能由深链直接进入，无法回退时跳到发现页。
             leading: BackButton(
               onPressed: () =>
                   context.canPop() ? context.pop() : context.go('/discover'),

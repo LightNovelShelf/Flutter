@@ -134,8 +134,8 @@ NovelFootnoteProcessingResult processNovelFootnotes(
   );
 }
 
-/// 注文所在的 `<li>` 摘走后，包着它的 `<ol>` 往往就空了 —— 那是我们制造的空壳，
-/// 得连着收掉；源站本来就有的空节点不归这里管。
+/// 注文所在的 `<li>` 摘走后，若父级 `<ol>` 因此变空则一并删除。源站原有的空节点
+/// 不处理。
 List<_HtmlReplacement> _withNoteRemovals(
   String html,
   List<_HtmlElementRange> elements,
@@ -161,7 +161,7 @@ List<_HtmlReplacement> _withNoteRemovals(
     );
   }
 
-  // 被整段删掉的范围里再做替换会互相踩偏移；标记恰好落在里面时一并丢弃。
+  // 被整段删除的范围内再做替换会错位，落在其中的标记一并丢弃。
   bool covered(_HtmlReplacement item) => removals.values.any(
     (removal) =>
         removal.start <= item.start &&
@@ -190,7 +190,7 @@ _HtmlElementRange? _enclosingElement(
   return closest;
 }
 
-/// 把 [removals] 覆盖的片段挖掉后，[element] 还剩不剩画得出来的东西。
+/// 移除 [removals] 覆盖的片段后，[element] 是否还有可渲染内容。
 bool _isEmptiedBy(
   String html,
   _HtmlElementRange element,
@@ -400,7 +400,7 @@ String _applyHtmlReplacements(
   String html,
   List<_HtmlReplacement> replacements,
 ) {
-  // 从后往前替换，前面的偏移量才不会失效。
+  // 从后往前替换，否则前面的偏移会失效。
   final ordered = List<_HtmlReplacement>.of(replacements)
     ..sort((left, right) => right.start.compareTo(left.start));
   var output = html;

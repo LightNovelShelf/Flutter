@@ -19,7 +19,7 @@ const ReaderContentStyle _style = ReaderContentStyle(
   justify: false,
 );
 
-/// 每段都够长，确保一屏装不下、必须分成多页。
+/// 生成足够长的段落，使内容一屏放不下而分成多页。
 List<NovelReaderBlock> _blocks([int count = 40, String label = '第']) =>
     normalizeNovelBlocks(
       List<String>.generate(
@@ -71,7 +71,7 @@ class _Harness {
   List<NovelReaderBlock> get blocks => chapter.blocks;
   ReaderContentPosition get last => positions.last;
 
-  /// 上层收到 [ReaderContentView.onChapterChanged] 后该做的事：窗口整体挪一格。
+  /// 模拟上层在 [ReaderContentView.onChapterChanged] 之后把章节窗口平移一格。
   void shiftTo(int sortNum) {
     final target = sortNum == next?.sortNum ? next! : previous!;
     final forward = sortNum > chapter.sortNum;
@@ -131,7 +131,7 @@ const ReaderContentStyle _justifiedIndentedStyle = ReaderContentStyle(
   justify: true,
 );
 
-/// 翻页条上真正画出来的正文；测量层的同名文本不算。
+/// 翻页条内渲染的正文，排除测量层中的同名文本。
 Finder _pageText(String text) => find.descendant(
   of: find.byType(PageView),
   matching: find.byWidgetPredicate(
@@ -236,12 +236,12 @@ void main() {
     await tester.tapAt(const Offset(700, 300));
     await tester.pumpAndSettle();
 
-    // 第二页里那个段落被整体上移了「页顶偏移」这么多，段顶在屏幕上就是 12 - 偏移。
+    // 第二页的段落整体上移了页顶偏移，段顶的屏幕坐标为 12 减去该偏移。
     final paragraph = find
         .descendant(of: find.byType(PageView), matching: find.byType(RichText))
         .first;
     final pageTop = 12 - tester.getTopLeft(paragraph).dy;
-    // 行距由测试字体的实际度量决定，只能反推：段高 / 行数。
+    // 行距由测试字体的实际度量决定，只能用段高除以行数反推。
     final height = tester.getSize(paragraph).height;
     final advance = height / (height / (18 * 1.6)).round();
     final residue = pageTop % advance;
@@ -264,7 +264,7 @@ void main() {
     final paragraph = find
         .descendant(of: find.byType(PageView), matching: find.byType(RichText))
         .first;
-    // 下一页把段落整体上移了 pageTop；本页可见高度必须等于它，多一点就会重画那一行。
+    // 下一页把段落上移 pageTop，本页可见高度须与之相等，否则会重复渲染该行。
     final pageTop = 12 - tester.getTopLeft(paragraph).dy;
 
     expect(visible, closeTo(pageTop, 0.5));
@@ -273,8 +273,8 @@ void main() {
   testWidgets('重排后控制器还没挂上就点热区：照常翻页，不撞 assert', (tester) async {
     final harness = await _pump(tester);
 
-    // 改留白会重新测量并换掉 PageController；这一帧末尾只把状态标脏，
-    // PageView 要到下一帧才认领新控制器，此时点热区就会撞上未挂载的控制器。
+    // 改留白会重新测量并替换 PageController，本帧末尾只标脏，PageView 下一帧
+    // 才接管新控制器。这期间点热区会用到尚未挂载的控制器。
     final resized = _Harness(
       blocks: harness.blocks,
       paged: true,
@@ -346,7 +346,7 @@ void main() {
       const Offset(0, -400),
     );
     await tester.pumpAndSettle();
-    // 上报有 250ms 节流，滑动停下后还要让尾巴上那次补报跑掉。
+    // 上报有 250ms 节流，滑动停止后还需等待最后一次补报。
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(harness.last.progression, greaterThan(0));
@@ -461,7 +461,7 @@ void main() {
     expect(harness.last.page, 1);
     expect(_pageText('第3章第0段'), findsWidgets);
 
-    // 上层挪窗口：测量结果与正文块照旧留用，既不重新就绪也不退回旧章。
+    // 上层平移窗口后复用测量结果与正文块，不重新就绪也不退回旧章。
     harness.shiftTo(3);
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
@@ -517,7 +517,7 @@ void main() {
     expect(harness.last.sortNum, 2);
     expect(harness.last.page, page);
     expect(harness.last.locator, locator);
-    // 画出来的必须还是本章那一页：换控制器时页序整体后移过，别悄悄错位。
+    // 换控制器时页序整体后移，渲染的仍须是本章同一页。
     expect(find.byKey(readerPageBodyKey(2, 1)), findsOneWidget);
 
     await tester.tapAt(const Offset(100, 300));

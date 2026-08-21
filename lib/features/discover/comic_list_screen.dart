@@ -5,7 +5,7 @@ import '../../data/api/api_client.dart';
 import 'catalog_providers.dart';
 import 'widgets/book_grid.dart';
 
-/// 全部漫画：与全部小说同构，但不做内容过滤。
+/// 全部漫画列表，不做内容过滤。
 class ComicListScreen extends ConsumerStatefulWidget {
   const ComicListScreen({super.key});
 

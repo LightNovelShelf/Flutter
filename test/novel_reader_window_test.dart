@@ -11,7 +11,7 @@ import 'package:lightnovel/data/providers.dart';
 import 'package:lightnovel/data/settings/app_settings.dart';
 import 'package:lightnovel/features/reader/novel_reader_screen.dart';
 
-/// 预渲染窗口：小说阅读器只常驻当前章与前后各一章，跨章翻页直接吃预渲染的结果。
+/// 预渲染窗口：阅读器常驻当前章与前后各一章，跨章翻页复用预渲染结果。
 const int _bookId = 7;
 const int _totalChapters = 5;
 
@@ -48,7 +48,7 @@ class _FakeApi extends ApiClient {
         headers: () async => const <String, String>{},
       );
 
-  /// 相邻章的预渲染在真机上要等一次网络往返，跨章后才落地。
+  /// 单次请求的模拟延迟，用于模拟预渲染的网络往返。
   final Duration latency;
   final List<int> requested = <int>[];
   final List<(int, String)> saved = <(int, String)>[];
@@ -92,7 +92,7 @@ class _MemoryStore implements KeyValueStore {
   Future<void> delete(String key) async => values.remove(key);
 }
 
-/// 翻页条上真正画出来的正文；测量层里的同名文本不算。
+/// 翻页条内渲染的正文，排除测量层中的同名文本。
 Finder _pageText(String text) => find.descendant(
   of: find.byType(PageView),
   matching: find.byWidgetPredicate(
@@ -100,7 +100,7 @@ Finder _pageText(String text) => find.descendant(
   ),
 );
 
-/// 屏幕正中那一页的标识（`reader-page-<章>-<页>`）；没有任何一页盖住中线时返回 null。
+/// 屏幕中线所在页的 key（`reader-page-<章>-<页>`），无页覆盖中线时返回 null。
 String? _visiblePage(WidgetTester tester) {
   final centerX =
       tester.view.physicalSize.width / tester.view.devicePixelRatio / 2;
@@ -175,7 +175,6 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(_pageText('第2章第0段'), findsWidgets);
 
-    // 一路翻到本章末页，再往后一次就跨章。
     for (var turn = 0; turn < 40; turn++) {
       await tester.tapAt(const Offset(700, 300));
       await tester.pumpAndSettle();
@@ -184,16 +183,16 @@ void main() {
 
     expect(_pageText('第3章第0段'), findsWidgets);
     expect(find.byType(CircularProgressIndicator), findsNothing);
-    // 第 3 章只在预渲染时取过一次，跨章没有再发请求。
+    // 第 3 章仅预渲染时请求过一次。
     expect(api.requested.where((sortNum) => sortNum == 3), hasLength(1));
-    // 窗口挪过去后，新露出来的第 4 章补上预渲染。
+    // 窗口平移后预渲染第 4 章。
     expect(api.requested.toSet(), <int>{1, 2, 3, 4});
-    // 离开第 2 章时提交了它的进度。
+    // 102 是第 2 章的 id，离开该章时提交进度。
     expect(api.saved.map((entry) => entry.$1), contains(102));
   });
 
   testWidgets('往后跨章的每一帧都不许闪到别的页', (tester) async {
-    // 相邻章的预渲染要等一次网络往返：跨章之后才落地，正好压在翻页那几帧上。
+    // 加延迟使预渲染在跨章之后才落地，覆盖翻页的那几帧。
     await _open(tester, latency: const Duration(milliseconds: 300));
 
     final seen = <String>[];
@@ -216,7 +215,6 @@ void main() {
       (page) => page.startsWith('reader-page-3-'),
     );
     expect(crossing, greaterThan(0), reason: '没能翻进下一章：$seen');
-    // 前半段必须是本章逐页推进，后半段只能停在下一章首页。
     expect(seen.sublist(0, crossing), <String>[
       for (var page = 0; page < crossing; page++) 'reader-page-2-$page',
     ]);
@@ -224,7 +222,7 @@ void main() {
   });
 
   testWidgets('往前跨章的每一帧都不许闪到别的页', (tester) async {
-    // 反向翻章后窗口挪回去，更远的那一章半路才备好，会把翻页条整体往后顶。
+    // 反向跨章后窗口平移，更远那章中途才就绪并使翻页条整体后移。
     await _open(tester, sortNum: 3, latency: const Duration(milliseconds: 300));
 
     final seen = <String>[];
@@ -241,7 +239,7 @@ void main() {
     }
 
     expect(seen.first, 'reader-page-3-0');
-    // 跨过去之后必须一直停在上一章末页，中途接进来的更远那章不许把画面顶走。
+    // 跨章后应停在上一章末页，中途就绪的更远章节不改变当前页。
     expect(seen.sublist(1), isNotEmpty);
     expect(seen.sublist(1).toSet(), hasLength(1));
     expect(seen.last, startsWith('reader-page-2-'));

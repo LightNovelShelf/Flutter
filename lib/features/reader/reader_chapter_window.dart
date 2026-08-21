@@ -2,10 +2,9 @@ import 'package:flutter/foundation.dart';
 
 import 'reader_chapter_prerenderer.dart';
 
-/// 阅读器的章节窗口：当前章与前后各一章，都是已经预渲染好、可以直接排版的成品。
+/// 章节窗口：当前章与前后各一章，均已预渲染。
 ///
-/// 跨章翻页只是把窗口挪一格——刚离开的那一章留在对面继续当相邻章（往回翻依然无缝），
-/// 另一侧腾空，等预渲染把新露出来的那一章补上。窗口之外的章节一律不留。
+/// 跨章翻页把窗口平移一格，窗口外的章节不保留。
 @immutable
 class ReaderChapterWindow {
   const ReaderChapterWindow({this.previous, this.current, this.next});
@@ -34,7 +33,7 @@ class ReaderChapterWindow {
     return null;
   }
 
-  /// 挪到窗口里的另一章；目标不在窗口里时原样返回。
+  /// 移到窗口里的另一章；目标不在窗口里时原样返回。
   ReaderChapterWindow moveTo(int sortNum) {
     final target = at(sortNum);
     final leaving = current;
@@ -46,7 +45,7 @@ class ReaderChapterWindow {
         : ReaderChapterWindow(current: target, next: leaving);
   }
 
-  /// 备好的相邻章接进窗口；不挨着当前章的直接丢掉。
+  /// 把预渲染好的相邻章接进窗口，不与当前章相邻的丢弃。
   ReaderChapterWindow withNeighbor(ReaderPreparedChapter chapter) {
     final offset = current == null ? 0 : chapter.sortNum - current!.sortNum;
     return switch (offset) {
@@ -64,12 +63,12 @@ class ReaderChapterWindow {
     };
   }
 
-  /// 只留当前章：关掉预渲染时用。
+  /// 只保留当前章，关闭预渲染时用。
   ReaderChapterWindow get alone => current == null
       ? const ReaderChapterWindow.empty()
       : ReaderChapterWindow.only(current!);
 
-  /// 当前章两侧该预渲染的章号；[totalChapters] 为 0 表示还不知道总数。
+  /// 当前章两侧待预渲染的章号；[totalChapters] 为 0 表示总数未知。
   List<int> neighborSortNums(int totalChapters) {
     final sortNum = current?.sortNum;
     if (sortNum == null) return const <int>[];

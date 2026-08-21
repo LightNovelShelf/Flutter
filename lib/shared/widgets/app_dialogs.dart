@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// 全站统一的对话框与轻提示入口。任何界面都不该再手写 `AlertDialog` 骨架。
+/// 全站统一的对话框与轻提示入口。
 
 Future<void> showAppAlert({
   required BuildContext context,
@@ -116,12 +116,12 @@ Future<T?> showAppChoice<T extends Object>({
   ),
 );
 
-/// 轻提示：同一时间只留一条，连续操作不会排队堆积。
+/// 轻提示，同一时间只保留一条。
 void showAppSnackBar(BuildContext context, String message) =>
     ScaffoldMessenger.of(context).showText(message);
 
 extension AppSnackBarMessenger on ScaffoldMessengerState {
-  /// await 之后 `context` 可能已失效，先拿到 messenger 再调这个。
+  /// await 之后 `context` 可能已失效，先取 messenger 再调用。
   void showText(String message) {
     hideCurrentSnackBar();
     showSnackBar(SnackBar(content: Text(message)));

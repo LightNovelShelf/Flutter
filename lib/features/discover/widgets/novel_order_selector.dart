@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../data/api/api_client.dart';
 
-/// 小说列表的排序切换：平铺、按系列、系列内书籍三处共用同一组选项。
+/// 小说列表的排序切换，平铺、按系列、系列内书籍三处共用。
 class NovelOrderSelector extends StatelessWidget {
   const NovelOrderSelector({
     super.key,

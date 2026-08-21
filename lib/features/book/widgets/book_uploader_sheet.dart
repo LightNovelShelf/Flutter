@@ -4,8 +4,7 @@ import '../../../data/api/models.dart';
 import '../../../shared/widgets/app_sheet.dart';
 import '../../../shared/widgets/user_avatar.dart';
 
-/// 上传者名片。内容只有两三行，用自适应高度的普通底部弹窗即可，
-/// 套 `showDraggableSheet` 反而会强行占满大半屏。
+/// 上传者名片，用自适应高度的底部弹窗。`showDraggableSheet` 会占满大半屏。
 void showBookUploaderSheet(BuildContext context, BookDetailUser? user) {
   showModalBottomSheet<void>(
     context: context,

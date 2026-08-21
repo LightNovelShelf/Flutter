@@ -21,7 +21,7 @@ class _RankingScreenState extends ConsumerState<RankingScreen> {
   @override
   void initState() {
     super.initState();
-    // 初值取自设置，之后只作为页面内的局部状态，不写回设置。
+    // 初值取自设置，之后仅作页面局部状态，不写回设置。
     _period = ref.read(appSettingsProvider).homeRankType;
   }
 

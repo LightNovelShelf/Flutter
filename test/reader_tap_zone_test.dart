@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightnovel/features/reader/widgets/reader_tap_zone.dart';
 
-/// 三处热区（小说分页、漫画分页、漫画连续）合并成同一层后，翻页方向的回归护栏。
+/// 小说分页、漫画分页、漫画连续三种热区的翻页方向。
 void main() {
   const size = Size(300, 600);
 

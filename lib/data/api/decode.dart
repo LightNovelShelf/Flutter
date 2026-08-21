@@ -15,7 +15,7 @@ Map<String, dynamic>? asRecordOrNull(Object? value) {
   return null;
 }
 
-/// 可选的嵌套对象：缺失时给空表，省掉每个调用点的 `?? const {}`。
+/// 可选的嵌套对象，缺失时返回空表。
 Map<String, dynamic> asRecordOrEmpty(Object? value) =>
     asRecordOrNull(value) ?? const <String, dynamic>{};
 
@@ -62,7 +62,7 @@ bool asBool(Object? value, [bool? fallback]) {
   throw const ApiError('服务端返回了无效的布尔字段。', ApiErrorCategory.server);
 }
 
-/// 服务端给 ISO8601 字符串；解析失败回落到当前时间，别让一个坏字段挂掉整页。
+/// 服务端给 ISO8601 字符串，解析失败时回落到当前时间。
 DateTime asDate(Object? value) {
   final text = asString(value);
   return DateTime.tryParse(text)?.toLocal() ?? DateTime.now();
@@ -91,7 +91,7 @@ List<T> decodeOptionalList<T>(
   return asArray(value, name).map(decode).toList();
 }
 
-/// 码位 → base83 数位；非法字符是 -1。每条书目都要校验一次 BlurHash。
+/// 码位到 base83 数位的查表，非法字符为 -1。
 final List<int> _base83Digits = () {
   final table = List<int>.filled(128, -1);
   for (var i = 0; i < blurHashBase83.length; i++) {
@@ -105,7 +105,7 @@ int _base83DigitAt(String value, int index) {
   return code < 128 ? _base83Digits[code] : -1;
 }
 
-/// 不是完整可用的 BlurHash 就返回 null。
+/// 不是完整可用的 BlurHash 时返回 null。
 String? normalizeBlurHash(Object? value) {
   if (value is! String || value.length < 6) return null;
   for (var i = 0; i < value.length; i++) {
@@ -125,7 +125,7 @@ class _RawQueryValue {
   final int valueEnd;
 }
 
-/// 从原始 URL 文本里取查询值：封面 placeholder 带未转义的 base83 字符
+/// 从原始 URL 文本里取查询值。封面 placeholder 含未转义的 base83 字符
 /// （`+`、`#`），标准 URL 解析会破坏它们。
 _RawQueryValue? _extractRawQueryValue(String rawUrl, String key) {
   final queryStart = rawUrl.indexOf('?');
@@ -156,7 +156,7 @@ _RawQueryValue? _extractRawQueryValue(String rawUrl, String key) {
 String? extractBlurHashPlaceholder(String value) =>
     normalizeBlurHash(_extractRawQueryValue(value, 'placeholder')?.value);
 
-/// 修复旧封面 URL：未转义的 `#` 会把后续签名参数变成 fragment。
+/// 修复旧封面 URL，未转义的 `#` 会把后续签名参数变成 fragment。
 String normalizeCoverUrl(String value) {
   final placeholder = _extractRawQueryValue(value, 'placeholder');
   if (placeholder == null || !placeholder.rawValue.contains('#')) return value;
@@ -166,11 +166,11 @@ String normalizeCoverUrl(String value) {
       value.substring(placeholder.valueEnd);
 }
 
-/// 计数字段一律非负且有上限：服务端偶尔回负数或超大值，直接渲染会撑破布局。
+/// 计数字段钳到非负且有上限，服务端偶尔返回负数或超大值。
 int asCount(Object? value, [int fallback = 0]) =>
     asInt(value, fallback).clamp(0, 1 << 30);
 
-/// 封面原串同时承载地址与 BlurHash 占位，两者永远成对解出。
+/// 封面原串同时含地址与 BlurHash 占位，一次解出两者。
 ({String url, String? placeholder}) decodeCover(Object? value) {
   final raw = asString(value);
   return (url: normalizeCoverUrl(raw), placeholder: extractBlurHashPlaceholder(raw));

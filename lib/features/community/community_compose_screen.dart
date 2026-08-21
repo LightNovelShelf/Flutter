@@ -8,7 +8,7 @@ import '../../data/providers.dart';
 import 'community_providers.dart';
 import 'widgets/community_primitives.dart';
 
-/// 正文里允许保留的标签，其余字符一律转义。
+/// 正文里允许保留的标签，其余字符转义。
 const List<String> _allowedTags = <String>[
   'strong',
   'em',
@@ -48,7 +48,7 @@ String buildCommunityContentHtml(String text) {
         .replaceAll('&lt;$tag&gt;', '<$tag>')
         .replaceAll('&lt;/$tag&gt;', '</$tag>');
   }
-  // 块级标签必须独立成段，被 <p> 包住就是非法嵌套。
+  // 块级标签必须独立成段，被 <p> 包住是非法嵌套。
   final normalized = restored
       .replaceAllMapped(_blockOpenOnOwnLine, (match) => '\n\n${match[1]}')
       .replaceAllMapped(_blockCloseOnOwnLine, (match) => '${match[1]}\n\n');
@@ -242,7 +242,7 @@ class _CommunityComposeScreenState
     }
   }
 
-  /// 把选中的文字包进标签，没选区就对当前行生效。
+  /// 把选中文字包进标签，无选区时作用于当前行。
   void _wrapSelection(String open, String close) {
     final value = _body.value;
     final text = value.text;
@@ -353,7 +353,7 @@ class _CommunityComposeScreenState
                           ),
                           selected: option.key == _boardKey,
                           onTap: () => setState(() {
-                            // 分类属于具体版面，切版面就得清空。
+                            // 分类属于具体版面，切版面后清空。
                             _boardKey = option.key;
                             _subCategoryKey = '';
                           }),

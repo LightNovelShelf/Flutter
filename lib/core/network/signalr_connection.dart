@@ -26,8 +26,8 @@ enum SignalRState { disconnected, connecting, connected, reconnecting }
 
 /// 精简版 SignalR Hub 客户端（JSON 协议 + WebSocket + skipNegotiation）。
 ///
-/// 服务端 JSON、MessagePack 两种协议都挂着；选 JSON：`byte[]` 以 base64 返回，
-/// 配合 `UseGzip` 就能拿到压缩响应体，Dart 侧不必实现 MessagePack。
+/// 服务端同时挂着 MessagePack 协议，选 JSON 是因为 `byte[]` 以 base64 返回，配合
+/// `UseGzip` 即可拿到压缩响应体，无需在 Dart 侧实现 MessagePack。
 class SignalRConnection {
   SignalRConnection({
     required this.endpoint,

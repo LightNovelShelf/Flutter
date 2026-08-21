@@ -5,7 +5,7 @@ import '../../../shared/widgets/app_sheet.dart';
 import '../../../shared/widgets/html/reader_content_style.dart';
 import '../../../shared/widgets/image_preview.dart';
 
-/// 脚注弹层。注文与正文共用章节混淆字体，字体族名必须一路传到这里。
+/// 脚注弹层。注文与正文共用章节混淆字体，需要传入字体族名。
 Future<void> showReaderFootnoteSheet(
   BuildContext context, {
   required String html,
@@ -61,7 +61,7 @@ class _ReaderFootnoteSheet extends StatelessWidget {
                   classes: element.classes,
                   attributes: const <String, String>{},
                 );
-                // 注文是独立成段读的，段间要有喘息，列表也得让出项目符号的位置。
+                // 注文按段落阅读，补段间距；列表补左内边距容纳项目符号。
                 return switch (element.localName) {
                   'p' => <String, String>{...?styles, 'margin': '0 0 0.8em'},
                   'ol' || 'ul' => <String, String>{

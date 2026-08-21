@@ -38,7 +38,7 @@ extension ApiClientCommunity on ApiClient {
         'ThreadId': threadId,
         'ReplyPage': page,
         'ReplySize': ApiClient.atLeastOne(replySize),
-        // 只有翻到第一页才算一次真实浏览，翻页不该反复加计数。
+        // 只有第一页计入浏览量，翻页不重复累加。
         'TrackView': trackView ?? page == 1,
       },
       CommunityThreadDetail.decodeNullable,

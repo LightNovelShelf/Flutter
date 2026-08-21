@@ -10,7 +10,7 @@ BookType? _decodeBookType(Object? value) {
   return null;
 }
 
-/// `BookType` 的线上表示：同样按服务端枚举名发送，名字比序号更抗重排。
+/// `BookType` 的线上表示，按服务端枚举名发送。
 extension BookTypeWire on BookType {
   String get wire => switch (this) {
     BookType.novel => 'Novel',
@@ -72,7 +72,7 @@ class BookListItem {
     final cover = decodeCover(book['Cover']);
     return BookListItem(
       id: asInt(book['Id']),
-      // 未知 Type 在列表里按小说渲染：兜底写在调用点，别再和详情页的 null 语义分叉。
+      // 未知 Type 在列表里按小说渲染。
       type: _decodeBookType(book['Type']) ?? BookType.novel,
       title: asString(book['Title']),
       seriesTitle: asNullableString(book['SeriesTitle']),
@@ -108,7 +108,7 @@ class BookListPage {
   }
 }
 
-/// 列表接口既可能直接回数组，也可能包一层分页壳。
+/// 列表接口可能直接返回数组，也可能包一层分页对象。
 List<dynamic> _rawBookListItems(Object? value) => value is List
     ? value
     : asArray(asRecordOrEmpty(value)['Data'], '书籍列表数据');

@@ -1,7 +1,6 @@
 import 'reader_html_text.dart';
 
-/// 把服务端 HTML 拆成可独立排版的块：纯字符串变换，不碰 Flutter，
-/// 小说阅读器与社区正文共用同一套分块语义。
+/// 把服务端 HTML 拆成可独立排版的块，小说阅读器与社区正文共用同一套分块语义。
 
 /// 归一化后的最小渲染单元；`locator` 就是服务端保存的阅读进度字符串。
 class NovelReaderBlock {
@@ -95,7 +94,7 @@ final RegExp _blockTagPattern = RegExp(
 );
 
 /// 把服务端 HTML 归一化成稳定的渲染单元。
-/// 不改一个字：分块文本必须与渲染出来的正文逐字一致，否则保存的定位会漂。
+/// 分块文本必须与渲染出来的正文逐字一致，否则保存的定位会漂。
 List<NovelReaderBlock> normalizeNovelBlocks(String html) {
   final source = removeNonContentHtml(html);
   final nodes = _parseHtmlBlockNodes(source);
@@ -112,9 +111,9 @@ List<NovelReaderBlock> normalizeNovelBlocks(String html) {
       : <NovelReaderBlock>[_createNovelBlock('//*', fallback)];
 }
 
-/// 清掉所有正文场景都不应显示的 HTML，再按结构拆成可独立排版的块。
+/// 移除正文场景不应显示的 HTML，再按结构拆成可独立排版的块。
 ///
-/// 不执行小说专属的脚注转换、定位生成或混淆字体加载。
+/// 不做小说专属的脚注转换、定位生成或混淆字体加载。
 List<String> splitContentHtmlBlocks(String html) {
   final source = removeNonContentHtml(html);
   final nodes = _parseHtmlBlockNodes(source);
@@ -213,6 +212,6 @@ bool _isStandaloneImageContainer(_BlockNode node, String source) {
       .replaceAll(anyTagPattern, ' ')
       .replaceAll(nbspPattern, '')
       .replaceAll(whitespacePattern, '');
-  // 纯图片的父节点是作者编排的图组，保留父节点才不丢排版属性与图片顺序。
+  // 纯图片的父节点是图组，保留父节点以保住排版属性与图片顺序。
   return text.isEmpty;
 }

@@ -44,8 +44,8 @@ class AuthenticationSnapshot {
 final RegExp _emailPattern =
     RegExp(r'^\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*$', caseSensitive: false);
 
-/// 认证状态机：登录 / 注册 / 刷新 / 登出，凭据写入串行化，
-/// revision 用于丢弃被新操作取代的旧结果。
+/// 认证状态机：登录、注册、刷新、登出。凭据写入串行化，revision 用于丢弃被新
+/// 操作取代的旧结果。
 class AuthController extends ChangeNotifier {
   AuthController({
     required ApiClient api,

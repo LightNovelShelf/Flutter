@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// 4 位验证码输入：真正的输入框透明覆盖在 4 个格子上方，点击任意处均可聚焦。
+/// 4 位验证码输入，透明输入框覆盖在 4 个格子上方，点击任意处聚焦。
 class VerificationCodeField extends StatefulWidget {
   const VerificationCodeField({
     super.key,
@@ -117,7 +117,7 @@ class _VerificationCodeFieldState extends State<VerificationCodeField>
               builder: (context, _) => _buildSlots(context),
             ),
             Positioned.fill(
-              // 透明输入框覆盖在格子上层：命中测试仍然生效，负责真正的键盘输入。
+              // Opacity 为 0 仍参与命中测试，实际键盘输入由该输入框接收。
               child: Opacity(
                 opacity: 0,
                 child: TextField(

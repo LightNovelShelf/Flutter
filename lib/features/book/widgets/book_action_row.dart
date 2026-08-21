@@ -4,8 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../shared/format.dart';
 import '../book_providers.dart';
 
-/// 书架按钮 + 开始/继续阅读。书架是乐观切换，状态都在 [shelfToggleProvider]，
-/// 这里只负责派发。
+/// 书架按钮与开始/继续阅读按钮。书架状态在 [shelfToggleProvider]。
 class BookActionRow extends ConsumerWidget {
   const BookActionRow({
     super.key,
@@ -18,7 +17,7 @@ class BookActionRow extends ConsumerWidget {
   final int bookId;
   final BookDetailBundle bundle;
 
-  /// 当前阅读到的章节下标，`-1` 表示还没读过。
+  /// 当前阅读到的章节下标，`-1` 表示未读。
   final int currentIndex;
   final void Function(int sortNum) onRead;
 

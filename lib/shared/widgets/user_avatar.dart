@@ -29,7 +29,6 @@ class _UserAvatarState extends State<UserAvatar> {
   @override
   void didUpdateWidget(covariant UserAvatar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 地址换了就再给网络图一次机会。
     if (oldWidget.url != widget.url && _failed) _failed = false;
   }
 
@@ -64,7 +63,7 @@ class _UserAvatarState extends State<UserAvatar> {
         height: size,
         child: url.isEmpty || _failed
             ? fallback
-            // 头像不走图床，没有尺寸参数可用，只能整张取。
+            // 头像不走图床，没有尺寸参数，只能取原图。
             : CachedNetworkImage(
                 imageUrl: url,
                 cacheManager: appImageCacheManager,

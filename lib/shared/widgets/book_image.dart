@@ -8,12 +8,10 @@ import 'blurhash_image.dart';
 import '../image_cache.dart';
 import '../image_sizing.dart';
 
-/// 站内图片统一入口（封面、漫画整页）：BlurHash 占位 → 网络图淡入；失败自动重试
-/// 一次并提供手动重试。
+/// 站内图片统一入口（封面、漫画整页）：BlurHash 占位、网络图淡入，失败自动重试一次并提供手动重试。
 ///
-/// 占位层始终铺在网络图下面，等网络图完全不透明才被盖住。交给
-/// `CachedNetworkImage.placeholder` 的话，它会边淡入边把占位层淡出，中途两层
-/// 都半透明，背景透上来就是一次可见的闪烁。
+/// 占位层是 Stack 里常驻网络图下方的一层，交给 `CachedNetworkImage.placeholder` 会边淡入边淡出、
+/// 中途露底闪烁。
 class BookImage extends StatefulWidget {
   const BookImage({
     super.key,
@@ -31,9 +29,8 @@ class BookImage extends StatefulWidget {
 
   final String url;
 
-  /// 图片在布局里占据的高度（逻辑像素）。必填：按 DPR 折算后取 256 的档位，作为
-  /// `height` 查询参数向图床要对应尺寸的图。解码尺寸不再由客户端二次限制 ——
-  /// 到手的字节已经是服务端缩好的。
+  /// 图片在布局里占据的高度（逻辑像素）。按 DPR 折算后取 256 的档位，作为 `height` 查询参数
+  /// 向图床索取对应尺寸的图。
   final double displayHeight;
 
   final String? blurHash;
@@ -56,21 +53,18 @@ class BookImage extends StatefulWidget {
 
   static const double _coverAspectRatio = 1.5;
 
-  /// Android 用 C++ 查表解码，避免在 UI isolate 里逐像素计算余弦。16 像素宽仍能
-  /// 覆盖 4×3 分量 hash 的有效频率。
+  /// BlurHash 解码宽度（像素），16 足以覆盖 4×3 分量 hash 的有效频率。
   static const int blurHashWidth = 16;
 
-  /// 高度只按图片比例算，不另设上限：长条漫画页比例能到十几，截断会让占位层
-  /// 明显比真图矮。512 是 [decodeBlurHash] 的硬上限，只作兜底。
+  /// BlurHash 解码高度上限（像素），取 [decodeBlurHash] 的硬上限作兜底，实际高度按图片比例算。
   static const int _blurHashMaxHeight = 512;
   static const int _revealedCapacity = 256;
 
-  /// 进程级已展示过的图片，命中后跳过淡入动画（滚回去、翻回去不再重播）。
-  /// `LinkedHashSet` 保序，命中时重新插入即为 LRU。
+  /// 进程级已展示过的图片，命中后跳过淡入动画。`LinkedHashSet` 保序，命中时重新插入即为 LRU。
   static final LinkedHashSet<String> _revealed = LinkedHashSet<String>();
 
-  /// 缓存键剥掉 `placeholder` 与 `t`：两者都不影响图片字节，同一张图从不同接口拿到
-  /// 的地址可能带不同参数（甚至没有），带进键里就会重复下载、重复占容量。
+  /// 缓存键剥掉 `placeholder` 与 `t`，两者不影响图片字节，同一张图从不同接口拿到的参数不同，
+  /// 带进键里会重复下载。
   static String cacheKeyFor(String url) {
     final Uri? uri = Uri.tryParse(url);
     if (uri == null) return url;
@@ -78,8 +72,8 @@ class BookImage extends StatefulWidget {
         Map<String, String>.of(uri.queryParameters)
           ..remove('placeholder')
           ..remove('t');
-    // `replace(queryParameters: null)` 是「保持原查询」而不是清空，空查询只能自己构造；
-    // 顺带把 fragment 丢掉。
+    // `replace(queryParameters: null)` 表示保持原查询而不是清空，空查询只能自己构造，
+    // 同时丢掉 fragment。
     return Uri(
       scheme: uri.scheme,
       userInfo: uri.userInfo,
@@ -109,7 +103,7 @@ class _BookImageState extends State<BookImage> {
     }
   }
 
-  /// 记录已展示过的图片。放在帧后执行：build 期间不改全局状态。
+  /// 记录已展示过的图片，放在帧后执行，避免在 build 期间修改全局状态。
   void _markRevealed(String cacheKey) {
     if (BookImage._revealed.contains(cacheKey)) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -122,7 +116,7 @@ class _BookImageState extends State<BookImage> {
     });
   }
 
-  /// ImageProvider 走 ImageCache，同一个 hash 只解一次；像素由本机查表解码。
+  /// ImageProvider 走 ImageCache，同一个 hash 只解码一次。
   Widget _placeholder(BuildContext context) {
     final String? blurHash = widget.blurHash;
     final ColorScheme colors = Theme.of(context).colorScheme;
@@ -137,13 +131,11 @@ class _BookImageState extends State<BookImage> {
               .round()
               .clamp(1, BookImage._blurHashMaxHeight),
         ),
-        // 必须 fill：解码尺寸只有 16 宽，高度取整后比例是 1/16 的台阶
-        //（还会被 _blurHashMaxHeight 截断），跟真图对不齐。用真图的 fit 会按这个
-        // 量化后的比例做信箱留白，占位层就比真图窄/矮几个像素，淡入时边缘跳一下。
-        // 拉伸一张模糊图没有视觉代价，铺满整个盒子才是对的。
+        // 必须 fill：解码宽度只有 16，高度取整后比例是 1/16 的台阶，用真图的 fit 会按这个
+        // 量化比例留出信箱边，占位层比真图窄或矮几个像素。
         fit: BoxFit.fill,
         gaplessPlayback: true,
-        // 解码完成前铺容器底色，而不是包默认的蓝灰色。
+        // 解码完成前铺容器底色，否则显示包默认的蓝灰色。
         frameBuilder: (context, child, frame, _) => frame == null
             ? ColoredBox(color: colors.surfaceContainerHighest)
             : child,
@@ -172,8 +164,7 @@ class _BookImageState extends State<BookImage> {
     } else {
       url = widget.url;
     }
-    // `cacheKeyFor` 只剥 `placeholder`/`t`，`height` 保留在键里 —— 每档一份缓存，
-    // 正是 256 步进要的效果。
+    // `height` 保留在缓存键里，每个尺寸档一份缓存。
     final String cacheKey = BookImage.cacheKeyFor(url);
     final bool wasRevealed = BookImage._revealed.contains(cacheKey);
 
@@ -193,7 +184,7 @@ class _BookImageState extends State<BookImage> {
             width: double.infinity,
             height: double.infinity,
             fadeInDuration: wasRevealed ? Duration.zero : widget.fadeInDuration,
-            // 占位层由外层 Stack 负责，这里不能再淡出一层，否则中途露底。
+            // 占位层由外层 Stack 负责，不能再淡出一层，否则中途露底。
             fadeOutDuration: Duration.zero,
             placeholder: (context, _) => const SizedBox.expand(),
             imageBuilder: (context, provider) {

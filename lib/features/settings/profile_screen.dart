@@ -35,7 +35,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      // 有缓存时再拉一次，保证经验值与签到状态最新；冷启动交给 provider。
+      // 已有缓存时重新拉取，保证经验值与签到状态最新。
       if (ref.read(profileProvider).hasValue) {
         ref.read(profileProvider.notifier).reload();
       }
@@ -105,7 +105,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         message: _errorMessage(error, '请重试。'),
       );
     } finally {
-      // 退出后路由守卫会卸载本页，mounted 判断兼容两种结果。
+      // 退出后路由守卫可能已卸载本页，故判断 mounted。
       if (mounted) setState(() => _signingOut = false);
     }
   }

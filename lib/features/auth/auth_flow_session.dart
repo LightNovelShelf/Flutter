@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-/// 注册流程草稿：跨越「填写资料 → 验证码」两个页面。
+/// 注册流程草稿，跨填写资料与验证码两个页面。
 @immutable
 class RegistrationDraft {
   const RegistrationDraft({
@@ -30,8 +30,8 @@ class PasswordResetDraft {
       PasswordResetDraft(email: email, code: code);
 }
 
-/// 认证流程的内存草稿。**绝不持久化**：里面存着明文密码，
-/// 进程重启后草稿消失，页面靠 guard 退回流程起点。
+/// 认证流程的内存草稿，存有明文密码，不持久化。
+/// 进程重启后草稿丢失，页面由 guard 退回流程起点。
 class AuthFlowSession {
   AuthFlowSession._();
 

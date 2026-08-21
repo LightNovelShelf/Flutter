@@ -12,17 +12,17 @@ import '../../shared/paging/paged_list.dart';
 
 const int communityPageSize = 6;
 
-/// 「所有版面」伪版块的 key，服务端不返回时客户端补齐。
+/// 合成版块「所有版面」的 key，服务端不返回时由客户端补齐。
 const String communityAllBoardKey = 'all';
 
-/// 发帖须知的确认标记，只认一次。
+/// 发帖须知确认标记的存储键。
 const String communityPostNoticeKey = 'community_post_notice_accepted_v1';
 
 int communityFeedItemId(CommunityFeedItem item) => item.id;
 
 int communityReplyId(CommunityThreadReply reply) => reply.id;
 
-/// 服务端图标名 → Material 图标，未命中就拿版块标题的关键字猜。
+/// 服务端图标名映射到 Material 图标，未命中时按版块标题关键字推断。
 IconData resolveCommunityBoardIcon(String icon, String title) {
   final normalized = icon
       .toLowerCase()
@@ -62,7 +62,7 @@ IconData resolveCommunityBoardIcon(String icon, String title) {
   return Icons.forum_outlined;
 }
 
-/// 网络层错误直接透出服务端消息，其余归一成社区文案。
+/// [ApiError] 透出服务端消息，其余错误返回 [fallback]。
 String describeCommunityError(Object error, {String fallback = '社区暂时不可用。'}) {
   if (error is ApiError) {
     return error.message.trim().isEmpty ? fallback : error.message;
@@ -70,7 +70,7 @@ String describeCommunityError(Object error, {String fallback = '社区暂时不�
   return fallback;
 }
 
-/// 服务端没有「所有版面」时补一个合成项，统计沿用首页的今日主题数。
+/// 服务端未返回「所有版面」时补一个合成项，今日主题数取首页统计。
 List<CommunityBoardSummary> buildCommunityBoardOptions(
   CommunityHomePayload payload,
 ) {
@@ -90,7 +90,7 @@ List<CommunityBoardSummary> buildCommunityBoardOptions(
   ];
 }
 
-/// 最近一次成功的社区首页数据；排行榜页只读它，不再发请求。
+/// 最近一次成功的社区首页数据，排行榜页直接读取。
 class CommunityHomeCache extends Notifier<CommunityHomePayload?> {
   @override
   CommunityHomePayload? build() => null;
@@ -174,7 +174,7 @@ class CommunityHomeState {
 
 /// 首屏取整页数据，之后的筛选/翻页只取帖子流。
 class CommunityHomeController extends Notifier<CommunityHomeState> {
-  /// 筛选切换后骨架至少停这么久，命中缓存时不至于闪一下。
+  /// 筛选切换后骨架的最短展示时长，避免命中缓存时闪烁。
   static const Duration _minSkeleton = Duration(milliseconds: 300);
 
   int _generation = 0;
@@ -192,7 +192,7 @@ class CommunityHomeController extends Notifier<CommunityHomeState> {
 
   ApiClient get _api => ref.read(apiClientProvider);
 
-  /// 已有数据就不重复拉取，切回标签页不该刷掉当前筛选结果。
+  /// 已有数据时不重复拉取，保留当前筛选结果。
   Future<void> ensureLoaded() {
     if (state.home != null || state.loading) return Future<void>.value();
     return load();
@@ -274,7 +274,7 @@ class CommunityHomeController extends Notifier<CommunityHomeState> {
       query: next,
       feed: const <CommunityFeedItem>[],
       feedPage: CommunityPagination.empty,
-      // 切版面立刻清空分类，`all` 直接收起分类行而不是留占位骨架。
+      // 切版面时清空分类，`all` 没有分类行，不显示占位骨架。
       subCategories: boardChanged
           ? const <CommunitySubCategorySummary>[]
           : state.subCategories,

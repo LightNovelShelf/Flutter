@@ -67,7 +67,7 @@ String describeApiError(
   );
 }
 
-/// 页面切换、筛选变更会主动取消在途请求；取消可能被包在 [ApiError.cause] 里。
+/// 判断是否为取消，取消异常可能被包在 [ApiError.cause] 里。
 bool isCancellation(Object error) =>
     error is RequestCancelledError ||
     (error is ApiError && error.cause is RequestCancelledError);
