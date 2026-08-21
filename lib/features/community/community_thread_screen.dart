@@ -210,8 +210,9 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
     // 互动失败是一次性提示，靠 noticeTag 区分同一句文案的第二次失败。
     ref.listen<CommunityThreadState>(_provider, (previous, next) {
       final notice = next.notice;
-      if (notice == null || next.noticeTag == (previous?.noticeTag ?? 0))
+      if (notice == null || next.noticeTag == (previous?.noticeTag ?? 0)) {
         return;
+      }
       showAppSnackBar(context, notice);
     });
 
