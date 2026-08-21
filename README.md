@@ -1,6 +1,6 @@
 # 轻书架
 
-轻书架官方 Flutter 客户端。当前面向 Android，代码保持平台无关，便于后续补齐 iOS / macOS / Windows / Linux。
+轻书架官方 Flutter 客户端。Android 与 iOS 均已验证，代码保持平台无关，macOS / Windows / Linux 待补齐。
 
 - Dart 包名：`lightnovel`
 - 应用标识：`app.lightnovel.shelf`
@@ -33,6 +33,23 @@ flutter run --dart-define=API_ORIGIN=http://10.0.2.2:5199
 
 ```bash
 flutter run --dart-define=REFRESH_TOKEN=<refresh token>
+```
+
+## iOS
+
+部署目标 iOS 15.0。首次准备：
+
+```bash
+brew install cocoapods
+xcodebuild -downloadPlatform iOS   # 模拟器运行时
+flutter run -d <udid>
+```
+
+`--route` 可直达页面（会覆盖 go_router 的 `initialLocation`）：
+
+```bash
+flutter run -d <udid> --route=/reader/<bookId>/<sortNum>
+xcrun simctl io booted screenshot shot.png
 ```
 
 ## 检查
