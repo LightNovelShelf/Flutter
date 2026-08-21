@@ -162,18 +162,14 @@ class ReaderSettingsContent extends ConsumerWidget {
                   (settings) => settings.copyWith(readerViewMode: value),
                 ),
               ),
-              SettingsSliderRow(
-                title: '预加载后续章节',
-                description: '阅读时提前准备后续小说章节',
-                icon: Icons.download_outlined,
-                value: settings.readerPreloadWindow.toDouble(),
-                min: 0,
-                max: 3,
-                divisions: 3,
-                format: (value) => value < 1 ? '关闭' : '${value.round()} 章',
+              SettingsToggleRow(
+                title: '预渲染前后章节',
+                description: '提前排好前后各一章，跨章翻页无缝衔接',
+                icon: Icons.auto_stories_outlined,
+                value: settings.readerPrerenderAdjacent,
                 onChanged: (value) => controller.update(
                   (settings) =>
-                      settings.copyWith(readerPreloadWindow: value.round()),
+                      settings.copyWith(readerPrerenderAdjacent: value),
                 ),
               ),
               SettingsToggleRow(

@@ -90,3 +90,64 @@ int readerBlockIndexAtOffset({
   }
   return index;
 }
+
+/// 跨章翻页条：把相邻章的页首尾相接，摊平成一个全局页序。
+///
+/// 只做下标换算，不认识章节本身——[T] 是调用方的章节表示，页数由 `pageCount` 取。
+/// 翻页视图靠它把「第几页」和「哪一章的第几页」互相翻译，跨章翻页因此只是走到
+/// 条上的下一页。
+class ReaderPageStrip<T> {
+  const ReaderPageStrip._(
+    this.chapters,
+    this._starts,
+    this._counts,
+    this.pages,
+  );
+
+  const ReaderPageStrip.empty()
+    : chapters = const <Never>[],
+      _starts = const <int>[],
+      _counts = const <int>[],
+      pages = 0;
+
+  factory ReaderPageStrip.of(
+    List<T> chapters,
+    int Function(T chapter) pageCount,
+  ) {
+    final starts = <int>[];
+    final counts = <int>[];
+    var total = 0;
+    for (final chapter in chapters) {
+      final count = pageCount(chapter);
+      starts.add(total);
+      counts.add(count);
+      total += count;
+    }
+    return ReaderPageStrip<T>._(chapters, starts, counts, total);
+  }
+
+  final List<T> chapters;
+  final List<int> _starts;
+  final List<int> _counts;
+
+  /// 条上的总页数，也就是 `PageView` 的 itemCount。
+  final int pages;
+
+  bool get isEmpty => chapters.isEmpty;
+
+  /// [chapter] 的第 [page] 页在条上的下标；不在条上时退回 [page] 本身。
+  int globalPageOf(T chapter, int page) {
+    final index = chapters.indexOf(chapter);
+    return index < 0 ? page : _starts[index] + page;
+  }
+
+  /// 条上第 [page] 页属于哪一章的第几页；越界返回 null。
+  (T, int)? locate(int page) {
+    for (var index = chapters.length - 1; index >= 0; index--) {
+      if (page < _starts[index]) continue;
+      final local = page - _starts[index];
+      return local < _counts[index] ? (chapters[index], local) : null;
+    }
+    return null;
+  }
+}

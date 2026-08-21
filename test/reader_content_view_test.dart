@@ -20,50 +20,83 @@ const ReaderContentStyle _style = ReaderContentStyle(
 );
 
 /// 每段都够长，确保一屏装不下、必须分成多页。
-List<NovelReaderBlock> _blocks([int count = 40]) => normalizeNovelBlocks(
-  List<String>.generate(
-    count,
-    (index) =>
-        '<p>第$index段 这是一段用来测试原生分页与定位的正文，'
-        '长度足够触发换行，好让每一页里都落进若干行。</p>',
-  ).join(),
-);
+List<NovelReaderBlock> _blocks([int count = 40, String label = '第']) =>
+    normalizeNovelBlocks(
+      List<String>.generate(
+        count,
+        (index) =>
+            '<p>$label$index段 这是一段用来测试原生分页与定位的正文，'
+            '长度足够触发换行，好让每一页里都落进若干行。</p>',
+      ).join(),
+    );
+
+ReaderChapterContent _chapter(int sortNum, {int count = 12}) =>
+    ReaderChapterContent(
+      sortNum: sortNum,
+      blocks: _blocks(count, '第$sortNum章第'),
+      style: _style,
+    );
 
 class _Harness {
   _Harness({
-    required this.blocks,
+    required List<NovelReaderBlock> blocks,
     required this.paged,
+    this.previous,
+    this.next,
     this.restoreLocator,
     this.padding = const EdgeInsets.fromLTRB(24, 12, 24, 24),
-    this.style = _style,
-  });
+    ReaderContentStyle style = _style,
+    int sortNum = 2,
+  }) : chapter = ReaderChapterContent(
+         sortNum: sortNum,
+         blocks: blocks,
+         style: style,
+       );
 
-  final List<NovelReaderBlock> blocks;
+  ReaderChapterContent chapter;
+  ReaderChapterContent? previous;
+  ReaderChapterContent? next;
+
   final bool paged;
-  final String? restoreLocator;
-  final ReaderContentStyle style;
+  String? restoreLocator;
   final EdgeInsets padding;
+  int restoreToken = 0;
 
   final List<ReaderContentPosition> positions = <ReaderContentPosition>[];
   final List<bool> boundaries = <bool>[];
+  final List<int> chapters = <int>[];
   int centerTaps = 0;
   int ready = 0;
 
+  List<NovelReaderBlock> get blocks => chapter.blocks;
   ReaderContentPosition get last => positions.last;
+
+  /// 上层收到 [ReaderContentView.onChapterChanged] 后该做的事：窗口整体挪一格。
+  void shiftTo(int sortNum) {
+    final target = sortNum == next?.sortNum ? next! : previous!;
+    final forward = sortNum > chapter.sortNum;
+    final leaving = chapter;
+    chapter = target;
+    previous = forward ? leaving : null;
+    next = forward ? null : leaving;
+  }
 
   Widget build() => MaterialApp(
     home: Scaffold(
       body: ReaderContentView(
-        blocks: blocks,
-        style: style,
+        chapter: chapter,
+        previous: previous,
+        next: next,
         paged: paged,
         padding: padding,
         restoreLocator: restoreLocator,
         restoreProgression: 0,
+        restoreToken: restoreToken,
         onPosition: positions.add,
         onTapCenter: () => centerTaps++,
+        onChapterChanged: chapters.add,
         onBoundary: boundaries.add,
-        onFootnote: (_) {},
+        onFootnote: (_, _) {},
         onReady: () => ready++,
       ),
     ),
@@ -75,10 +108,14 @@ Future<_Harness> _pump(
   bool paged = true,
   String? restoreLocator,
   int count = 40,
+  ReaderChapterContent? previous,
+  ReaderChapterContent? next,
 }) async {
   final harness = _Harness(
     blocks: _blocks(count),
     paged: paged,
+    previous: previous,
+    next: next,
     restoreLocator: restoreLocator,
   );
   await tester.pumpWidget(harness.build());
@@ -92,6 +129,14 @@ const ReaderContentStyle _justifiedIndentedStyle = ReaderContentStyle(
   color: Color(0xFF000000),
   firstLineIndent: true,
   justify: true,
+);
+
+/// 翻页条上真正画出来的正文；测量层的同名文本不算。
+Finder _pageText(String text) => find.descendant(
+  of: find.byType(PageView),
+  matching: find.byWidgetPredicate(
+    (widget) => widget is RichText && widget.text.toPlainText().contains(text),
+  ),
 );
 
 void main() {
@@ -212,7 +257,7 @@ void main() {
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
 
-    final visible = tester.getSize(find.byKey(readerPageBodyKey(0))).height;
+    final visible = tester.getSize(find.byKey(readerPageBodyKey(2, 0))).height;
 
     await tester.tapAt(const Offset(700, 300));
     await tester.pumpAndSettle();
@@ -393,5 +438,112 @@ void main() {
     expect(hasEdge(marginsOf(secondImages), top: 6), isFalse);
     expect(hasEdge(marginsOf(firstImages), bottom: 6), isTrue);
     expect(hasEdge(marginsOf(secondImages), bottom: 6), isTrue);
+  });
+
+  testWidgets('末页再往后翻直接进下一章：不走加载，窗口挪过来也不重排', (tester) async {
+    final harness = await _pump(tester, count: 12, next: _chapter(3));
+    final pages = harness.last.pages;
+    expect(pages, greaterThan(1));
+    expect(harness.last.sortNum, 2);
+
+    for (var page = 1; page < pages; page++) {
+      await tester.tapAt(const Offset(700, 300));
+      await tester.pumpAndSettle();
+    }
+    expect(harness.last.page, pages);
+
+    await tester.tapAt(const Offset(700, 300));
+    await tester.pumpAndSettle();
+
+    expect(harness.boundaries, isEmpty);
+    expect(harness.chapters, <int>[3]);
+    expect(harness.last.sortNum, 3);
+    expect(harness.last.page, 1);
+    expect(_pageText('第3章第0段'), findsWidgets);
+
+    // 上层挪窗口：测量结果与正文块照旧留用，既不重新就绪也不退回旧章。
+    harness.shiftTo(3);
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    expect(harness.ready, 1);
+    expect(harness.last.sortNum, 3);
+    expect(harness.last.page, 1);
+    expect(_pageText('第3章第0段'), findsWidgets);
+  });
+
+  testWidgets('滑动跨章：一次拖拽直接翻进下一章', (tester) async {
+    final harness = await _pump(tester, count: 12, next: _chapter(3));
+    for (var page = 1; page < harness.last.pages; page++) {
+      await tester.tapAt(const Offset(700, 300));
+      await tester.pumpAndSettle();
+    }
+
+    await tester.drag(find.byType(PageView), const Offset(-500, 0));
+    await tester.pumpAndSettle();
+
+    expect(harness.boundaries, isEmpty);
+    expect(harness.chapters, <int>[3]);
+    expect(harness.last.sortNum, 3);
+    expect(harness.last.page, 1);
+  });
+
+  testWidgets('首页再往前翻进上一章：落在上一章末页', (tester) async {
+    final harness = await _pump(tester, count: 12, previous: _chapter(1));
+    expect(harness.last.page, 1);
+
+    await tester.tapAt(const Offset(100, 300));
+    await tester.pumpAndSettle();
+
+    expect(harness.boundaries, isEmpty);
+    expect(harness.chapters, <int>[1]);
+    expect(harness.last.sortNum, 1);
+    expect(harness.last.page, harness.last.pages);
+    expect(harness.last.progression, 1);
+  });
+
+  testWidgets('上一章半路接进翻页条：当前页不动，往前翻不再交给上层', (tester) async {
+    final harness = await _pump(tester, count: 12);
+    await tester.tapAt(const Offset(700, 300));
+    await tester.pumpAndSettle();
+    final page = harness.last.page;
+    final locator = harness.last.locator;
+    expect(page, 2);
+
+    harness.previous = _chapter(1);
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    expect(harness.last.sortNum, 2);
+    expect(harness.last.page, page);
+    expect(harness.last.locator, locator);
+    // 画出来的必须还是本章那一页：换控制器时页序整体后移过，别悄悄错位。
+    expect(find.byKey(readerPageBodyKey(2, 1)), findsOneWidget);
+
+    await tester.tapAt(const Offset(100, 300));
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(100, 300));
+    await tester.pumpAndSettle();
+
+    expect(harness.boundaries, isEmpty);
+    expect(harness.chapters, <int>[1]);
+    expect(harness.last.sortNum, 1);
+  });
+
+  testWidgets('目录跳进已备好的相邻章：钉在章首，不重新测量', (tester) async {
+    final previous = _chapter(1);
+    final harness = await _pump(tester, count: 12, previous: previous);
+
+    harness.shiftTo(1);
+    harness.restoreLocator = previous.blocks.first.locator;
+    harness.restoreToken++;
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    expect(harness.ready, 1);
+    expect(harness.last.sortNum, 1);
+    expect(harness.last.page, 1);
+    expect(harness.last.locator, previous.blocks.first.locator);
+    expect(find.byKey(readerPageBodyKey(1, 0)), findsOneWidget);
   });
 }

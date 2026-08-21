@@ -151,4 +151,41 @@ void main() {
       );
     });
   });
+
+  group('跨章翻页条', () {
+    final strip = ReaderPageStrip<String>.of(
+      <String>['上一章', '本章', '下一章'],
+      (chapter) => switch (chapter) {
+        '上一章' => 2,
+        '本章' => 3,
+        _ => 4,
+      },
+    );
+
+    test('相邻章的页首尾相接', () {
+      expect(strip.pages, 9);
+      expect(strip.globalPageOf('上一章', 0), 0);
+      expect(strip.globalPageOf('本章', 0), 2);
+      expect(strip.globalPageOf('下一章', 0), 5);
+    });
+
+    test('全局页序反查回章内页码', () {
+      expect(strip.locate(1), ('上一章', 1));
+      expect(strip.locate(2), ('本章', 0));
+      expect(strip.locate(4), ('本章', 2));
+      expect(strip.locate(5), ('下一章', 0));
+      expect(strip.locate(8), ('下一章', 3));
+    });
+
+    test('越界与空条不给出页', () {
+      expect(strip.locate(9), isNull);
+      expect(strip.locate(-1), isNull);
+      const empty = ReaderPageStrip<String>.empty();
+      expect(empty.pages, 0);
+      expect(empty.isEmpty, isTrue);
+      expect(empty.locate(0), isNull);
+      // 还没接进条的章：页码原样返回，翻页条按单章处理。
+      expect(empty.globalPageOf('本章', 2), 2);
+    });
+  });
 }

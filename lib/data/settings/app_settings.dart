@@ -79,7 +79,7 @@ class AppSettings {
     this.readerLineHeight = 1.6,
     this.readerParagraphSpacing = 0,
     this.comicPagedDirection = ComicPagedDirection.ltr,
-    this.readerPreloadWindow = 3,
+    this.readerPrerenderAdjacent = true,
     this.readerSidePadding = 30,
     this.readerViewMode = ReaderViewMode.paged,
     this.seedColorValue = '#B71C1C',
@@ -106,7 +106,7 @@ class AppSettings {
   final double readerLineHeight;
   final double readerParagraphSpacing;
   final ComicPagedDirection comicPagedDirection;
-  final int readerPreloadWindow;
+  final bool readerPrerenderAdjacent;
   final double readerSidePadding;
   final ReaderViewMode readerViewMode;
   final String seedColorValue;
@@ -133,7 +133,7 @@ class AppSettings {
     double? readerLineHeight,
     double? readerParagraphSpacing,
     ComicPagedDirection? comicPagedDirection,
-    int? readerPreloadWindow,
+    bool? readerPrerenderAdjacent,
     double? readerSidePadding,
     ReaderViewMode? readerViewMode,
     String? seedColorValue,
@@ -162,7 +162,8 @@ class AppSettings {
     readerParagraphSpacing:
         readerParagraphSpacing ?? this.readerParagraphSpacing,
     comicPagedDirection: comicPagedDirection ?? this.comicPagedDirection,
-    readerPreloadWindow: readerPreloadWindow ?? this.readerPreloadWindow,
+    readerPrerenderAdjacent:
+        readerPrerenderAdjacent ?? this.readerPrerenderAdjacent,
     readerSidePadding: readerSidePadding ?? this.readerSidePadding,
     readerViewMode: readerViewMode ?? this.readerViewMode,
     seedColorValue: seedColorValue ?? this.seedColorValue,
@@ -219,7 +220,7 @@ class AppSettings {
         raw['comicPagedDirection'],
         ComicPagedDirection.ltr,
       ),
-      readerPreloadWindow: _clampInt(raw['readerPreloadWindow'], 0, 3, 3),
+      readerPrerenderAdjacent: _bool(raw['readerPrerenderAdjacent'], true),
       readerSidePadding: _clampDouble(raw['readerSidePadding'], 12, 64, 30),
       readerViewMode: _enumFromName(
         ReaderViewMode.values,
@@ -270,7 +271,7 @@ class AppSettings {
     'readerLineHeight': readerLineHeight,
     'readerParagraphSpacing': readerParagraphSpacing,
     'comicPagedDirection': comicPagedDirection.name,
-    'readerPreloadWindow': readerPreloadWindow,
+    'readerPrerenderAdjacent': readerPrerenderAdjacent,
     'readerSidePadding': readerSidePadding,
     'readerViewMode': readerViewMode.name,
     'seedColorValue': seedColorValue,

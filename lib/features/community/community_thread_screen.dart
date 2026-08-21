@@ -210,7 +210,8 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
     // 互动失败是一次性提示，靠 noticeTag 区分同一句文案的第二次失败。
     ref.listen<CommunityThreadState>(_provider, (previous, next) {
       final notice = next.notice;
-      if (notice == null || next.noticeTag == (previous?.noticeTag ?? 0)) return;
+      if (notice == null || next.noticeTag == (previous?.noticeTag ?? 0))
+        return;
       showAppSnackBar(context, notice);
     });
 
@@ -294,7 +295,7 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
     final style = ReaderContentStyle(
       fontSize: 16,
       lineHeight: 1.5,
-      paragraphSpacing: 4,
+      paragraphSpacing: 8,
       color: color,
       firstLineIndent: false,
       justify: false,
@@ -318,7 +319,10 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
     );
   }
 
-  Widget _buildHeader(CommunityThreadState state, CommunityThreadDetail detail) {
+  Widget _buildHeader(
+    CommunityThreadState state,
+    CommunityThreadDetail detail,
+  ) {
     final colors = Theme.of(context).colorScheme;
     final controller = ref.read(_provider.notifier);
     final item = detail.item;
