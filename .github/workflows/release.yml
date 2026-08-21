@@ -89,7 +89,7 @@ jobs:
           mkdir -p dist/Payload
           cp -R build/ios/iphoneos/Runner.app dist/Payload/
           cd dist
-          zip -qry "lightnovel-shelf-${{ github.ref_name }}-unsigned.ipa" Payload
+          zip -qry app-ios-unsigned.ipa Payload
           rm -rf Payload
 
       - uses: actions/upload-artifact@v5
