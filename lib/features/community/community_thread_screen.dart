@@ -11,6 +11,7 @@ import '../../shared/format.dart';
 import '../../shared/paging/scroll_prefetch.dart';
 import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/html/reader_content_style.dart';
+import '../../shared/widgets/image_preview.dart';
 import '../../shared/widgets/reader_html_block.dart';
 import '../../shared/widgets/user_avatar.dart';
 import '../reader/reader_html_blocks.dart';
@@ -312,7 +313,7 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
               style: style,
               onTapUrl: _openExternalUrl,
               borderIllustrations: false,
-              consumeImageTap: true,
+              imagePreviewTrigger: ImagePreviewTrigger.tap,
               applyParagraphSpacing: index + 1 < blocks.length,
             ),
         ],

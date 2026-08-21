@@ -128,6 +128,7 @@ class BookHero extends StatelessWidget {
                         color: colors.onSurfaceVariant,
                       )
                     : Builder(
+                        // 唯一预览原图的地方：封面显示尺寸小，放大看要清晰度。
                         builder: (context) => GestureDetector(
                           onTap: () => unawaited(
                             showImagePreview(

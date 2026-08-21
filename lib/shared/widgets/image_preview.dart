@@ -11,6 +11,7 @@ import '../../data/api/endpoints.dart';
 import '../../data/api/decode.dart';
 import 'book_image.dart';
 import '../image_cache.dart';
+import '../image_sizing.dart';
 
 /// 取组件当前在屏幕上的矩形，作为预览动画的起点/终点。
 Rect? globalRectOf(BuildContext context) {
@@ -23,14 +24,12 @@ Rect? globalRectOf(BuildContext context) {
 typedef ContentImageMetadata = ({String? blurHash, Size? size});
 
 ContentImageMetadata contentImageMetadata(String url) {
-  final blurHash = extractBlurHashPlaceholder(url);
-  final match = RegExp(r'(?:[?&])size=([1-9]\d*)x([1-9]\d*)(?:[&#]|$)')
-      .firstMatch(url);
+  final size = extractImageSize(url);
   return (
-    blurHash: blurHash,
-    size: match == null
+    blurHash: extractBlurHashPlaceholder(url),
+    size: size == null
         ? null
-        : Size(double.parse(match.group(1)!), double.parse(match.group(2)!)),
+        : Size(size.width.toDouble(), size.height.toDouble()),
   );
 }
 
@@ -54,7 +53,10 @@ void previewHtmlImage(BuildContext context, ImageMetadata metadata) {
   }
 }
 
-/// 小说、漫画和富文本共用的内容图片：预留尺寸、BlurHash、加载和长按预览。
+/// 图片预览的触发手势。
+enum ImagePreviewTrigger { tap, longPress }
+
+/// 小说、漫画和富文本共用的内容图片：预留尺寸、BlurHash、加载和预览。
 class ContentImage extends StatelessWidget {
   const ContentImage({
     super.key,
@@ -69,7 +71,7 @@ class ContentImage extends StatelessWidget {
     this.borderRadius = 0,
     this.bordered = false,
     this.previewable = true,
-    this.consumeTap = false,
+    this.trigger = ImagePreviewTrigger.longPress,
     this.requestSizedVariant = true,
   });
 
@@ -84,16 +86,24 @@ class ContentImage extends StatelessWidget {
   final double borderRadius;
   final bool bordered;
   final bool previewable;
-  final bool consumeTap;
+  final ImagePreviewTrigger trigger;
   final bool requestSizedVariant;
 
   @override
   Widget build(BuildContext context) {
+    // 预览与显示共用这个地址：同一个尺寸档就是同一份缓存，展开时不再重新下载。
+    final requestUrl = requestSizedVariant
+        ? sizedImageUrl(
+            url,
+            logicalHeight: height,
+            devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+          )
+        : url;
     Widget image = SizedBox(
       width: width,
       height: height,
       child: BookImage(
-        url: url,
+        url: requestUrl,
         displayHeight: height,
         blurHash: blurHash,
         fit: fit,
@@ -101,7 +111,7 @@ class ContentImage extends StatelessWidget {
         fadeInDuration: fadeInDuration,
         fallbackIcon: fallbackIcon,
         errorBuilder: errorBuilder,
-        requestSizedVariant: requestSizedVariant,
+        requestSizedVariant: false,
       ),
     );
     if (borderRadius > 0) {
@@ -124,18 +134,23 @@ class ContentImage extends StatelessWidget {
     }
     if (!previewable) return image;
     return Builder(
-      builder: (sourceContext) => GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: consumeTap ? () {} : null,
-        onLongPress: () => unawaited(
+      builder: (sourceContext) {
+        void preview() => unawaited(
           showImagePreview(
             sourceContext,
-            url: url,
+            url: requestUrl,
             sourceRect: globalRectOf(sourceContext),
           ),
-        ),
-        child: image,
-      ),
+        );
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: trigger == ImagePreviewTrigger.tap ? preview : null,
+          onLongPress: trigger == ImagePreviewTrigger.longPress
+              ? preview
+              : null,
+          child: image,
+        );
+      },
     );
   }
 }
@@ -265,8 +280,10 @@ class _ImagePreviewState extends State<_ImagePreview>
         onVerticalDragUpdate: _onDragUpdate,
         onVerticalDragEnd: _onDragEnd,
         child: PhotoView(
+          // 缓存键与 BookImage 一致，来源图已经下载过时直接命中。
           imageProvider: CachedNetworkImageProvider(
             widget.url,
+            cacheKey: BookImage.cacheKeyFor(widget.url),
             cacheManager: appImageCacheManager,
           ),
           backgroundDecoration: const BoxDecoration(color: Colors.transparent),

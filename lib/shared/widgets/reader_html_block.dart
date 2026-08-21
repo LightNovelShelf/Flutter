@@ -12,7 +12,7 @@ import 'image_preview.dart';
 
 /// 小说阅读器与社区正文共用的 HTML 块渲染器。
 ///
-/// 调用方决定滚动容器与排版预设，本组件负责正文样式、图片占位、BlurHash、图片尺寸回填和长按预览。
+/// 调用方决定滚动容器、排版预设与图片预览手势，本组件负责正文样式、图片占位、BlurHash 和尺寸回填。
 class ReaderHtmlBlock extends StatefulWidget {
   const ReaderHtmlBlock({
     super.key,
@@ -23,7 +23,7 @@ class ReaderHtmlBlock extends StatefulWidget {
     this.onLayoutChanged,
     this.borderIllustrations = true,
     this.imageBottomSpacing = 6,
-    this.consumeImageTap = false,
+    this.imagePreviewTrigger = ImagePreviewTrigger.longPress,
     this.applyParagraphSpacing = true,
   });
 
@@ -34,7 +34,7 @@ class ReaderHtmlBlock extends StatefulWidget {
   final VoidCallback? onLayoutChanged;
   final bool borderIllustrations;
   final double imageBottomSpacing;
-  final bool consumeImageTap;
+  final ImagePreviewTrigger imagePreviewTrigger;
   final bool applyParagraphSpacing;
 
   @override
@@ -64,7 +64,11 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
     if (oldWidget.markup != widget.markup) _imageSizes.clear();
   }
 
-  String get _markup => widget.consumeImageTap
+  /// 点按预览时，包在图片外的链接会先吃掉点按，渲染前摘掉链接只留图片。
+  bool get _previewOnTap =>
+      widget.imagePreviewTrigger == ImagePreviewTrigger.tap;
+
+  String get _markup => _previewOnTap
       ? widget.markup.replaceAllMapped(
           _linkedImage,
           (match) => match.group(4) ?? '',
@@ -72,7 +76,7 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
       : widget.markup;
 
   bool _isImageLink(String url) {
-    if (!widget.consumeImageTap) return false;
+    if (!_previewOnTap) return false;
     final target = Uri.tryParse(url);
     for (final match in _linkedImage.allMatches(widget.markup)) {
       final href = (match.group(1) ?? match.group(2) ?? match.group(3) ?? '')
@@ -161,7 +165,7 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
           previewable &&
           widget.borderIllustrations &&
           parentClasses.any(_illustrationClasses.contains),
-      consumeTap: widget.consumeImageTap,
+      trigger: widget.imagePreviewTrigger,
       onResolved: _onImageResolved,
     );
     final spaced = previewable && widget.imageBottomSpacing > 0
@@ -207,7 +211,7 @@ class _ReaderBlockImage extends StatefulWidget {
     required this.blurHash,
     required this.previewable,
     required this.bordered,
-    required this.consumeTap,
+    required this.trigger,
     required this.onResolved,
   });
 
@@ -216,7 +220,7 @@ class _ReaderBlockImage extends StatefulWidget {
   final String? blurHash;
   final bool previewable;
   final bool bordered;
-  final bool consumeTap;
+  final ImagePreviewTrigger trigger;
   final void Function(String url, Size size) onResolved;
 
   @override
@@ -308,7 +312,7 @@ class _ReaderBlockImageState extends State<_ReaderBlockImage> {
           borderRadius: 3,
           bordered: widget.bordered,
           previewable: widget.previewable,
-          consumeTap: widget.consumeTap,
+          trigger: widget.trigger,
           requestSizedVariant: widget.blurHash != null,
         );
         return widget.bordered

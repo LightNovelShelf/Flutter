@@ -154,16 +154,13 @@ class _BookImageState extends State<BookImage> {
   Widget build(BuildContext context) {
     if (widget.url.isEmpty) return _placeholder(context);
 
-    final String url;
-    if (widget.requestSizedVariant) {
-      final int bucket = imageHeightBucketFor(
-        widget.displayHeight,
-        MediaQuery.devicePixelRatioOf(context),
-      );
-      url = withImageHeight(widget.url, bucket);
-    } else {
-      url = widget.url;
-    }
+    final String url = widget.requestSizedVariant
+        ? sizedImageUrl(
+            widget.url,
+            logicalHeight: widget.displayHeight,
+            devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+          )
+        : widget.url;
     // `height` 保留在缓存键里，每个尺寸档一份缓存。
     final String cacheKey = BookImage.cacheKeyFor(url);
     final bool wasRevealed = BookImage._revealed.contains(cacheKey);
