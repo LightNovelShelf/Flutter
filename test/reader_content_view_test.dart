@@ -239,14 +239,69 @@ void main() {
     expect(harness.last.page, 1);
   });
 
-  testWidgets('滚动模式下外部控制器按一个视口距离移动', (tester) async {
-    final harness = await _pump(tester, paged: false);
+  // 一步 95% 视口再退到最近的行距处，落点在 (step - 一行, step] 内。
+  void expectAlignedStep(ScrollPosition position, double step) {
+    expect(position.pixels, lessThanOrEqualTo(step + 0.5));
+    expect(position.pixels, greaterThan(step - _style.fontSize * 2));
+  }
 
-    expect(harness.last.progression, 0);
+  testWidgets('滚动模式下外部控制器按 95% 视口翻屏并对齐行距', (tester) async {
+    final harness = await _pump(tester, paged: false);
+    final position = tester
+        .state<ScrollableState>(find.byType(Scrollable).last)
+        .position;
+    final step = position.viewportDimension * 0.95;
+
+    expect(position.pixels, 0);
     harness.controller.nextPage();
     await tester.pump(const Duration(milliseconds: 300));
 
+    expectAlignedStep(position, step);
     expect(harness.last.progression, greaterThan(0));
+
+    harness.controller.previousPage();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(position.pixels, closeTo(0, 0.5));
+  });
+
+  testWidgets('滚动模式热区上下翻屏、中间切工具栏', (tester) async {
+    final harness = await _pump(tester, paged: false);
+    final position = tester
+        .state<ScrollableState>(find.byType(Scrollable).last)
+        .position;
+    final view = tester.getRect(find.byType(ReaderContentView));
+    final step = position.viewportDimension * 0.95;
+
+    await tester.tapAt(Offset(view.center.dx, view.bottom - view.height * 0.1));
+    await tester.pump(const Duration(milliseconds: 300));
+    expectAlignedStep(position, step);
+    expect(harness.centerTaps, 0);
+
+    await tester.tapAt(Offset(view.center.dx, view.top + view.height * 0.1));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(position.pixels, closeTo(0, 0.5));
+
+    await tester.tapAt(view.center);
+    await tester.pump();
+    expect(harness.centerTaps, 1);
+    expect(position.pixels, closeTo(0, 0.5));
+  });
+
+  testWidgets('滚动模式到底再往下翻交给上层翻章', (tester) async {
+    final harness = await _pump(tester, paged: false, count: 6);
+    final position = tester
+        .state<ScrollableState>(find.byType(Scrollable).last)
+        .position;
+
+    while (position.pixels < position.maxScrollExtent) {
+      harness.controller.nextPage();
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+    expect(harness.boundaries, isEmpty);
+
+    harness.controller.nextPage();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(harness.boundaries, <bool>[true]);
   });
 
   testWidgets('翻页只在行距处下刀：跨页的长段落在下一页从整行开始', (tester) async {

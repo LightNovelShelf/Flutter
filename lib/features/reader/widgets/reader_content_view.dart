@@ -729,20 +729,28 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       final controller = _scrollController;
       if (controller == null || !controller.hasClients) return;
       final position = controller.position;
-      final direction = next ? 1 : -1;
-      final target = controller.offset + direction * position.viewportDimension;
-      if (target < position.minScrollExtent ||
-          target > position.maxScrollExtent) {
-        final boundary = next
-            ? position.maxScrollExtent
-            : position.minScrollExtent;
-        if ((controller.offset - boundary).abs() < 0.5) {
-          widget.onBoundary(next);
-          return;
-        }
+      final boundary = next
+          ? position.maxScrollExtent
+          : position.minScrollExtent;
+      if ((controller.offset - boundary).abs() < 0.5) {
+        widget.onBoundary(next);
+        return;
       }
+      // 一步移动 95% 视口，再退到最近的行距处落定：当前屏最后一两行会留在下一屏顶上，
+      // 接着读不会从半行开始。
+      final step = position.viewportDimension * 0.95;
+      // padding 在 ListView 内侧，换到几何坐标要减掉，落定时再加回来。
+      final top = widget.padding.top;
+      final raw = controller.offset - top + (next ? step : -step);
+      final breaks = _active?.geometry?.breaks;
+      final aligned = breaks == null
+          ? raw
+          : readerBreakAtMost(breaks, raw) ?? raw;
       controller.jumpTo(
-        target.clamp(position.minScrollExtent, position.maxScrollExtent),
+        (aligned + top).clamp(
+          position.minScrollExtent,
+          position.maxScrollExtent,
+        ),
       );
       return;
     }
@@ -820,12 +828,11 @@ class _ReaderContentViewState extends State<ReaderContentView> {
             Positioned.fill(
               key: const ValueKey<String>('reader-content'),
               child: ReaderTapZoneLayer(
-                // 滚动模式没有翻页热区，三块区域都用来切换工具栏。
-                onPrevious: widget.paged
-                    ? () => _turn(false)
-                    : widget.onTapCenter,
-                onNext: widget.paged ? () => _turn(true) : widget.onTapCenter,
+                onPrevious: () => _turn(false),
+                onNext: () => _turn(true),
                 onToggleChrome: widget.onTapCenter,
+                // 滚动模式按上下分区：上一屏在上、下一屏在下，跟内容移动方向一致。
+                axis: widget.paged ? Axis.horizontal : Axis.vertical,
                 child: widget.paged
                     ? _pagedContent(viewport)
                     : _scrollingContent(active),

@@ -25,23 +25,27 @@ List<double> paginateReaderContent({
   return pageTops;
 }
 
-/// `breaks` 升序，取 (lower, upper] 内最大的断点。
-double? _lastBreakWithin(List<double> breaks, double lower, double upper) {
+/// `breaks` 升序，取不超过 [offset] 的最大断点；[offset] 之前没有断点时为 null。
+double? readerBreakAtMost(List<double> breaks, double offset) {
   var low = 0;
   var high = breaks.length - 1;
   var found = -1;
   while (low <= high) {
     final mid = (low + high) >> 1;
-    if (breaks[mid] <= upper) {
+    if (breaks[mid] <= offset) {
       found = mid;
       low = mid + 1;
     } else {
       high = mid - 1;
     }
   }
-  if (found < 0) return null;
-  final value = breaks[found];
-  return value > lower ? value : null;
+  return found < 0 ? null : breaks[found];
+}
+
+/// `breaks` 升序，取 (lower, upper] 内最大的断点。
+double? _lastBreakWithin(List<double> breaks, double lower, double upper) {
+  final value = readerBreakAtMost(breaks, upper);
+  return value != null && value > lower ? value : null;
 }
 
 /// 给定纵向偏移落在第几页（越界收敛到首/末页）。

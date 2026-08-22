@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/platform/reader_volume_keys.dart';
 import '../data/api/api_client.dart';
 import '../data/api/models.dart';
 import '../data/providers.dart';
@@ -83,6 +84,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
     navigatorKey: rootNavigatorKey,
     initialLocation: runtime.hasStoredSession ? '/discover' : '/sign-in',
     refreshListenable: refresh,
+    observers: <NavigatorObserver>[readerVolumeKeyRouteObserver],
     redirect: (context, state) {
       final status = ref.read(authSnapshotProvider).status;
       final location = state.matchedLocation;
