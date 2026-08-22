@@ -53,4 +53,29 @@ void main() {
       16,
     );
   });
+
+  test('音量键翻页默认关闭，并可开启与持久化', () {
+    expect(
+      AppSettings.decode(const <String, dynamic>{})
+          .readerVolumeKeyPagingEnabled,
+      isFalse,
+    );
+
+    final enabled = const AppSettings().copyWith(
+      readerVolumeKeyPagingEnabled: true,
+    );
+    expect(enabled.readerVolumeKeyPagingEnabled, isTrue);
+    expect(enabled, isNot(const AppSettings()));
+    expect(enabled.encode()['readerVolumeKeyPagingEnabled'], isTrue);
+    expect(
+      AppSettings.decode(enabled.encode()).readerVolumeKeyPagingEnabled,
+      isTrue,
+    );
+    expect(
+      AppSettings.decode(
+        const <String, dynamic>{'readerVolumeKeyPagingEnabled': 'true'},
+      ).readerVolumeKeyPagingEnabled,
+      isFalse,
+    );
+  });
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/api_error.dart';
+import '../../core/platform/reader_volume_keys.dart';
 import '../../data/api/api_client.dart';
 import '../../data/providers.dart';
 import '../../data/settings/app_settings.dart';
@@ -51,6 +52,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
   late final ApiClient _api;
   late final ReaderProgressController _progress;
   late final ReaderChapterPrerenderer _prerenderer;
+  final ReaderContentController _contentController = ReaderContentController();
 
   /// 当前章号；加载中为待打开的章号，加载完成后与窗口当前章一致。
   late int _sortNum;
@@ -423,7 +425,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
     final readerTopInset = paged ? 0.0 : MediaQuery.paddingOf(context).top;
     final current = _window.current;
 
-    return ReaderShell(
+    final shell = ReaderShell(
       background: background,
       loading: loading || current == null,
       error: loadError,
@@ -458,6 +460,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
                         setState(() => _contentReady = true);
                       }
                     },
+                    controller: _contentController,
                   ),
                 ),
                 if (!_contentReady)
@@ -505,6 +508,12 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
             ? () => unawaited(_openAdjacent(true))
             : null,
       ),
+    );
+    return ReaderVolumeKeyListener(
+      enabled: settings.readerVolumeKeyPagingEnabled && !_chromeVisible,
+      onPrevious: _contentController.previousPage,
+      onNext: _contentController.nextPage,
+      child: shell,
     );
   }
 }

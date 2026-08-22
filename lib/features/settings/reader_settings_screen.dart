@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -162,6 +163,19 @@ class ReaderSettingsContent extends ConsumerWidget {
                   (settings) => settings.copyWith(readerViewMode: value),
                 ),
               ),
+              // 音量键翻页只有 Android 侧的实现，其它平台不展示。
+              if (defaultTargetPlatform == TargetPlatform.android)
+                SettingsToggleRow(
+                  title: '使用音量键翻页',
+                  description: '沉浸阅读时：音量加键上一页，音量减键下一页',
+                  icon: Icons.volume_up_outlined,
+                  value: settings.readerVolumeKeyPagingEnabled,
+                  onChanged: (value) => controller.update(
+                    (settings) => settings.copyWith(
+                      readerVolumeKeyPagingEnabled: value,
+                    ),
+                  ),
+                ),
               SettingsToggleRow(
                 title: '预渲染前后章节',
                 description: '提前排好前后各一章，跨章翻页无缝衔接',
