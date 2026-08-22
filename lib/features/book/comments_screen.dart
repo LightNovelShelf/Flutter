@@ -1,37 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/api/models.dart';
 import '../../data/repositories/comment_thread_repository.dart';
 import '../../shared/widgets/comments/comment_compose_sheet.dart';
 import '../../shared/widgets/comments/comment_thread_list.dart';
 
-class BookCommentsScreen extends ConsumerStatefulWidget {
-  const BookCommentsScreen({
-    super.key,
-    required this.id,
-    required this.title,
-    required this.targetType,
-    this.seriesTitle,
-  });
+class CommentsScreen extends ConsumerWidget {
+  const CommentsScreen({super.key, required this.target, required this.title});
 
-  final int id;
+  final CommentTarget target;
   final String title;
-  final CommentTargetType targetType;
-  final String? seriesTitle;
 
   @override
-  ConsumerState<BookCommentsScreen> createState() => _BookCommentsScreenState();
-}
-
-class _BookCommentsScreenState extends ConsumerState<BookCommentsScreen> {
-  /// 漫画评论挂系列，`id` 恒为 0。
-  CommentTarget get _target => widget.targetType == CommentTargetType.series
-      ? CommentTarget.series(widget.seriesTitle ?? widget.title)
-      : CommentTarget.book(widget.id);
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final text = Theme.of(context).textTheme;
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
@@ -41,9 +22,9 @@ class _BookCommentsScreenState extends ConsumerState<BookCommentsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             const Text('评论'),
-            if (widget.title.isNotEmpty)
+            if (title.isNotEmpty)
               Text(
-                widget.title,
+                title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
@@ -54,11 +35,11 @@ class _BookCommentsScreenState extends ConsumerState<BookCommentsScreen> {
           IconButton(
             icon: const Icon(Icons.edit_outlined),
             tooltip: '写评论',
-            onPressed: () => showCommentComposeSheet(context, target: _target),
+            onPressed: () => showCommentComposeSheet(context, target: target),
           ),
         ],
       ),
-      body: CommentThreadList(target: _target),
+      body: CommentThreadList(target: target),
     );
   }
 }

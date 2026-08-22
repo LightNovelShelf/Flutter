@@ -86,17 +86,20 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   }
 
   void _openComments(BookDetailBundle bundle) {
-    final isComic = bundle.isComic;
-    final query = <String, String>{
-      'title': bundle.detail.title,
-      'target': isComic ? 'Series' : 'Book',
-      if (isComic) 'seriesTitle': _seriesTitleOf(bundle),
-    };
+    // 漫画评论挂在系列上，按系列标题定位；小说按书籍 id。
     context.push(
-      Uri(
-        path: '/book/${widget.id}/comments',
-        queryParameters: query,
-      ).toString(),
+      bundle.isComic
+          ? Uri(
+              path: '/books/series/comments',
+              queryParameters: <String, String>{
+                'name': _seriesTitleOf(bundle),
+                'title': bundle.detail.title,
+              },
+            ).toString()
+          : Uri(
+              path: '/book/${widget.id}/comments',
+              queryParameters: <String, String>{'title': bundle.detail.title},
+            ).toString(),
     );
   }
 

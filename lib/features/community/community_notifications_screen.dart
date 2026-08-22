@@ -42,41 +42,8 @@ class _CommunityNotificationsScreenState
     if (!item.isRead) {
       ref.read(communityNotificationsProvider.notifier).mark(<int>[item.id]);
     }
-    final id = item.extra.objectId > 0 ? item.extra.objectId : item.objectId;
-    if (id <= 0) return;
-    switch (item.objectType) {
-      case AppNotificationObjectType.communityThread:
-        final query = <String, String>{
-          if (item.extra.parentReplyId != null)
-            'parentReplyId': '${item.extra.parentReplyId}',
-          if (item.extra.replyId != null) 'replyId': '${item.extra.replyId}',
-        };
-        context.push(
-          query.isEmpty
-              ? '/community/thread/$id'
-              : Uri(
-                  path: '/community/thread/$id',
-                  queryParameters: query,
-                ).toString(),
-        );
-      case AppNotificationObjectType.book:
-        context.push(
-          Uri(
-            path: '/book/$id/comments',
-            queryParameters: <String, String>{
-              'title': item.extra.objectTitle.trim().isEmpty
-                  ? '评论'
-                  : item.extra.objectTitle.trim(),
-              'target': 'Book',
-            },
-          ).toString(),
-        );
-      case AppNotificationObjectType.announcement:
-        context.push('/announcement/$id');
-      case AppNotificationObjectType.series:
-      case AppNotificationObjectType.unknown:
-        break;
-    }
+    final route = notificationRoute(item);
+    if (route != null) context.push(route);
   }
 
   @override
@@ -157,6 +124,46 @@ class _CommunityNotificationsScreenState
     atEnd: !state.hasMore,
     onRetry: controller.loadMore,
   );
+}
+
+/// 通知对应的目标路由，无法定位时返回 null。
+String? notificationRoute(AppNotificationItem item) {
+  final id = item.extra.objectId > 0 ? item.extra.objectId : item.objectId;
+  switch (item.objectType) {
+    case AppNotificationObjectType.communityThread:
+      if (id <= 0) return null;
+      final query = <String, String>{
+        if (item.extra.parentReplyId != null)
+          'parentReplyId': '${item.extra.parentReplyId}',
+        if (item.extra.replyId != null) 'replyId': '${item.extra.replyId}',
+      };
+      return query.isEmpty
+          ? '/community/thread/$id'
+          : Uri(
+              path: '/community/thread/$id',
+              queryParameters: query,
+            ).toString();
+    case AppNotificationObjectType.book:
+      if (id <= 0) return null;
+      final title = item.extra.objectTitle.trim();
+      return Uri(
+        path: '/book/$id/comments',
+        queryParameters: <String, String>{if (title.isNotEmpty) 'title': title},
+      ).toString();
+    case AppNotificationObjectType.announcement:
+      if (id <= 0) return null;
+      return '/announcement/$id';
+    case AppNotificationObjectType.series:
+      // 系列通知没有实体对象，只能按系列标题定位评论。
+      final seriesTitle = (item.extra.seriesTitle ?? '').trim();
+      if (seriesTitle.isEmpty) return null;
+      return Uri(
+        path: '/books/series/comments',
+        queryParameters: <String, String>{'name': seriesTitle},
+      ).toString();
+    case AppNotificationObjectType.unknown:
+      return null;
+  }
 }
 
 class _NotificationCard extends StatelessWidget {
