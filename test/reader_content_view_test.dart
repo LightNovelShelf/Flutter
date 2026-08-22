@@ -63,6 +63,7 @@ class _Harness {
   String? restoreLocator;
   final EdgeInsets padding;
   int restoreToken = 0;
+  final ReaderContentController controller = ReaderContentController();
 
   final List<ReaderContentPosition> positions = <ReaderContentPosition>[];
   final List<bool> boundaries = <bool>[];
@@ -100,6 +101,7 @@ class _Harness {
         onBoundary: boundaries.add,
         onFootnote: (_, _) {},
         onReady: () => ready++,
+        controller: controller,
       ),
     ),
   );
@@ -222,6 +224,28 @@ void main() {
 
     expect(harness.last.page, 2);
     expect(harness.last.locator, isNot(harness.blocks.first.locator));
+    expect(harness.last.progression, greaterThan(0));
+  });
+
+  testWidgets('外部控制器可触发前后翻页', (tester) async {
+    final harness = await _pump(tester);
+
+    harness.controller.nextPage();
+    await tester.pumpAndSettle();
+    expect(harness.last.page, 2);
+
+    harness.controller.previousPage();
+    await tester.pumpAndSettle();
+    expect(harness.last.page, 1);
+  });
+
+  testWidgets('滚动模式下外部控制器按一个视口距离移动', (tester) async {
+    final harness = await _pump(tester, paged: false);
+
+    expect(harness.last.progression, 0);
+    harness.controller.nextPage();
+    await tester.pump(const Duration(milliseconds: 300));
+
     expect(harness.last.progression, greaterThan(0));
   });
 

@@ -9,6 +9,7 @@ import 'package:photo_view/photo_view_gallery.dart';
 
 import '../../core/network/api_error.dart';
 import '../../core/network/request_scheduler.dart';
+import '../../core/platform/reader_volume_keys.dart';
 import '../../data/api/api_client.dart';
 import '../../data/api/models.dart';
 import '../../data/providers.dart';
@@ -434,6 +435,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
   }
 
   void _turn(int delta) {
+    if (loading || loadError != null || _slots.isEmpty) return;
     final target = (_page + delta)
         .clamp(0, math.max(0, _slots.length - 1))
         .toInt();
@@ -611,13 +613,19 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
 
   @override
   Widget build(BuildContext context) {
-    // 只取实际用到的三项，阅读设置面板拖动滑块写入无关字段时不重建整棵树。
-    final (:oledBlack, :viewMode, :pagedDirection) = ref.watch(
+    // 只取实际用到的设置，阅读设置面板拖动滑块写入无关字段时不重建整棵树。
+    final (
+      :oledBlack,
+      :viewMode,
+      :pagedDirection,
+      :volumeKeyPagingEnabled,
+    ) = ref.watch(
       appSettingsProvider.select(
         (settings) => (
           oledBlack: settings.oledBlack,
           viewMode: settings.readerViewMode,
           pagedDirection: settings.comicPagedDirection,
+          volumeKeyPagingEnabled: settings.readerVolumeKeyPagingEnabled,
         ),
       ),
     );
@@ -645,7 +653,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
           : _continuousView();
     }
 
-    return ReaderShell(
+    final shell = ReaderShell(
       background: background,
       loading: loading || _chapter == null,
       error: loadError,
@@ -685,6 +693,16 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
             foreground: foreground,
           ),
         ),
+      ),
+    );
+    return ValueListenableBuilder<bool>(
+      valueListenable: _chromeVisible,
+      child: shell,
+      builder: (context, chromeVisible, child) => ReaderVolumeKeyListener(
+        enabled: volumeKeyPagingEnabled && !chromeVisible,
+        onPrevious: () => _turn(-1),
+        onNext: () => _turn(1),
+        child: child!,
       ),
     );
   }

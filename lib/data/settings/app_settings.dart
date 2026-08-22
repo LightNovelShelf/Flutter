@@ -81,6 +81,7 @@ class AppSettings {
     this.comicPagedDirection = ComicPagedDirection.ltr,
     this.readerPrerenderAdjacent = true,
     this.readerSidePadding = 30,
+    this.readerVolumeKeyPagingEnabled = false,
     this.readerViewMode = ReaderViewMode.paged,
     this.seedColorValue = '#B71C1C',
     this.seriesSearchMode = SeriesSearchMode.system,
@@ -108,6 +109,7 @@ class AppSettings {
   final ComicPagedDirection comicPagedDirection;
   final bool readerPrerenderAdjacent;
   final double readerSidePadding;
+  final bool readerVolumeKeyPagingEnabled;
   final ReaderViewMode readerViewMode;
   final String seedColorValue;
   final SeriesSearchMode seriesSearchMode;
@@ -135,6 +137,7 @@ class AppSettings {
     ComicPagedDirection? comicPagedDirection,
     bool? readerPrerenderAdjacent,
     double? readerSidePadding,
+    bool? readerVolumeKeyPagingEnabled,
     ReaderViewMode? readerViewMode,
     String? seedColorValue,
     SeriesSearchMode? seriesSearchMode,
@@ -165,6 +168,8 @@ class AppSettings {
     readerPrerenderAdjacent:
         readerPrerenderAdjacent ?? this.readerPrerenderAdjacent,
     readerSidePadding: readerSidePadding ?? this.readerSidePadding,
+    readerVolumeKeyPagingEnabled:
+        readerVolumeKeyPagingEnabled ?? this.readerVolumeKeyPagingEnabled,
     readerViewMode: readerViewMode ?? this.readerViewMode,
     seedColorValue: seedColorValue ?? this.seedColorValue,
     seriesSearchMode: seriesSearchMode ?? this.seriesSearchMode,
@@ -222,6 +227,10 @@ class AppSettings {
       ),
       readerPrerenderAdjacent: _bool(raw['readerPrerenderAdjacent'], true),
       readerSidePadding: _clampDouble(raw['readerSidePadding'], 12, 64, 30),
+      readerVolumeKeyPagingEnabled: _bool(
+        raw['readerVolumeKeyPagingEnabled'],
+        false,
+      ),
       readerViewMode: _enumFromName(
         ReaderViewMode.values,
         raw['readerViewMode'],
@@ -273,6 +282,7 @@ class AppSettings {
     'comicPagedDirection': comicPagedDirection.name,
     'readerPrerenderAdjacent': readerPrerenderAdjacent,
     'readerSidePadding': readerSidePadding,
+    'readerVolumeKeyPagingEnabled': readerVolumeKeyPagingEnabled,
     'readerViewMode': readerViewMode.name,
     'seedColorValue': seedColorValue,
     'seriesSearchMode': seriesSearchMode.name,
@@ -303,6 +313,7 @@ class AppSettings {
       other.comicPagedDirection == comicPagedDirection &&
       other.readerPrerenderAdjacent == readerPrerenderAdjacent &&
       other.readerSidePadding == readerSidePadding &&
+      other.readerVolumeKeyPagingEnabled == readerVolumeKeyPagingEnabled &&
       other.readerViewMode == readerViewMode &&
       other.seedColorValue == seedColorValue &&
       other.seriesSearchMode == seriesSearchMode &&
@@ -331,6 +342,7 @@ class AppSettings {
     comicPagedDirection,
     readerPrerenderAdjacent,
     readerSidePadding,
+    readerVolumeKeyPagingEnabled,
     readerViewMode,
     seedColorValue,
     seriesSearchMode,

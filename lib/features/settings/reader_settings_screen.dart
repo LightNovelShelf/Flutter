@@ -163,6 +163,17 @@ class ReaderSettingsContent extends ConsumerWidget {
                 ),
               ),
               SettingsToggleRow(
+                title: '使用音量键翻页',
+                description: 'Android 沉浸阅读时：音量加键上一页，音量减键下一页',
+                icon: Icons.volume_up_outlined,
+                value: settings.readerVolumeKeyPagingEnabled,
+                onChanged: (value) => controller.update(
+                  (settings) => settings.copyWith(
+                    readerVolumeKeyPagingEnabled: value,
+                  ),
+                ),
+              ),
+              SettingsToggleRow(
                 title: '预渲染前后章节',
                 description: '提前排好前后各一章，跨章翻页无缝衔接',
                 icon: Icons.auto_stories_outlined,

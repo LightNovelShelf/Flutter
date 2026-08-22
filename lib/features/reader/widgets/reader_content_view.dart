@@ -44,6 +44,21 @@ class ReaderContentPosition {
   final int pages;
 }
 
+/// 从阅读器外部触发正文前后翻页；未挂载或正文尚未就绪时操作会被忽略。
+class ReaderContentController {
+  _ReaderContentViewState? _state;
+
+  void previousPage() => _state?._turnFromController(false);
+
+  void nextPage() => _state?._turnFromController(true);
+
+  void _attach(_ReaderContentViewState state) => _state = state;
+
+  void _detach(_ReaderContentViewState state) {
+    if (identical(_state, state)) _state = null;
+  }
+}
+
 /// 原生正文视图。
 ///
 /// 正文用 `HtmlWidget` 渲染，翻页与定位在 Flutter 侧完成：先把整章排进零尺寸的测量层，
@@ -69,7 +84,10 @@ class ReaderContentView extends StatefulWidget {
     required this.onBoundary,
     required this.onFootnote,
     required this.onReady,
+    this.controller,
   });
+
+  final ReaderContentController? controller;
 
   final ReaderChapterContent chapter;
 
@@ -225,12 +243,17 @@ class _ReaderContentViewState extends State<ReaderContentView> {
   @override
   void initState() {
     super.initState();
+    widget.controller?._attach(this);
     _resetSlots();
   }
 
   @override
   void didUpdateWidget(ReaderContentView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(widget.controller, oldWidget.controller)) {
+      oldWidget.controller?._detach(this);
+      widget.controller?._attach(this);
+    }
     if (widget.chapter.sortNum != oldWidget.chapter.sortNum) {
       _notifiedChapter = null;
     }
@@ -254,6 +277,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
 
   @override
   void dispose() {
+    widget.controller?._detach(this);
     _trailingReport?.cancel();
     _scrollController?.dispose();
     _pageController?.dispose();
@@ -701,6 +725,27 @@ class _ReaderContentViewState extends State<ReaderContentView> {
   }
 
   void _turn(bool next) {
+    if (!widget.paged) {
+      final controller = _scrollController;
+      if (controller == null || !controller.hasClients) return;
+      final position = controller.position;
+      final direction = next ? 1 : -1;
+      final target = controller.offset + direction * position.viewportDimension;
+      if (target < position.minScrollExtent ||
+          target > position.maxScrollExtent) {
+        final boundary = next
+            ? position.maxScrollExtent
+            : position.minScrollExtent;
+        if ((controller.offset - boundary).abs() < 0.5) {
+          widget.onBoundary(next);
+          return;
+        }
+      }
+      controller.jumpTo(
+        target.clamp(position.minScrollExtent, position.maxScrollExtent),
+      );
+      return;
+    }
     final controller = _pageController;
     final target = _globalPage() + (next ? 1 : -1);
     if (controller == null || target < 0 || target >= _strip.pages) {
@@ -720,6 +765,10 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     // 改为换一个带新初始页的控制器，由下一帧的 PageView 认领。
     setState(_installPageController);
     _settle();
+  }
+
+  void _turnFromController(bool next) {
+    if (_ready) _turn(next);
   }
 
   @override
