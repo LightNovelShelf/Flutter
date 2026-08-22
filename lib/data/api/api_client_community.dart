@@ -1,6 +1,6 @@
 import '../../core/network/request_scheduler.dart';
 import 'api_client.dart';
-import 'community_models.dart';
+import 'models.dart';
 
 /// 社区板块：帖子、回复、点赞收藏、通知。
 extension ApiClientCommunity on ApiClient {

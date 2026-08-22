@@ -4,7 +4,8 @@ import '../api/models.dart';
 class ReadPositionCache {
   ReadPositionCache._();
 
-  static final Map<int, BookReadPosition> _positions = <int, BookReadPosition>{};
+  static final Map<int, BookReadPosition> _positions =
+      <int, BookReadPosition>{};
 
   static BookReadPosition? read(int bookId) => _positions[bookId];
 

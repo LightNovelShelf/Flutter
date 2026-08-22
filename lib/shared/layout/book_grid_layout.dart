@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:flutter/rendering.dart';
+
 class BookGridLayout {
   const BookGridLayout({
     required this.columns,
@@ -62,4 +64,22 @@ class BookGridLayout {
       ((columns - itemCount % columns) % columns) + columns;
 
   double get childAspectRatio => tileWidth / tileHeight;
+
+  /// 卡片网格：`childAspectRatio` 按卡片实际高度。
+  SliverGridDelegate tileGridDelegate({double? mainAxisSpacing}) =>
+      SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns,
+        crossAxisSpacing: BookGridLayout.columnGap,
+        mainAxisSpacing: mainAxisSpacing ?? BookGridLayout.rowGap,
+        childAspectRatio: childAspectRatio,
+      );
+
+  /// 骨架网格：骨架卡片比真实卡片矮，用 `skeletonTileHeight`。
+  SliverGridDelegate skeletonGridDelegate({double? mainAxisSpacing}) =>
+      SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns,
+        crossAxisSpacing: BookGridLayout.columnGap,
+        mainAxisSpacing: mainAxisSpacing ?? BookGridLayout.rowGap,
+        childAspectRatio: tileWidth / skeletonTileHeight,
+      );
 }

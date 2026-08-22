@@ -25,15 +25,16 @@ class ShelfSnapshot {
     version: null,
   );
 
-  Map<int, BookListItem> get bookById =>
-      <int, BookListItem>{for (final book in books) book.id: book};
+  Map<int, BookListItem> get bookById => <int, BookListItem>{
+    for (final book in books) book.id: book,
+  };
 
   ShelfDraft toDraft() => ShelfDraft(
-        items: items
-            .map((item) => item.copyWith(parents: List<String>.of(item.parents)))
-            .toList(),
-        version: version,
-      );
+    items: items
+        .map((item) => item.copyWith(parents: List<String>.of(item.parents)))
+        .toList(),
+    version: version,
+  );
 }
 
 /// 编辑中的书架草稿。
@@ -86,7 +87,11 @@ List<ShelfItem> shelfItemsAtPath(ShelfDraft draft, List<String> parents) =>
     );
 
 class ShelfFolderPath {
-  const ShelfFolderPath({required this.id, required this.title, required this.parents});
+  const ShelfFolderPath({
+    required this.id,
+    required this.title,
+    required this.parents,
+  });
 
   final String id;
   final String title;
@@ -95,9 +100,8 @@ class ShelfFolderPath {
   List<String> get path => <String>[...parents, id];
 }
 
-List<ShelfFolderPath> shelfFolderPaths(ShelfDraft draft) => sortShelfItems(
-      draft.items.where((item) => !item.isBook).toList(),
-    )
+List<ShelfFolderPath> shelfFolderPaths(ShelfDraft draft) =>
+    sortShelfItems(draft.items.where((item) => !item.isBook).toList())
         .map(
           (item) => ShelfFolderPath(
             id: item.folderId!,
@@ -109,8 +113,8 @@ List<ShelfFolderPath> shelfFolderPaths(ShelfDraft draft) => sortShelfItems(
 
 bool shelfDraftHasChanges(ShelfSnapshot snapshot, ShelfDraft draft) {
   String signature(List<ShelfItem> items) => jsonEncode(
-        normalizeShelfIndexes(items).map((item) => item.encode()).toList(),
-      );
+    normalizeShelfIndexes(items).map((item) => item.encode()).toList(),
+  );
   return signature(snapshot.items) != signature(draft.items);
 }
 
@@ -166,8 +170,9 @@ ShelfDraft renameShelfFolder(
   if (name.isEmpty || name == '根文件夹') {
     throw ArgumentError('请输入有效的文件夹名称。');
   }
-  if (draft.items
-      .any((item) => !item.isBook && item.folderId != id && item.title == name)) {
+  if (draft.items.any(
+    (item) => !item.isBook && item.folderId != id && item.title == name,
+  )) {
     throw ArgumentError('已存在同名文件夹。');
   }
   var found = false;
@@ -191,8 +196,9 @@ ShelfDraft deleteShelfFolder(
   }
   var rootIndex = draft.items.fold<int>(
     -1,
-    (maximum, item) =>
-        item.parents.isEmpty ? (item.index > maximum ? item.index : maximum) : maximum,
+    (maximum, item) => item.parents.isEmpty
+        ? (item.index > maximum ? item.index : maximum)
+        : maximum,
   );
   final items = <ShelfItem>[];
   for (final item in draft.items) {
@@ -267,7 +273,9 @@ ShelfDraft moveShelfBooks(
   final ids = bookIds.toSet();
   if (ids.isEmpty) throw ArgumentError('请至少选择一本书。');
   final selected = sortShelfItems(
-    draft.items.where((item) => item.isBook && ids.contains(item.bookId)).toList(),
+    draft.items
+        .where((item) => item.isBook && ids.contains(item.bookId))
+        .toList(),
   );
   if (selected.length != ids.length) throw ArgumentError('所选书籍已不存在。');
   final position = <int, int>{
@@ -307,7 +315,10 @@ ShelfDraft reorderShelfSiblings(
   return draft.copyWith(
     items: draft.items.map((item) {
       if (!_sameParents(item.parents, parents)) return item;
-      return item.copyWith(index: indexes[item.key] ?? item.index, updatedAt: now);
+      return item.copyWith(
+        index: indexes[item.key] ?? item.index,
+        updatedAt: now,
+      );
     }).toList(),
   );
 }

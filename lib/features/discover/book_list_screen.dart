@@ -46,7 +46,7 @@ class _BookListScreenState extends ConsumerState<BookListScreen> {
   Widget _flatBody() {
     final state = ref.watch(bookCatalogProvider(_order));
     final controller = ref.read(bookCatalogProvider(_order).notifier);
-    return BookGrid(
+    return PagedGrid.books(
       header: _header(),
       books: state.items,
       loading: state.loading,

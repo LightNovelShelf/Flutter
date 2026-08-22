@@ -27,6 +27,8 @@ import 'widgets/comic_retry_tile.dart';
 import 'widgets/reader_chapter_sheet.dart';
 import 'widgets/reader_chrome.dart';
 import 'widgets/reader_settings_sheet.dart';
+import 'widgets/reader_shell.dart';
+import 'widgets/reader_status_pills.dart';
 import 'widgets/reader_tap_zone.dart';
 
 /// 漫画阅读器：整页图片，按 12 页一批向服务端取图。
@@ -44,7 +46,8 @@ class ComicReaderScreen extends ConsumerStatefulWidget {
   ConsumerState<ComicReaderScreen> createState() => _ComicReaderScreenState();
 }
 
-class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
+class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
+    with ReaderLoadState<ComicReaderScreen> {
   static const int _batchSize = 12;
 
   /// 尺寸未知时先按常见竖版单页占位。
@@ -54,20 +57,37 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
   late final ReaderProgressController _progress;
 
   late int _sortNum;
-  int _requestVersion = 0;
-  bool _loading = true;
-  String? _error;
-  bool _chromeVisible = false;
+  final ValueNotifier<bool> _chromeVisible = ValueNotifier<bool>(false);
 
   List<ComicChapterSummary> _chapters = const <ComicChapterSummary>[];
   int _chapterIndex = 0;
   ComicChapterSummary? _chapter;
   List<ComicPageSlot> _slots = const <ComicPageSlot>[];
-  int _page = 0;
+
+  /// 前 i 页高宽比之和，乘上页宽就是第 i 页的顶部偏移。页宽变了不用重算，只有 `_slots` 变才重建。
+  List<double> _aspectPrefix = const <double>[0];
+
+  /// 当前页只驱动页码指示器和工具栏，连续模式下滚动换页不重建整屏。
+  final ValueNotifier<int> _pageNotifier = ValueNotifier<int>(0);
+  int get _page => _pageNotifier.value;
   int _direction = 1;
 
   final Set<int> _loadingBatches = <int>{};
   final Set<int> _failedBatches = <int>{};
+
+  /// 构建期发现缺图的批次先攒着，帧末统一取。
+  final Set<int> _pendingBatches = <int>{};
+  bool _batchFlushScheduled = false;
+
+  Timer? _prefetchTimer;
+
+  /// 已提交 precache 的缓存键，快速滚动时同一张图不重复排解码任务。
+  final Set<String> _precachedKeys = <String>{};
+
+  /// MediaQuery 只在 `didChangeDependencies` 里读一次，滚动回调不逐帧查 InheritedModel。
+  Size _screenSize = Size.zero;
+  double _devicePixelRatio = 1;
+  double _continuousPageWidth = 0;
 
   PageController? _pageController;
   ScrollController? _scrollController;
@@ -83,27 +103,45 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final size = MediaQuery.sizeOf(context);
+    if (size == _screenSize) return;
+    _screenSize = size;
+    _continuousPageWidth = getContinuousComicContentWidth(
+      size.width,
+      size.height,
+    );
+  }
+
+  @override
   void dispose() {
+    _prefetchTimer?.cancel();
     unawaited(_progress.dispose());
     _pageController?.dispose();
     _scrollController?.dispose();
+    _pageNotifier.dispose();
+    _chromeVisible.dispose();
     super.dispose();
   }
 
   Future<void> _loadChapter() async {
-    final version = ++_requestVersion;
+    final version = beginRequest();
     setState(() {
-      _loading = true;
-      _error = null;
+      loading = true;
+      loadError = null;
       _loadingBatches.clear();
       _failedBatches.clear();
+      _pendingBatches.clear();
+      _precachedKeys.clear();
     });
     try {
       // 章节列表只在首次进入时取一次，换章时服务端进度不适用，从第一页开始。
       final info = _chapters.isEmpty
           ? await ref.read(readerComicInfoProvider(widget.bookId).future)
           : null;
-      if (!mounted || version != _requestVersion) return;
+      if (isStale(version)) return;
       final chapters = info?.chapters ?? _chapters;
 
       var index = chapters.indexWhere((item) => item.sortNum == _sortNum);
@@ -121,7 +159,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
         skip: skip,
         take: _batchSize,
       );
-      if (!mounted || version != _requestVersion) return;
+      if (isStale(version)) return;
 
       // 目录里的页数偶尔滞后，以正文返回的 total 为准并按需重取。
       if (content.chapter.total != total) {
@@ -138,33 +176,35 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
             skip: skip,
             take: _batchSize,
           );
-          if (!mounted || version != _requestVersion) return;
+          if (isStale(version)) return;
         }
       }
 
       final page = total == 0 ? 0 : target.clamp(0, total - 1);
+      _pageNotifier.value = page;
       setState(() {
         _chapters = chapters;
         _chapterIndex = index;
         _chapter = chapter;
-        _slots = mergeComicPageBatch(
-          createComicPageSlots(total),
-          content.chapter.skip,
-          content.chapter.images,
+        _setSlots(
+          mergeComicPageBatch(
+            createComicPageSlots(total),
+            content.chapter.skip,
+            content.chapter.images,
+          ),
         );
-        _page = page;
         _direction = 1;
-        _loading = false;
+        loading = false;
       });
       _resetControllers(page);
       _stage(page);
       await _progress.commit(chapter.id, '${page + 1}');
-      unawaited(_prefetch());
-    } catch (error) {
-      if (!mounted || version != _requestVersion) return;
+      _schedulePrefetch();
+    } catch (failure) {
+      if (isStale(version)) return;
       setState(() {
-        _error = error is ApiError ? error.message : '漫画加载失败，请稍后重试。';
-        _loading = false;
+        loadError = failure is ApiError ? failure.message : '漫画加载失败，请稍后重试。';
+        loading = false;
       });
     }
   }
@@ -233,7 +273,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
     }
     if (!missing) return;
 
-    final version = _requestVersion;
+    final version = requestVersion;
     _loadingBatches.add(skip);
     _failedBatches.remove(skip);
     try {
@@ -243,23 +283,34 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
         take: _batchSize,
         priority: RequestPriority.preload,
       );
-      if (!mounted || version != _requestVersion) return;
+      if (isStale(version)) return;
       // 新一批图带来真实比例，之前按未知比例占位的页高会变，先记下当前页起点再补回偏移。
       final anchor = _offsetForPage(_page);
       setState(() {
-        _slots = mergeComicPageBatch(
-          _slots,
-          content.chapter.skip,
-          content.chapter.images,
+        _setSlots(
+          mergeComicPageBatch(
+            _slots,
+            content.chapter.skip,
+            content.chapter.images,
+          ),
         );
       });
       _restoreAnchor(anchor);
     } catch (_) {
-      if (!mounted || version != _requestVersion) return;
+      if (isStale(version)) return;
       setState(() => _failedBatches.add(skip));
     } finally {
       _loadingBatches.remove(skip);
     }
+  }
+
+  /// 换页节流：快速滚动会连着跨很多页，只对停住的位置排预取，避免成串解码任务抢 UI/raster。
+  void _schedulePrefetch() {
+    _prefetchTimer?.cancel();
+    _prefetchTimer = Timer(
+      const Duration(milliseconds: 200),
+      () => unawaited(_prefetch()),
+    );
   }
 
   /// 当前页两侧优先取图，再沿阅读方向预取。
@@ -269,24 +320,32 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
       await _ensureBatch(index);
     }
     if (!mounted) return;
+    final devicePixelRatio = _devicePixelRatio;
     for (final index in plan) {
+      // 上面的等待期间可能换了章，槽位数会变。
+      if (index >= _slots.length) continue;
       final image = _slots[index].image;
       if (image == null) continue;
       // 必须和 `BookImage` 落到同一个尺寸档，否则 URL 与缓存键对不上，预取不会命中。
       final url = sizedImageUrl(
         image.url,
         logicalHeight: _pageHeight(index),
-        devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+        devicePixelRatio: devicePixelRatio,
       );
+      final cacheKey = BookImage.cacheKeyFor(url);
+      if (!_precachedKeys.add(cacheKey)) continue;
       unawaited(
         precacheImage(
           CachedNetworkImageProvider(
             url,
-            cacheKey: BookImage.cacheKeyFor(url),
+            cacheKey: cacheKey,
             cacheManager: appImageCacheManager,
           ),
           context,
-        ).catchError((Object _) {}),
+        ).catchError((Object _) {
+          // 预取失败的键放回去，下次经过这页还能再试。
+          _precachedKeys.remove(cacheKey);
+        }),
       );
     }
   }
@@ -299,12 +358,10 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
 
   void _onPageChanged(int page) {
     if (page == _page) return;
-    setState(() {
-      _direction = page > _page ? 1 : -1;
-      _page = page;
-    });
+    _direction = page > _page ? 1 : -1;
+    _pageNotifier.value = page;
     _stage(page);
-    unawaited(_prefetch());
+    _schedulePrefetch();
   }
 
   /// 整页高宽比。地址上带 `size` 就用真实比例，横跨两页的宽图才不会被塞进竖版版面。
@@ -313,27 +370,45 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
     return _slots[index].image?.aspect ?? _unknownAspect;
   }
 
-  double _continuousWidth() {
-    final size = MediaQuery.sizeOf(context);
-    return getContinuousComicContentWidth(size.width, size.height);
+  /// 换 `_slots` 必须走这里，页高前缀和要跟着重建。
+  void _setSlots(List<ComicPageSlot> slots) {
+    _slots = slots;
+    final prefix = List<double>.filled(slots.length + 1, 0);
+    var sum = 0.0;
+    for (var index = 0; index < slots.length; index++) {
+      sum += slots[index].image?.aspect ?? _unknownAspect;
+      prefix[index + 1] = sum;
+    }
+    _aspectPrefix = prefix;
   }
 
-  /// 当前模式下整页的宽度。翻页模式铺满屏宽，连续模式按内容宽收窄。
-  double _pageWidth() => _mode == ReaderViewMode.paged
-      ? MediaQuery.sizeOf(context).width
-      : _continuousWidth();
+  /// 整页高度，展示与预取共用同一个算式，避免尺寸档分叉。翻页模式铺满屏宽，连续模式按内容宽收窄。
+  double _pageHeight(int index) => _mode == ReaderViewMode.paged
+      ? _screenSize.width * _aspect(index)
+      : _continuousPageExtent(index);
 
-  /// 整页高度，展示与预取共用，避免尺寸档分叉。
-  double _pageHeight(int index) => _pageWidth() * _aspect(index);
+  double _offsetForPage(int page) =>
+      _continuousPageWidth * _aspectPrefix[page.clamp(0, _slots.length)];
 
-  double _offsetForPage(int page) {
-    if (!mounted) return 0;
-    final width = _continuousWidth();
-    var offset = 0.0;
-    for (var index = 0; index < page && index < _slots.length; index++) {
-      offset += width * _aspect(index);
+  /// 连续模式下第 index 页的高度，和 `_offsetForPage` 共用前缀和，两者不会算出不一致的版面。
+  double _continuousPageExtent(int index) =>
+      _continuousPageWidth * (_aspectPrefix[index + 1] - _aspectPrefix[index]);
+
+  /// 偏移落在哪一页。判定点取 offset + 1，正好停在页边界时才不会判回上一页。
+  int _pageAtOffset(double offset) {
+    if (_continuousPageWidth <= 0 || _slots.isEmpty) return 0;
+    final target = (offset + 1) / _continuousPageWidth;
+    var low = 0;
+    var high = _slots.length - 1;
+    while (low < high) {
+      final mid = (low + high + 1) >> 1;
+      if (_aspectPrefix[mid] <= target) {
+        low = mid;
+      } else {
+        high = mid - 1;
+      }
     }
-    return offset;
+    return low;
   }
 
   /// 页高变化后把当前页钉回原位。连续模式按累计页高定位，前面任何一页变高变矮都会整体平移。
@@ -350,25 +425,12 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
   void _onScroll() {
     final controller = _scrollController;
     if (controller == null || !controller.hasClients || _slots.isEmpty) return;
-    final width = _continuousWidth();
-    var offset = controller.offset + 1;
-    var page = 0;
-    for (var index = 0; index < _slots.length; index++) {
-      final height = width * _aspect(index);
-      if (offset < height) {
-        page = index;
-        break;
-      }
-      offset -= height;
-      page = index;
-    }
+    final page = _pageAtOffset(controller.offset);
     if (page == _page) return;
-    setState(() {
-      _direction = page > _page ? 1 : -1;
-      _page = page;
-    });
+    _direction = page > _page ? 1 : -1;
+    _pageNotifier.value = page;
     _stage(page);
-    unawaited(_prefetch());
+    _schedulePrefetch();
   }
 
   void _turn(int delta) {
@@ -420,7 +482,23 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
     await _openChapterIndex(index < 0 ? 0 : index);
   }
 
-  void _toggleChrome() => setState(() => _chromeVisible = !_chromeVisible);
+  void _toggleChrome() => _chromeVisible.value = !_chromeVisible.value;
+
+  /// 构建期只登记缺图的批次，帧末再发请求：build 里不能有网络副作用和 setState。
+  void _requestBatch(int skip) {
+    if (_loadingBatches.contains(skip)) return;
+    if (!_pendingBatches.add(skip) || _batchFlushScheduled) return;
+    _batchFlushScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _batchFlushScheduled = false;
+      final pending = List<int>.of(_pendingBatches);
+      _pendingBatches.clear();
+      if (!mounted) return;
+      for (final index in pending) {
+        unawaited(_ensureBatch(index));
+      }
+    });
+  }
 
   Widget _pageContent(int index, double width, double height) {
     final slot = _slots[index];
@@ -434,7 +512,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
           onRetry: () => unawaited(_ensureBatch(index, retry: true)),
         );
       }
-      unawaited(_ensureBatch(index));
+      _requestBatch(skip);
       return SizedBox(
         width: width,
         height: height,
@@ -455,7 +533,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
   }
 
   Widget _pagedView(bool reversed) {
-    final size = MediaQuery.sizeOf(context);
+    final size = _screenSize;
     final gallery = PhotoViewGallery.builder(
       itemCount: _slots.length,
       pageController: _pageController,
@@ -487,7 +565,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
   }
 
   Widget _continuousView() {
-    final width = _continuousWidth();
+    final width = _continuousPageWidth;
     return ReaderTapZoneLayer(
       axis: Axis.vertical,
       onPrevious: () => _turn(-1),
@@ -496,107 +574,117 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen> {
       child: ListView.builder(
         controller: _scrollController,
         itemCount: _slots.length,
-        itemExtentBuilder: (index, _) => width * _aspect(index),
+        itemExtentBuilder: (index, _) => _continuousPageExtent(index),
         itemBuilder: (context, index) => Center(
           child: SizedBox(
             width: width,
-            child: _pageContent(index, width, width * _aspect(index)),
+            child: _pageContent(index, width, _continuousPageExtent(index)),
           ),
         ),
       ),
     );
   }
 
+  Widget _chrome({
+    required bool visible,
+    required int page,
+    required Color background,
+    required Color foreground,
+  }) => ReaderChrome(
+    visible: visible,
+    title: _chapter?.title.isNotEmpty == true ? _chapter!.title : '漫画阅读器',
+    backgroundColor: background,
+    foregroundColor: foreground,
+    currentChapter: _chapterIndex + 1,
+    totalChapters: _chapters.length,
+    progress: _slots.isEmpty ? null : (page + 1) / _slots.length,
+    onOpenChapters: () => unawaited(_openChapterSheet()),
+    onOpenSettings: () => unawaited(showReaderSettingsSheet(context)),
+    onDismiss: () => _chromeVisible.value = false,
+    onPreviousChapter: _chapterIndex > 0
+        ? () => unawaited(_openChapterIndex(_chapterIndex - 1))
+        : null,
+    onNextChapter: _chapterIndex < _chapters.length - 1
+        ? () => unawaited(_openChapterIndex(_chapterIndex + 1))
+        : null,
+  );
+
   @override
   Widget build(BuildContext context) {
-    final settings = ref.watch(appSettingsProvider);
-    final (:background, :foreground) = readerSurfaceColors(context, settings);
-    final paged = settings.readerViewMode == ReaderViewMode.paged;
-    if (_mode != settings.readerViewMode) {
-      _mode = settings.readerViewMode;
-      if (!_loading) {
+    // 只取实际用到的三项，阅读设置面板拖动滑块写入无关字段时不重建整棵树。
+    final (:oledBlack, :viewMode, :pagedDirection) = ref.watch(
+      appSettingsProvider.select(
+        (settings) => (
+          oledBlack: settings.oledBlack,
+          viewMode: settings.readerViewMode,
+          pagedDirection: settings.comicPagedDirection,
+        ),
+      ),
+    );
+    final (:background, :foreground) = readerSurfaceColors(
+      context,
+      oledBlack: oledBlack,
+    );
+    if (_mode != viewMode) {
+      _mode = viewMode;
+      if (!loading) {
         WidgetsBinding.instance.addPostFrameCallback((_) => _syncToPage());
       }
     }
 
     final Widget body;
-    if (_error != null) {
-      body = Center(
-        child: ErrorStateView(
-          message: _error!,
-          onRetry: () => unawaited(_loadChapter()),
-        ),
-      );
-    } else if (_loading || _chapter == null) {
-      body = const Center(child: CircularProgressIndicator());
+    if (_chapter == null) {
+      body = const SizedBox.shrink();
     } else if (_slots.isEmpty) {
       body = const Center(
         child: EmptyStateView(icon: Icons.image_outlined, title: '本章暂无页面'),
       );
     } else {
-      body = paged
-          ? _pagedView(settings.comicPagedDirection == ComicPagedDirection.rtl)
+      body = viewMode == ReaderViewMode.paged
+          ? _pagedView(pagedDirection == ComicPagedDirection.rtl)
           : _continuousView();
     }
 
-    return Scaffold(
-      backgroundColor: background,
-      body: Stack(
-        children: <Widget>[
-          Positioned.fill(child: body),
-          if (_slots.isNotEmpty)
-            Positioned(
+    return ReaderShell(
+      background: background,
+      loading: loading || _chapter == null,
+      error: loadError,
+      onRetry: () => unawaited(_loadChapter()),
+      body: body,
+      overlay: _slots.isEmpty
+          ? null
+          : Positioned(
               bottom: MediaQuery.paddingOf(context).bottom + 12,
               left: 0,
               right: 0,
-              child: IgnorePointer(
-                child: Center(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      child: Text(
-                        '${_page + 1} / ${_slots.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontFeatures: <FontFeature>[
-                            FontFeature.tabularFigures(),
-                          ],
-                        ),
-                      ),
+              child: Center(
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: _chromeVisible,
+                  builder: (context, visible, _) => ValueListenableBuilder<int>(
+                    valueListenable: _pageNotifier,
+                    builder: (context, page, _) => ReaderStatusPills(
+                      visible: !visible,
+                      foregroundColor: foreground,
+                      currentChapter: _chapterIndex + 1,
+                      totalChapters: _chapters.length,
+                      currentPage: page + 1,
+                      totalPages: _slots.length,
                     ),
                   ),
                 ),
               ),
             ),
-          ReaderChrome(
-            visible: _chromeVisible,
-            title: _chapter?.title.isNotEmpty == true
-                ? _chapter!.title
-                : '漫画阅读器',
-            backgroundColor: background,
-            foregroundColor: foreground,
-            currentChapter: _chapterIndex + 1,
-            totalChapters: _chapters.length,
-            progress: _slots.isEmpty ? null : (_page + 1) / _slots.length,
-            onOpenChapters: () => unawaited(_openChapterSheet()),
-            onOpenSettings: () => unawaited(showReaderSettingsSheet(context)),
-            onDismiss: () => setState(() => _chromeVisible = false),
-            onPreviousChapter: _chapterIndex > 0
-                ? () => unawaited(_openChapterIndex(_chapterIndex - 1))
-                : null,
-            onNextChapter: _chapterIndex < _chapters.length - 1
-                ? () => unawaited(_openChapterIndex(_chapterIndex + 1))
-                : null,
+      chrome: ValueListenableBuilder<bool>(
+        valueListenable: _chromeVisible,
+        builder: (context, visible, _) => ValueListenableBuilder<int>(
+          valueListenable: _pageNotifier,
+          builder: (context, page, _) => _chrome(
+            visible: visible,
+            page: page,
+            background: background,
+            foreground: foreground,
           ),
-        ],
+        ),
       ),
     );
   }

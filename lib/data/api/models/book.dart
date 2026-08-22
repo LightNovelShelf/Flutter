@@ -109,9 +109,8 @@ class BookListPage {
 }
 
 /// 列表接口可能直接返回数组，也可能包一层分页对象。
-List<dynamic> _rawBookListItems(Object? value) => value is List
-    ? value
-    : asArray(asRecordOrEmpty(value)['Data'], '书籍列表数据');
+List<dynamic> _rawBookListItems(Object? value) =>
+    value is List ? value : asArray(asRecordOrEmpty(value)['Data'], '书籍列表数据');
 
 List<BookListItem> decodeBookListItems(Object? value) =>
     _rawBookListItems(value).map(BookListItem.decode).toList();

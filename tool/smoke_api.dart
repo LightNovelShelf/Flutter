@@ -12,7 +12,6 @@ import 'package:lightnovel/core/network/api_error.dart';
 import 'package:lightnovel/core/network/request_scheduler.dart';
 import 'package:lightnovel/core/network/signalr_connection.dart';
 import 'package:lightnovel/data/api/api_client.dart';
-import 'package:lightnovel/data/api/community_models.dart';
 import 'package:lightnovel/data/api/endpoints.dart';
 import 'package:lightnovel/data/api/models.dart';
 

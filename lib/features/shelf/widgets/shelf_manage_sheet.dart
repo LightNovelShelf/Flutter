@@ -22,43 +22,51 @@ class _ShelfCommandSpec {
   final bool destructive;
 }
 
-_ShelfCommandSpec _specFor(ShelfManageCommand command, {required bool active}) =>
-    switch (command) {
-      ShelfManageCommand.browse => _ShelfCommandSpec(
-          Icons.touch_app_outlined,
-          active ? '正在浏览' : '浏览书架',
-        ),
-      ShelfManageCommand.drag => _ShelfCommandSpec(
-          Icons.swap_vert,
-          active ? '排序中' : '拖动排序',
-        ),
-      ShelfManageCommand.select => _ShelfCommandSpec(
-          Icons.checklist,
-          active ? '正在选择' : '选择条目',
-        ),
-      ShelfManageCommand.createFolder =>
-        const _ShelfCommandSpec(Icons.create_new_folder_outlined, '新建文件夹'),
-      ShelfManageCommand.renameFolder =>
-        const _ShelfCommandSpec(Icons.drive_file_rename_outline, '重命名文件夹'),
-      ShelfManageCommand.deleteFolder => const _ShelfCommandSpec(
-          Icons.folder_delete_outlined,
-          '删除文件夹',
-          destructive: true,
-        ),
-      ShelfManageCommand.moveBooks =>
-        const _ShelfCommandSpec(Icons.drive_file_move_outlined, '移动到文件夹'),
-      ShelfManageCommand.removeItems => const _ShelfCommandSpec(
-          Icons.delete_outline,
-          '移出书架',
-          destructive: true,
-        ),
-      ShelfManageCommand.save => const _ShelfCommandSpec(Icons.check, '保存更改'),
-      ShelfManageCommand.discard => const _ShelfCommandSpec(
-          Icons.close,
-          '放弃更改',
-          destructive: true,
-        ),
-    };
+_ShelfCommandSpec _specFor(
+  ShelfManageCommand command, {
+  required bool active,
+}) => switch (command) {
+  ShelfManageCommand.browse => _ShelfCommandSpec(
+    Icons.touch_app_outlined,
+    active ? '正在浏览' : '浏览书架',
+  ),
+  ShelfManageCommand.drag => _ShelfCommandSpec(
+    Icons.swap_vert,
+    active ? '排序中' : '拖动排序',
+  ),
+  ShelfManageCommand.select => _ShelfCommandSpec(
+    Icons.checklist,
+    active ? '正在选择' : '选择条目',
+  ),
+  ShelfManageCommand.createFolder => const _ShelfCommandSpec(
+    Icons.create_new_folder_outlined,
+    '新建文件夹',
+  ),
+  ShelfManageCommand.renameFolder => const _ShelfCommandSpec(
+    Icons.drive_file_rename_outline,
+    '重命名文件夹',
+  ),
+  ShelfManageCommand.deleteFolder => const _ShelfCommandSpec(
+    Icons.folder_delete_outlined,
+    '删除文件夹',
+    destructive: true,
+  ),
+  ShelfManageCommand.moveBooks => const _ShelfCommandSpec(
+    Icons.drive_file_move_outlined,
+    '移动到文件夹',
+  ),
+  ShelfManageCommand.removeItems => const _ShelfCommandSpec(
+    Icons.delete_outline,
+    '移出书架',
+    destructive: true,
+  ),
+  ShelfManageCommand.save => const _ShelfCommandSpec(Icons.check, '保存更改'),
+  ShelfManageCommand.discard => const _ShelfCommandSpec(
+    Icons.close,
+    '放弃更改',
+    destructive: true,
+  ),
+};
 
 /// 书架管理底部面板：选中的命令通过 `Navigator.pop` 回传给书架页执行。
 class ShelfManageSheet extends StatelessWidget {
@@ -77,14 +85,11 @@ class ShelfManageSheet extends StatelessWidget {
     BuildContext context, {
     required List<ShelfManageCommand> commands,
     required ShelfManageCommand activeMode,
-  }) =>
-      showModalBottomSheet<ShelfManageCommand>(
-        context: context,
-        builder: (_) => ShelfManageSheet(
-          commands: commands,
-          activeMode: activeMode,
-        ),
-      );
+  }) => showModalBottomSheet<ShelfManageCommand>(
+    context: context,
+    builder: (_) =>
+        ShelfManageSheet(commands: commands, activeMode: activeMode),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -145,10 +150,7 @@ class _CommandRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: <Widget>[
-            SizedBox(
-              width: 28,
-              child: Icon(spec.icon, size: 21, color: color),
-            ),
+            SizedBox(width: 28, child: Icon(spec.icon, size: 21, color: color)),
             const SizedBox(width: 12),
             Expanded(
               child: Text(

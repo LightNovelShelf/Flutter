@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../data/api/community_models.dart';
+import '../../../data/api/models.dart';
 import '../../../shared/format.dart';
 import '../../../shared/widgets/user_avatar.dart';
 import 'community_primitives.dart';
@@ -32,7 +32,11 @@ class CommunityHotThreadsPanel extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Icon(Icons.local_fire_department, size: 18, color: colors.primary),
+              Icon(
+                Icons.local_fire_department,
+                size: 18,
+                color: colors.primary,
+              ),
               const SizedBox(width: 8),
               Text(
                 '热门讨论',
@@ -155,7 +159,11 @@ class CommunityActiveUsersPanel extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Icon(Icons.emoji_events_outlined, size: 18, color: colors.primary),
+              Icon(
+                Icons.emoji_events_outlined,
+                size: 18,
+                color: colors.primary,
+              ),
               const SizedBox(width: 8),
               Text(
                 '活跃成员',

@@ -25,6 +25,7 @@ class ReaderHtmlBlock extends StatefulWidget {
     this.imageBottomSpacing = 6,
     this.imagePreviewTrigger = ImagePreviewTrigger.longPress,
     this.applyParagraphSpacing = true,
+    this.measureOnly = false,
   });
 
   final String markup;
@@ -36,6 +37,11 @@ class ReaderHtmlBlock extends StatefulWidget {
   final double imageBottomSpacing;
   final ImagePreviewTrigger imagePreviewTrigger;
   final bool applyParagraphSpacing;
+
+  /// 只用于分页测量时，图片位置摆等尺寸的空盒子而不是真图：测量层只要几何，
+  /// 建一份 [ContentImage] 就多一个图片组件与一条 `ImageStream` 监听。
+  /// 尺寸未知的图仍会去取原始尺寸并回报，否则测量停在 2:3 占位上。
+  final bool measureOnly;
 
   @override
   State<ReaderHtmlBlock> createState() => _ReaderHtmlBlockState();
@@ -58,22 +64,32 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
 
   final Map<String, Size> _imageSizes = <String, Size>{};
 
+  /// 图片回填尺寸的代数，作为 `HtmlWidget` 缓存树的失效条件。
+  int _imageEpoch = 0;
+
+  /// 点按预览要摘掉图片外的链接，摘的结果按 markup 缓存，别每次 build 重跑正则。
+  String? _strippedMarkup;
+
   @override
   void didUpdateWidget(covariant ReaderHtmlBlock oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.markup != widget.markup) _imageSizes.clear();
+    if (oldWidget.markup != widget.markup) {
+      _imageSizes.clear();
+      _strippedMarkup = null;
+    }
   }
 
   /// 点按预览时，包在图片外的链接会先吃掉点按，渲染前摘掉链接只留图片。
   bool get _previewOnTap =>
       widget.imagePreviewTrigger == ImagePreviewTrigger.tap;
 
-  String get _markup => _previewOnTap
-      ? widget.markup.replaceAllMapped(
-          _linkedImage,
-          (match) => match.group(4) ?? '',
-        )
-      : widget.markup;
+  String get _markup {
+    if (!_previewOnTap) return widget.markup;
+    return _strippedMarkup ??= widget.markup.replaceAllMapped(
+      _linkedImage,
+      (match) => match.group(4) ?? '',
+    );
+  }
 
   bool _isImageLink(String url) {
     if (!_previewOnTap) return false;
@@ -111,8 +127,17 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
 
   Widget _html() => HtmlWidget(
     _markup,
-    // 每块的 HTML 各不相同，缓存无收益。
-    enableCaching: false,
+    // 超过一万字符时组件默认改成异步建树，那期间块高是 0，分页测量会把它当空块。
+    buildAsync: false,
+    // 同一块 markup 至少被解析两次（测量层与正文层各一份），跨页块在相邻两页还各来一次。
+    enableCaching: true,
+    rebuildTriggers: <Object?>[
+      widget.style,
+      widget.borderIllustrations,
+      widget.imageBottomSpacing,
+      widget.imagePreviewTrigger,
+      _imageEpoch,
+    ],
     renderMode: RenderMode.column,
     textStyle: widget.style.textStyle,
     customStylesBuilder: (element) => widget.style.stylesFor(
@@ -166,6 +191,7 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
           widget.borderIllustrations &&
           parentClasses.any(_illustrationClasses.contains),
       trigger: widget.imagePreviewTrigger,
+      measureOnly: widget.measureOnly,
       onResolved: _onImageResolved,
     );
     final spaced = previewable && widget.imageBottomSpacing > 0
@@ -187,7 +213,10 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
 
   void _onImageResolved(String url, Size size) {
     if (!mounted || _imageSizes[url] == size) return;
-    setState(() => _imageSizes[url] = size);
+    setState(() {
+      _imageSizes[url] = size;
+      _imageEpoch++;
+    });
     widget.onLayoutChanged?.call();
   }
 
@@ -212,6 +241,7 @@ class _ReaderBlockImage extends StatefulWidget {
     required this.previewable,
     required this.bordered,
     required this.trigger,
+    required this.measureOnly,
     required this.onResolved,
   });
 
@@ -221,6 +251,7 @@ class _ReaderBlockImage extends StatefulWidget {
   final bool previewable;
   final bool bordered;
   final ImagePreviewTrigger trigger;
+  final bool measureOnly;
   final void Function(String url, Size size) onResolved;
 
   @override
@@ -304,17 +335,20 @@ class _ReaderBlockImageState extends State<_ReaderBlockImage> {
         final height = size == null || size.width <= 0
             ? maxWidth * 3 / 2
             : width * size.height / size.width;
-        final image = ContentImage(
-          url: widget.url,
-          width: width,
-          height: height,
-          blurHash: widget.blurHash,
-          borderRadius: 3,
-          bordered: widget.bordered,
-          previewable: widget.previewable,
-          trigger: widget.trigger,
-          requestSizedVariant: widget.blurHash != null,
-        );
+        // ContentImage 的外框就是这个 SizedBox，测量层换成空盒子几何完全一致。
+        final image = widget.measureOnly
+            ? SizedBox(width: width, height: height)
+            : ContentImage(
+                url: widget.url,
+                width: width,
+                height: height,
+                blurHash: widget.blurHash,
+                borderRadius: 3,
+                bordered: widget.bordered,
+                previewable: widget.previewable,
+                trigger: widget.trigger,
+                requestSizedVariant: widget.blurHash != null,
+              );
         return widget.bordered
             ? Align(alignment: Alignment.topCenter, child: image)
             : image;

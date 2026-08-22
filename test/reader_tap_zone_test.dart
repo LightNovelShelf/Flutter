@@ -45,10 +45,9 @@ void main() {
   });
 
   testWidgets('横向反向阅读时左右对调', (tester) async {
-    expect(
-      await tapAt(tester, const Offset(30, 300), reversed: true),
-      <String>['next'],
-    );
+    expect(await tapAt(tester, const Offset(30, 300), reversed: true), <String>[
+      'next',
+    ]);
     expect(
       await tapAt(tester, const Offset(280, 300), reversed: true),
       <String>['previous'],

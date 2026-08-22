@@ -9,7 +9,6 @@ import '../../data/providers.dart';
 import '../../data/settings/app_settings.dart';
 import '../../shared/format.dart';
 import '../../shared/widgets/html/reader_content_style.dart';
-import '../../shared/widgets/state_views.dart';
 import 'reader_chapter_prerenderer.dart';
 import 'reader_chapter_window.dart';
 import 'reader_open_position.dart';
@@ -21,6 +20,7 @@ import 'widgets/reader_chrome.dart';
 import 'widgets/reader_content_view.dart';
 import 'widgets/reader_footnote_sheet.dart';
 import 'widgets/reader_settings_sheet.dart';
+import 'widgets/reader_shell.dart';
 import 'widgets/reader_status_pills.dart';
 
 /// 小说阅读器。
@@ -46,7 +46,8 @@ class NovelReaderScreen extends ConsumerStatefulWidget {
   ConsumerState<NovelReaderScreen> createState() => _NovelReaderScreenState();
 }
 
-class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
+class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
+    with ReaderLoadState<NovelReaderScreen> {
   late final ApiClient _api;
   late final ReaderProgressController _progress;
   late final ReaderChapterPrerenderer _prerenderer;
@@ -55,9 +56,6 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   late int _sortNum;
   late ReaderOpenPosition _openPosition;
 
-  int _requestVersion = 0;
-  bool _loading = true;
-  String? _error;
   bool _contentReady = false;
   bool _chromeVisible = false;
 
@@ -65,8 +63,11 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   ReaderChapterWindow _window = const ReaderChapterWindow.empty();
 
   int _totalChapters = 0;
-  int _currentPage = 0;
-  int _totalPages = 0;
+
+  /// 页码单独走 notifier：翻页只更新右下角的页码胶囊，不重建整个阅读器。
+  final ValueNotifier<(int page, int pages)> _pages = ValueNotifier<(int, int)>(
+    (0, 0),
+  );
 
   String? _restoreLocator;
   double _restoreProgression = 0;
@@ -83,25 +84,29 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     _openPosition = widget.openPosition;
     _api = ref.read(apiClientProvider);
     _progress = ReaderProgressController(api: _api, bookId: widget.bookId);
-    _prerenderer = ReaderChapterPrerenderer(api: _api, bookId: widget.bookId);
+    _prerenderer = ReaderChapterPrerenderer(
+      api: _api,
+      fonts: ref.read(readerFontRepositoryProvider),
+      bookId: widget.bookId,
+    );
     unawaited(_load());
   }
 
   @override
   void dispose() {
+    _pages.dispose();
     _prerenderer.dispose();
     unawaited(_progress.dispose());
     super.dispose();
   }
 
   Future<void> _load() async {
-    final version = ++_requestVersion;
+    final version = beginRequest();
+    _pages.value = (0, 0);
     setState(() {
-      _loading = true;
-      _error = null;
+      loading = true;
+      loadError = null;
       _contentReady = false;
-      _currentPage = 0;
-      _totalPages = 0;
     });
 
     final settings = ref.read(appSettingsProvider);
@@ -115,7 +120,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
         fontCacheEnabled: settings.fontCacheEnabled,
         fontCacheLimit: settings.fontCacheLimit,
       );
-      if (!mounted || version != _requestVersion) return;
+      if (isStale(version)) return;
       final restore = _resolveRestore(prepared, _openPosition);
 
       setState(() {
@@ -128,14 +133,14 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
         _restoreToken++;
         _locators[_sortNum] = restore.$1 ?? '';
         _progression = restore.$2;
-        _loading = false;
+        loading = false;
       });
       _syncWindow();
-    } catch (error) {
-      if (!mounted || version != _requestVersion) return;
+    } catch (failure) {
+      if (isStale(version)) return;
       setState(() {
-        _error = _describe(error);
-        _loading = false;
+        loadError = _describe(failure);
+        loading = false;
       });
     }
   }
@@ -265,14 +270,9 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
     // 相邻章在切章落定前不是当前章，页码与进度等切换后再更新。
     if (position.sortNum != _sortNum) return;
     _progression = position.progression;
-    final pageChanged =
-        position.page != _currentPage || position.pages != _totalPages;
-    if (pageChanged || _chromeVisible) {
-      setState(() {
-        _currentPage = position.page;
-        _totalPages = position.pages;
-      });
-    }
+    _pages.value = (position.page, position.pages);
+    // 工具栏可见时进度条也要跟着走，这时才需要重建整屏。
+    if (_chromeVisible) setState(() {});
     final chapter = _window.current?.chapter;
     if (chapter == null || position.locator.isEmpty) return;
     _progress.stage(chapter.id, position.locator);
@@ -415,93 +415,95 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen> {
   Widget build(BuildContext context) {
     ref.listen<AppSettings>(appSettingsProvider, _onSettingsChanged);
     final settings = ref.watch(appSettingsProvider);
-    final (:background, :foreground) = readerSurfaceColors(context, settings);
+    final (:background, :foreground) = readerSurfaceColors(
+      context,
+      oledBlack: settings.oledBlack,
+    );
     final paged = settings.readerViewMode == ReaderViewMode.paged;
     final readerTopInset = paged ? 0.0 : MediaQuery.paddingOf(context).top;
     final current = _window.current;
 
-    final Widget body;
-    if (_error != null) {
-      body = Center(
-        child: ErrorStateView(
-          message: _error!,
-          onRetry: () => unawaited(_load()),
-        ),
-      );
-    } else if (_loading || current == null) {
-      body = const Center(child: CircularProgressIndicator());
-    } else {
-      body = Stack(
-        children: <Widget>[
-          Positioned.fill(
-            top: readerTopInset,
-            child: ReaderContentView(
-              chapter: _chapterContent(current, settings, foreground)!,
-              previous: _chapterContent(_window.previous, settings, foreground),
-              next: _chapterContent(_window.next, settings, foreground),
-              paged: paged,
-              padding: _contentPadding(settings),
-              restoreLocator: _restoreLocator,
-              restoreProgression: _restoreProgression,
-              restoreToken: _restoreToken,
-              onPosition: _onPositionReported,
-              onTapCenter: () =>
-                  setState(() => _chromeVisible = !_chromeVisible),
-              onChapterChanged: _onChapterChanged,
-              onBoundary: (next) => unawaited(_openAdjacent(next)),
-              onFootnote: _onFootnote,
-              onReady: () {
-                if (mounted && !_contentReady) {
-                  setState(() => _contentReady = true);
-                }
-              },
+    return ReaderShell(
+      background: background,
+      loading: loading || current == null,
+      error: loadError,
+      onRetry: () => unawaited(_load()),
+      body: current == null
+          ? const SizedBox.shrink()
+          : Stack(
+              children: <Widget>[
+                Positioned.fill(
+                  top: readerTopInset,
+                  child: ReaderContentView(
+                    chapter: _chapterContent(current, settings, foreground)!,
+                    previous: _chapterContent(
+                      _window.previous,
+                      settings,
+                      foreground,
+                    ),
+                    next: _chapterContent(_window.next, settings, foreground),
+                    paged: paged,
+                    padding: _contentPadding(settings),
+                    restoreLocator: _restoreLocator,
+                    restoreProgression: _restoreProgression,
+                    restoreToken: _restoreToken,
+                    onPosition: _onPositionReported,
+                    onTapCenter: () =>
+                        setState(() => _chromeVisible = !_chromeVisible),
+                    onChapterChanged: _onChapterChanged,
+                    onBoundary: (next) => unawaited(_openAdjacent(next)),
+                    onFootnote: _onFootnote,
+                    onReady: () {
+                      if (mounted && !_contentReady) {
+                        setState(() => _contentReady = true);
+                      }
+                    },
+                  ),
+                ),
+                if (!_contentReady)
+                  const IgnorePointer(
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+              ],
             ),
-          ),
-          if (!_contentReady)
-            const IgnorePointer(
-              child: Center(child: CircularProgressIndicator()),
-            ),
-        ],
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: background,
-      body: Stack(
-        children: <Widget>[
-          Positioned.fill(child: body),
-          if (paged && _contentReady && _currentPage > 0 && _totalPages > 0)
-            Positioned(
+      overlay: paged && _contentReady
+          ? Positioned(
               right: 16,
               bottom: MediaQuery.paddingOf(context).bottom + 16,
-              child: ReaderStatusPills(
-                visible: !_chromeVisible,
-                foregroundColor: foreground,
-                currentChapter: _sortNum,
-                totalChapters: _totalChapters,
-                currentPage: _currentPage,
-                totalPages: _totalPages,
+              child: ValueListenableBuilder<(int, int)>(
+                valueListenable: _pages,
+                builder: (context, pages, _) {
+                  final (page, total) = pages;
+                  if (page <= 0 || total <= 0) return const SizedBox.shrink();
+                  return ReaderStatusPills(
+                    visible: !_chromeVisible,
+                    foregroundColor: foreground,
+                    currentChapter: _sortNum,
+                    totalChapters: _totalChapters,
+                    currentPage: page,
+                    totalPages: total,
+                  );
+                },
               ),
-            ),
-          ReaderChrome(
-            visible: _chromeVisible,
-            title: _title,
-            backgroundColor: background,
-            foregroundColor: foreground,
-            currentChapter: _sortNum,
-            totalChapters: _totalChapters,
-            progress: _progression,
-            onOpenChapters: () => unawaited(_openChapterSheet()),
-            onOpenSettings: () => unawaited(showReaderSettingsSheet(context)),
-            onDismiss: () => setState(() => _chromeVisible = false),
-            onPreviousChapter: _sortNum > 1
-                ? () => unawaited(_openAdjacent(false))
-                : null,
-            onNextChapter: _sortNum < _totalChapters
-                ? () => unawaited(_openAdjacent(true))
-                : null,
-          ),
-        ],
+            )
+          : null,
+      chrome: ReaderChrome(
+        visible: _chromeVisible,
+        title: _title,
+        backgroundColor: background,
+        foregroundColor: foreground,
+        currentChapter: _sortNum,
+        totalChapters: _totalChapters,
+        progress: _progression,
+        onOpenChapters: () => unawaited(_openChapterSheet()),
+        onOpenSettings: () => unawaited(showReaderSettingsSheet(context)),
+        onDismiss: () => setState(() => _chromeVisible = false),
+        onPreviousChapter: _sortNum > 1
+            ? () => unawaited(_openAdjacent(false))
+            : null,
+        onNextChapter: _sortNum < _totalChapters
+            ? () => unawaited(_openAdjacent(true))
+            : null,
       ),
     );
   }

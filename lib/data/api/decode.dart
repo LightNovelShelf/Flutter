@@ -117,7 +117,12 @@ String? normalizeBlurHash(Object? value) {
 }
 
 class _RawQueryValue {
-  const _RawQueryValue(this.rawValue, this.value, this.valueStart, this.valueEnd);
+  const _RawQueryValue(
+    this.rawValue,
+    this.value,
+    this.valueStart,
+    this.valueEnd,
+  );
 
   final String rawValue;
   final String value;
@@ -187,5 +192,8 @@ int asCount(Object? value, [int fallback = 0]) =>
 /// 封面原串同时含地址与 BlurHash 占位，一次解出两者。
 ({String url, String? placeholder}) decodeCover(Object? value) {
   final raw = asString(value);
-  return (url: normalizeCoverUrl(raw), placeholder: extractBlurHashPlaceholder(raw));
+  return (
+    url: normalizeCoverUrl(raw),
+    placeholder: extractBlurHashPlaceholder(raw),
+  );
 }

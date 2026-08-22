@@ -133,7 +133,9 @@ class _VerificationCodeFieldState extends State<VerificationCodeField>
                   autofillHints: const <String>[AutofillHints.oneTimeCode],
                   inputFormatters: <TextInputFormatter>[
                     FilteringTextInputFormatter.deny(RegExp(r'\s')),
-                    LengthLimitingTextInputFormatter(VerificationCodeField.length),
+                    LengthLimitingTextInputFormatter(
+                      VerificationCodeField.length,
+                    ),
                   ],
                   onSubmitted: (_) => widget.onSubmitted?.call(),
                   decoration: const InputDecoration(
@@ -153,11 +155,16 @@ class _VerificationCodeFieldState extends State<VerificationCodeField>
   Widget _buildSlots(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
     final String value = widget.controller.text;
-    final int caretIndex = math.min(value.length, VerificationCodeField.length - 1);
+    final int caretIndex = math.min(
+      value.length,
+      VerificationCodeField.length - 1,
+    );
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: List<Widget>.generate(VerificationCodeField.length, (int index) {
+      children: List<Widget>.generate(VerificationCodeField.length, (
+        int index,
+      ) {
         final bool hasChar = index < value.length;
         final bool showCaret = _focusNode.hasFocus && index == caretIndex;
         return Container(
@@ -182,17 +189,17 @@ class _VerificationCodeFieldState extends State<VerificationCodeField>
                   ),
                 )
               : showCaret
-                  ? Opacity(
-                      opacity: _caret.value < 0.5 ? 1 : 0,
-                      child: Container(width: 2, height: 21, color: colors.primary),
-                    )
-                  : Text(
-                      '•',
-                      style: TextStyle(
-                        color: colors.onSurfaceVariant.withValues(alpha: 0.55),
-                        fontSize: 20,
-                      ),
-                    ),
+              ? Opacity(
+                  opacity: _caret.value < 0.5 ? 1 : 0,
+                  child: Container(width: 2, height: 21, color: colors.primary),
+                )
+              : Text(
+                  '•',
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant.withValues(alpha: 0.55),
+                    fontSize: 20,
+                  ),
+                ),
         );
       }),
     );

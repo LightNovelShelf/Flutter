@@ -53,7 +53,7 @@ Object? _decompress(Object? value) {
 }
 
 /// 融合解码器，直接从 UTF-8 字节解析 JSON，不产生中间 String。
-final Converter<List<int>, Object?> _utf8Json =
-    const Utf8Decoder().fuse<Object?>(const JsonDecoder());
+final Converter<List<int>, Object?> _utf8Json = const Utf8Decoder()
+    .fuse<Object?>(const JsonDecoder());
 
 Object? _inflateJson(Uint8List bytes) => _utf8Json.convert(gzip.decode(bytes));

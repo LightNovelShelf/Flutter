@@ -10,6 +10,7 @@ import '../reader_html_blocks.dart';
 import '../reader_pagination.dart';
 import '../reader_position.dart';
 import 'reader_measure_box.dart';
+import 'reader_page_body.dart';
 import 'reader_tap_zone.dart';
 
 /// 一章正文及其排版参数。正文字形逐章混淆，字体各章不同，所以样式随章走。
@@ -42,10 +43,6 @@ class ReaderContentPosition {
   final int page;
   final int pages;
 }
-
-/// 某一页的绘制区域，高度为该页实际占用的正文高度，不含末尾空白。
-Key readerPageBodyKey(int sortNum, int index) =>
-    ValueKey<String>('reader-page-$sortNum-$index');
 
 /// 原生正文视图。
 ///
@@ -111,6 +108,23 @@ class ReaderContentView extends StatefulWidget {
   State<ReaderContentView> createState() => _ReaderContentViewState();
 }
 
+/// 一次分片测量：要测的槽位、起始块与块数。`patch` 表示这是图片回填后的单块重测。
+class _MeasureWindow {
+  const _MeasureWindow(this.slot, this.start, this.count, {this.patch = false});
+
+  final _ChapterSlot slot;
+  final int start;
+  final int count;
+  final bool patch;
+
+  bool sameAs(_MeasureWindow? other) =>
+      other != null &&
+      identical(other.slot, slot) &&
+      other.start == start &&
+      other.count == count &&
+      other.patch == patch;
+}
+
 /// 一章在视图里的槽位，含正文块、测量层入口与测量结果。
 class _ChapterSlot {
   _ChapterSlot(this.content);
@@ -118,21 +132,57 @@ class _ChapterSlot {
   ReaderChapterContent content;
   final GlobalKey measureKey = GlobalKey();
 
-  List<Widget> blockWidgets = const <Widget>[];
+  /// 正在按分片补齐的测量用正文块，下标与 `content.blocks` 对齐，未构建处为 null。
+  /// 整章一次建完要把全章 HTML 扫一遍并分配几百个 widget，那是打开章节那一帧的大头。
+  List<Widget?> pendingMeasure = const <Widget?>[];
+
+  /// 与 [pendingMeasure] 一一对应的渲染用正文块，区别只在图片：测量层摆空盒子。
+  List<Widget?> pendingContent = const <Widget?>[];
+
+  /// 渲染层用的正文块，与 [geometry] 同一批换上，两者下标始终对得上。
+  /// 换排版时先留着上一批，正文按旧样式多显示几帧，也不至于空屏。
+  List<Widget> rendered = const <Widget>[];
+
+  /// 逐块产出 markup 的游标，脚注编号跨块连续，只能顺序取。
+  ReaderBlockMarkupBuilder? markupBuilder;
+  int filled = 0;
+
   ReaderGeometry? geometry;
   List<double> pageTops = const <double>[0];
 
-  /// 排版参数变化后测量结果失效。
-  bool stale = true;
+  /// 分片测量的累积器。测完整章后留着，供图片回填时改写单块。null 表示要从头测。
+  ReaderGeometryBuilder? builder;
+
+  /// 下一片测量的首个块下标。
+  int cursor = 0;
+
+  /// 图片回填真实尺寸后待重测的块。
+  final Set<int> dirtyBlocks = <int>{};
 
   int get sortNum => content.sortNum;
   int get pageCount => pageTops.length;
+  int get blockCount => pendingMeasure.length;
 
-  /// 几何与当前正文块是否匹配。换样式那一帧正文块已重建而几何仍是旧的，块数对不上不能照它摆块。
-  bool get renderable {
-    final geometry = this.geometry;
-    return geometry != null && geometry.blockTops.length == blockWidgets.length;
+  /// 排版参数或正文变化后测量结果整章作废。
+  void invalidate() {
+    builder = null;
+    cursor = 0;
+    dirtyBlocks.clear();
   }
+
+  bool get needsMeasure =>
+      blockCount > 0 &&
+      (builder == null || cursor < blockCount || dirtyBlocks.isNotEmpty);
+
+  /// 测完一整章才把补齐的块与新几何一起换上。
+  void publish(ReaderGeometry value) {
+    geometry = value;
+    rendered = List<Widget>.unmodifiable(pendingContent.cast<Widget>());
+  }
+
+  /// 有没有一批对得上的正文块与几何可以摆。
+  bool get renderable =>
+      geometry != null && rendered.length == geometry!.blockTops.length;
 }
 
 class _ReaderContentViewState extends State<ReaderContentView> {
@@ -160,6 +210,10 @@ class _ReaderContentViewState extends State<ReaderContentView> {
   bool _measureScheduled = false;
   int _measureAttempts = 0;
   bool _ready = false;
+
+  /// 这一帧实际挂在测量层里的那一片。收集几何时照它读，不重新推算，
+  /// 免得中途的 setState 让读取范围与挂载范围错位。
+  _MeasureWindow? _mounted;
 
   String _locator = '';
   double _progression = 0;
@@ -191,7 +245,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     if (oldWidget.paged != widget.paged ||
         oldWidget.padding != widget.padding) {
       for (final slot in _slots) {
-        slot.stale = true;
+        slot.invalidate();
       }
       _measureAttempts = 0;
     }
@@ -249,7 +303,6 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       slot.content = content;
       if (changed) {
         _rebuildBlocks(slot);
-        slot.stale = true;
         _measureAttempts = 0;
       }
       slots.add(slot);
@@ -282,33 +335,99 @@ class _ReaderContentViewState extends State<ReaderContentView> {
   }
 
   void _rebuildBlocks(_ChapterSlot slot) {
+    final count = slot.content.blocks.length;
+    slot.pendingMeasure = List<Widget?>.filled(count, null);
+    slot.pendingContent = List<Widget?>.filled(count, null);
+    slot.markupBuilder = ReaderBlockMarkupBuilder(slot.content.style);
+    slot.filled = 0;
+    slot.invalidate();
+  }
+
+  /// 补齐到 [upTo]（含）为止的正文块。脚注编号跨块连续，只能顺序补。
+  void _fillBlocks(_ChapterSlot slot, int upTo) {
     final content = slot.content;
-    final markup = buildReaderBlockMarkup(content.blocks, content.style);
-    slot.blockWidgets = <Widget>[
-      for (var index = 0; index < markup.length; index++)
-        ReaderBlockBox(
-          index: index,
-          child: ReaderHtmlBlock(
-            markup: markup[index],
-            style: content.style,
-            applyParagraphSpacing: index + 1 < markup.length,
-            onFootnote: (id) => widget.onFootnote(content.sortNum, id),
-            onLayoutChanged: () => _onBlockLayoutChanged(slot),
-          ),
+    final markupBuilder = slot.markupBuilder!;
+    final last = math.min(upTo, slot.blockCount - 1);
+    for (var index = slot.filled; index <= last; index++) {
+      final markup = markupBuilder.next(content.blocks[index]);
+      final spacing = index + 1 < slot.blockCount;
+      slot.pendingMeasure[index] = ReaderBlockBox(
+        index: index,
+        child: ReaderHtmlBlock(
+          markup: markup,
+          style: content.style,
+          applyParagraphSpacing: spacing,
+          measureOnly: true,
+          // 几何只由测量层决定，回填尺寸也只从这一层通知，正文层那份不必再报一次。
+          onLayoutChanged: () => _onBlockLayoutChanged(slot, index),
         ),
-    ];
+      );
+      slot.pendingContent[index] = ReaderBlockBox(
+        index: index,
+        child: ReaderHtmlBlock(
+          markup: markup,
+          style: content.style,
+          applyParagraphSpacing: spacing,
+          onFootnote: (id) => widget.onFootnote(content.sortNum, id),
+        ),
+      );
+      slot.filled = index + 1;
+    }
   }
 
-  void _onBlockLayoutChanged(_ChapterSlot slot) {
+  /// 图片回填真实尺寸只改这一块的高度，重测单块后按前缀和平移后面的块。
+  /// 还没测到这一块时什么都不用做，测到时自然用上新尺寸。
+  void _onBlockLayoutChanged(_ChapterSlot slot, int index) {
     if (!mounted) return;
-    setState(() {
-      slot.stale = true;
-      _measureAttempts = 0;
-    });
+    final builder = slot.builder;
+    if (builder == null || index >= builder.measured) return;
+    if (!slot.dirtyBlocks.add(index)) return;
+    setState(() => _measureAttempts = 0);
   }
 
-  /// 相邻章的测量层等当前章就绪后再挂，避免首屏一次排三章。
+  /// 相邻章等当前章就绪后再测，避免首屏排三章。
   bool _measurable(_ChapterSlot slot) => identical(slot, _active) || _ready;
+
+  /// 一帧只测一片：块高彼此独立（测量层按固定正文宽度纵向堆叠），分片测量与整章
+  /// 一次测量结果相同，而整章一次排完会让打开章节那一帧的布局涨到几十毫秒。
+  ///
+  /// 每片的目标耗时，留出余量给同一帧里的正文层与光栅化。
+  static const double _sliceBudgetMs = 6;
+  static const int _minSlice = 4;
+  static const int _maxSlice = 24;
+
+  int _slice = 12;
+
+  /// 挂上测量层的时刻，用来量这一片实际花了多久，据此调整下一片的大小。
+  /// 正文块长短差得远（几十字的对白到整段旁白），固定片长在长块上会超预算。
+  final Stopwatch _sliceClock = Stopwatch();
+
+  void _tuneSlice(int count) {
+    if (!_sliceClock.isRunning) return;
+    final elapsed = _sliceClock.elapsedMicroseconds / 1000;
+    _sliceClock.stop();
+    if (count <= 0 || elapsed <= 0) return;
+    final perBlock = elapsed / count;
+    _slice = (_sliceBudgetMs / perBlock).round().clamp(_minSlice, _maxSlice);
+  }
+
+  _MeasureWindow? _pickMeasureWindow() {
+    final active = _active;
+    for (final slot in <_ChapterSlot?>[active, ..._slots]) {
+      if (slot == null || !slot.needsMeasure || !_measurable(slot)) continue;
+      final total = slot.blockCount;
+      final _MeasureWindow window;
+      if (slot.builder == null || slot.cursor < total) {
+        final start = slot.builder == null ? 0 : slot.cursor;
+        window = _MeasureWindow(slot, start, math.min(_slice, total - start));
+      } else {
+        window = _MeasureWindow(slot, slot.dirtyBlocks.first, 1, patch: true);
+      }
+      _fillBlocks(slot, window.start + window.count - 1);
+      return window;
+    }
+    return null;
+  }
 
   void _scheduleMeasure(Size viewport) {
     if (_measureScheduled) return;
@@ -327,60 +446,70 @@ class _ReaderContentViewState extends State<ReaderContentView> {
   }
 
   void _measure(Size viewport) {
-    if (_viewport != viewport) {
-      for (final slot in _slots) {
-        slot.stale = true;
-      }
+    final window = _mounted;
+    if (window == null || !window.sameAs(_pickMeasureWindow())) return;
+    final root = window.slot.measureKey.currentContext?.findRenderObject();
+    final metrics = root is RenderBox && root.hasSize
+        ? collectReaderBlockMetrics(root, window.start, window.count)
+        : null;
+    if (metrics == null) {
+      // 布局未就绪，或仍有块没排完（正文异步 build），再等一帧。重试有上限，避免空转掉帧。
+      _sliceClock.stop();
+      _retryMeasure(viewport);
+      return;
     }
-    final active = _active;
-    var activeMeasured = false;
-    var changed = false;
-    var pending = false;
-    for (final slot in _slots) {
-      if (!slot.stale || !_measurable(slot)) continue;
-      final root = slot.measureKey.currentContext?.findRenderObject();
-      final geometry = root is RenderBox && root.hasSize
-          ? collectReaderGeometry(root, slot.blockWidgets.length)
-          : null;
-      if (geometry == null) {
-        // 布局未就绪，或仍有块没排完（正文异步 build），再等一帧。
-        // 重试有上限，避免空转掉帧。
-        pending = true;
-        continue;
-      }
-      slot.geometry = geometry;
-      slot.pageTops = widget.paged
-          ? paginateReaderContent(
-              contentHeight: geometry.height,
-              pageHeight: viewport.height,
-              breaks: geometry.breaks,
-            )
-          : const <double>[0];
-      slot.stale = false;
-      changed = true;
-      if (identical(slot, active)) activeMeasured = true;
-    }
-    if (!changed) {
-      if (pending) _retryMeasure(viewport);
+    _tuneSlice(window.count);
+    _measureAttempts = 0;
+    if (!_applyMetrics(window, metrics, viewport)) {
+      // 这一章还没测完，下一帧接着测下一片。
+      setState(() {});
       return;
     }
 
+    final active = _active;
+    final activeMeasured = identical(window.slot, active);
     setState(() {
-      _viewport = viewport;
-      _measureAttempts = 0;
-      if (activeMeasured && active != null) {
+      if (activeMeasured && active != null && active.geometry != null) {
         _syncStrip();
         _installControllers(_anchorOffset(active.geometry!, viewport));
       } else {
         _refreshStrip();
       }
     });
-    if (pending) _retryMeasure(viewport);
 
     _report(force: true);
     if (_ready || active?.geometry == null) return;
     _ready = true;
     widget.onReady();
+  }
+
+  /// 收下一片度量，返回这一章的几何是否因此更新。
+  bool _applyMetrics(
+    _MeasureWindow window,
+    List<ReaderBlockMetrics> metrics,
+    Size viewport,
+  ) {
+    final slot = window.slot;
+    if (window.patch) {
+      final changed = slot.builder!.patch(window.start, metrics.first);
+      slot.dirtyBlocks.remove(window.start);
+      if (!changed) return false;
+    } else {
+      final builder = slot.builder ??= ReaderGeometryBuilder();
+      builder.add(metrics);
+      slot.cursor = window.start + window.count;
+      if (slot.cursor < slot.blockCount) return false;
+    }
+    slot.publish(slot.builder!.build());
+    final geometry = slot.geometry!;
+    slot.pageTops = widget.paged
+        ? paginateReaderContent(
+            contentHeight: geometry.height,
+            pageHeight: viewport.height,
+            breaks: geometry.breaks,
+          )
+        : const <double>[0];
+    return true;
   }
 
   /// 重排后定位回当前 locator，首次进入才用上层给的进度。
@@ -462,12 +591,19 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       ..addListener(_onScroll);
   }
 
-  /// 换控制器要连 `PageView` 一起换，见 [_pagedContent] 的 key。`Scrollable` 认领新控制器时
-  /// 会沿用旧 position 的像素，`initialPage` 不生效，前一章接入翻页条后页序整体后移，
-  /// 画面会停在错位的那一页上。
+  /// 页序没挪动时留用同一个 `PageController`，换控制器会连 `PageView` 一起重建
+  /// （见 [_pagedContent] 的 key）：`Scrollable` 认领新控制器时会沿用旧 position 的像素，
+  /// `initialPage` 不生效，前一章接入翻页条后画面会停在错位的那一页上。
   void _installPageController() {
-    _pageController?.dispose();
-    _pageController = PageController(initialPage: _globalPage());
+    final target = _globalPage();
+    final controller = _pageController;
+    if (controller != null &&
+        controller.hasClients &&
+        controller.page?.round() == target) {
+      return;
+    }
+    controller?.dispose();
+    _pageController = PageController(initialPage: target);
   }
 
   void _onScroll() => _report(force: false);
@@ -512,7 +648,13 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     // 先算准 locator 与进度，跨章翻页后紧跟的重排要用它把位置定在新章上，
     // 节流只挡上报，不挡计算。
     final offset = _contentOffset(slot);
-    final index = _locatorIndex(slot, geometry, offset);
+    final index = readerLocatorBlockIndex(
+      blockTops: geometry.blockTops,
+      blockBottoms: geometry.blockBottoms,
+      offset: offset,
+      paged: widget.paged,
+      pageHeight: _viewport.height,
+    );
     if (index < slot.content.blocks.length) {
       _locator = slot.content.blocks[index].locator;
     }
@@ -546,29 +688,6 @@ class _ReaderContentViewState extends State<ReaderContentView> {
         pages: widget.paged ? slot.pageCount : 0,
       ),
     );
-  }
-
-  /// 进度落在哪个块上。
-  ///
-  /// 翻页模式下页顶的块常常跨自上一页，进度要记在本页第一个整块上，
-  /// 否则按 locator 重开会退回上一页，上报的位置也不幂等。
-  int _locatorIndex(_ChapterSlot slot, ReaderGeometry geometry, double offset) {
-    final index = readerBlockIndexAtOffset(
-      blockTops: geometry.blockTops,
-      blockBottoms: geometry.blockBottoms,
-      offset: offset + 1,
-    );
-    if (!widget.paged) return index;
-    var candidate = index;
-    while (candidate < geometry.blockTops.length &&
-        geometry.blockTops[candidate] < offset - 0.5) {
-      candidate++;
-    }
-    // 没有整块能放进本页（跨多页的长段、整页插图）时，仍以跨页的那个块为准。
-    return candidate < geometry.blockTops.length &&
-            geometry.blockTops[candidate] < offset + _viewport.height
-        ? candidate
-        : index;
   }
 
   double _contentOffset(_ChapterSlot slot) {
@@ -610,29 +729,44 @@ class _ReaderContentViewState extends State<ReaderContentView> {
         math.max(1, constraints.maxWidth - widget.padding.horizontal),
         math.max(1, constraints.maxHeight - widget.padding.vertical),
       );
-      if (_viewport != viewport ||
-          _slots.any((slot) => slot.stale && _measurable(slot))) {
+      if (_viewport != viewport) {
+        _viewport = viewport;
+        for (final slot in _slots) {
+          slot.invalidate();
+        }
+      }
+      final window = _pickMeasureWindow();
+      _mounted = window;
+      if (window != null) {
+        _sliceClock
+          ..reset()
+          ..start();
         _scheduleMeasure(viewport);
       }
       final active = _active;
       return Stack(
         children: <Widget>[
-          // 测量层：每章按正文宽度各排一遍，尺寸恒为 0，不绘制、不参与命中测试。
+          // 测量层：只挂正在测的那一片，尺寸恒为 0，不绘制、不参与命中测试。
           //
-          // 每一层都要带 key。窗口变动会增删测量层，Stack 的孩子没有 key 时按下标配对，
-          // 正文层会复用某个测量层的 element，`PageView` 连同滚动位置一起重建，
-          // 画面回到 `initialPage` 那一页。
-          for (final slot in _slots)
-            if (_measurable(slot))
-              Positioned(
-                key: ValueKey<String>('reader-measure-${slot.sortNum}'),
-                width: 0,
-                height: 0,
-                child: ReaderMeasureBox(
-                  width: viewport.width,
-                  child: _column(slot, slot.measureKey),
+          // 要带 key。测量层会随分片增删，Stack 的孩子没有 key 时按下标配对，正文层会
+          // 被拿去复用测量层的 element，`PageView` 连同滚动位置一起重建，画面回到
+          // `initialPage` 那一页。
+          if (window != null)
+            Positioned(
+              key: const ValueKey<String>('reader-measure'),
+              width: 0,
+              height: 0,
+              child: ExcludeSemantics(
+                // 测量层只要尺寸，图片淡入之类的隐式动画不必在这里跑。
+                child: TickerMode(
+                  enabled: false,
+                  child: ReaderMeasureBox(
+                    width: viewport.width,
+                    child: _measureColumn(window),
+                  ),
                 ),
               ),
+            ),
           if (active != null && active.renderable)
             Positioned.fill(
               key: const ValueKey<String>('reader-content'),
@@ -653,18 +787,32 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     },
   );
 
-  Widget _column(_ChapterSlot slot, Key? key) => Column(
-    key: key,
+  Widget _measureColumn(_MeasureWindow window) => Column(
+    key: window.slot.measureKey,
     mainAxisSize: MainAxisSize.min,
     crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: slot.blockWidgets,
+    children: <Widget>[
+      for (
+        var index = window.start;
+        index < window.start + window.count;
+        index++
+      )
+        window.slot.pendingMeasure[index]!,
+    ],
   );
 
-  Widget _scrollingContent(_ChapterSlot slot) => SingleChildScrollView(
-    controller: _scrollController,
-    padding: widget.padding,
-    child: _column(slot, null),
-  );
+  /// 滚动模式按测好的块高逐块建，整章一次性排完会让每次重绘都录一遍全章段落。
+  Widget _scrollingContent(_ChapterSlot slot) {
+    final geometry = slot.geometry!;
+    return ListView.builder(
+      controller: _scrollController,
+      padding: widget.padding,
+      itemCount: slot.rendered.length,
+      itemExtentBuilder: (index, _) =>
+          geometry.blockBottoms[index] - geometry.blockTops[index],
+      itemBuilder: (context, index) => slot.rendered[index],
+    );
+  }
 
   Widget _pagedContent(Size viewport) =>
       NotificationListener<ScrollNotification>(
@@ -677,56 +825,18 @@ class _ReaderContentViewState extends State<ReaderContentView> {
           itemBuilder: (context, index) {
             final located = _strip.locate(index);
             if (located == null) return const SizedBox.shrink();
-            return _pageContent(located.$1, viewport, located.$2);
+            final slot = located.$1;
+            return ReaderPageBody(
+              sortNum: slot.sortNum,
+              geometry: slot.geometry,
+              pageTops: slot.pageTops,
+              blocks: slot.rendered,
+              renderable: slot.renderable,
+              index: located.$2,
+              viewport: viewport,
+              padding: widget.padding,
+            );
           },
         ),
       );
-
-  Widget _pageContent(_ChapterSlot slot, Size viewport, int index) {
-    final geometry = slot.geometry;
-    if (geometry == null || !slot.renderable || index >= slot.pageCount) {
-      return const SizedBox.shrink();
-    }
-    final top = slot.pageTops[index];
-    // 页底裁到下一页的页顶而非整屏高度，否则装不下的那一行行顶落在视口内，
-    // 上半截会留在页底。
-    final bottom = index + 1 < slot.pageCount
-        ? slot.pageTops[index + 1]
-        : math.min(top + viewport.height, geometry.height);
-    final first = readerBlockIndexAtOffset(
-      blockTops: geometry.blockTops,
-      blockBottoms: geometry.blockBottoms,
-      offset: top,
-    );
-    return Padding(
-      padding: widget.padding,
-      child: Align(
-        alignment: Alignment.topLeft,
-        child: SizedBox(
-          key: readerPageBodyKey(slot.sortNum, index),
-          width: double.infinity,
-          height: math.min(viewport.height, math.max(0, bottom - top)),
-          child: ClipRect(
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: <Widget>[
-                for (
-                  var block = first;
-                  block < slot.blockWidgets.length &&
-                      geometry.blockTops[block] < bottom;
-                  block++
-                )
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    top: geometry.blockTops[block] - top,
-                    child: slot.blockWidgets[block],
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }

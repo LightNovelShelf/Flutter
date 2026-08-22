@@ -124,7 +124,10 @@ class ShelfFolderTile extends StatelessWidget {
                           ),
                         ),
                       ),
-                      GridSelectionOverlay(selected: selected, sorting: sorting),
+                      GridSelectionOverlay(
+                        selected: selected,
+                        sorting: sorting,
+                      ),
                     ],
                   ),
                 ),

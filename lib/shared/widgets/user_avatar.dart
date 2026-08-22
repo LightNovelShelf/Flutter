@@ -38,6 +38,7 @@ class _UserAvatarState extends State<UserAvatar> {
     final url = widget.url.trim();
     final name = widget.name.trim();
     final size = widget.size;
+    final pixels = (size * MediaQuery.devicePixelRatioOf(context)).round();
     final fallback = ColoredBox(
       color: colors.surfaceContainerHighest,
       child: Center(
@@ -63,12 +64,15 @@ class _UserAvatarState extends State<UserAvatar> {
         height: size,
         child: url.isEmpty || _failed
             ? fallback
-            // 头像不走图床，没有尺寸参数，只能取原图。
+            // 头像不走图床，没有尺寸参数，只能取原图，解码尺寸只能在客户端限制，
+            // 否则 1000×1000 的原图整幅解码进 ImageCache。只给宽度：宽高都给会按精确
+            // 尺寸解码，非方形头像会被压扁而不是裁切。
             : CachedNetworkImage(
                 imageUrl: url,
                 cacheManager: appImageCacheManager,
                 width: size,
                 height: size,
+                memCacheWidth: pixels,
                 fit: BoxFit.cover,
                 placeholder: (_, _) =>
                     ColoredBox(color: colors.surfaceContainerHighest),

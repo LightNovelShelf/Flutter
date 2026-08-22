@@ -50,8 +50,9 @@ String formatRelativeTimeFine(DateTime? value) {
 }
 
 /// 去掉章节标题里重复的书名/卷名前缀，只保留编号或名称。
-final RegExp _chapterNoisePattern =
-    RegExp(r'^\s*(?:第?\s*[0-9一二三四五六七八九十百]+\s*[章话節节卷]\s*)');
+final RegExp _chapterNoisePattern = RegExp(
+  r'^\s*(?:第?\s*[0-9一二三四五六七八九十百]+\s*[章话節节卷]\s*)',
+);
 
 String cleanChapterTitle(String title) {
   final trimmed = title.trim();

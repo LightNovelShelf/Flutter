@@ -109,7 +109,8 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                 icon: Icons.article_outlined,
                 value: settings.bookDetailCacheEnabled,
                 onChanged: (value) => controller.update(
-                  (settings) => settings.copyWith(bookDetailCacheEnabled: value),
+                  (settings) =>
+                      settings.copyWith(bookDetailCacheEnabled: value),
                 ),
               ),
               SettingsToggleRow(
@@ -131,7 +132,8 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                 divisions: 50,
                 format: (value) => '${value.round()} 本',
                 onChanged: (value) => controller.update(
-                  (settings) => settings.copyWith(fontCacheLimit: value.round()),
+                  (settings) =>
+                      settings.copyWith(fontCacheLimit: value.round()),
                 ),
               ),
               SettingsRow(

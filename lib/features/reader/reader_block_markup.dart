@@ -15,24 +15,25 @@ final RegExp _footnoteMarkerPattern = RegExp(
 );
 final RegExp _openingTagPattern = RegExp(r'^\s*<([a-zA-Z][\w:-]*)([^>]*)>');
 
-/// 按全章顺序给脚注标记编号，返回与 [blocks] 等长的可渲染 HTML。
-List<String> buildReaderBlockMarkup(
-  List<NovelReaderBlock> blocks,
-  ReaderContentStyle style,
-) {
-  var footnote = 0;
-  return <String>[
-    for (final block in blocks)
-      _indentBlock(
-        block.html.replaceAllMapped(_footnoteMarkerPattern, (match) {
-          footnote++;
-          final id = _unescapeHtmlAttribute(match[1] ?? '');
-          final href = '$readerFootnoteScheme:${Uri.encodeComponent(id)}';
-          return '<a href="$href"><sup>[$footnote]</sup></a>';
-        }),
-        style,
-      ),
-  ];
+/// 按全章顺序给脚注标记编号，逐块产出可渲染 HTML。
+///
+/// 编号跨块连续，所以只能顺序取。阅读器按测量分片逐段调用，避免打开章节时
+/// 一次性把整章扫完。
+class ReaderBlockMarkupBuilder {
+  ReaderBlockMarkupBuilder(this.style);
+
+  final ReaderContentStyle style;
+  int _footnote = 0;
+
+  String next(NovelReaderBlock block) => _indentBlock(
+    block.html.replaceAllMapped(_footnoteMarkerPattern, (match) {
+      _footnote++;
+      final id = _unescapeHtmlAttribute(match[1] ?? '');
+      final href = '$readerFootnoteScheme:${Uri.encodeComponent(id)}';
+      return '<a href="$href"><sup>[$_footnote]</sup></a>';
+    }),
+    style,
+  );
 }
 
 /// 缩进占位插在块内，插到块外会跟随外层对齐方式偏移。

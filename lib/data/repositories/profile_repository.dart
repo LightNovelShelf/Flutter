@@ -10,8 +10,11 @@ class ProfileController extends AsyncNotifier<UserProfile?> {
 
   @override
   Future<UserProfile?> build() async {
-    final snapshot = ref.watch(authSnapshotProvider);
-    if (!snapshot.isAuthenticated) return null;
+    // 只看登录与否，token 刷新途中的 refreshing 快照不该把资料拆掉重拉。
+    final authenticated = ref.watch(
+      authSnapshotProvider.select((snapshot) => snapshot.isAuthenticated),
+    );
+    if (!authenticated) return null;
     return _api.getMyProfile();
   }
 
@@ -36,4 +39,6 @@ class ProfileController extends AsyncNotifier<UserProfile?> {
 }
 
 final AsyncNotifierProvider<ProfileController, UserProfile?> profileProvider =
-    AsyncNotifierProvider<ProfileController, UserProfile?>(ProfileController.new);
+    AsyncNotifierProvider<ProfileController, UserProfile?>(
+      ProfileController.new,
+    );

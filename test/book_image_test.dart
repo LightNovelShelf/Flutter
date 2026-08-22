@@ -1,4 +1,7 @@
 import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart' show SynchronousFuture;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -75,6 +78,48 @@ void main() {
     );
     expect(placeholderIndex, isNonNegative);
     expect(imageIndex, greaterThan(placeholderIndex));
+  });
+
+  testWidgets('真图已解码在内存里：重新挂载不再闪一次 BlurHash', (WidgetTester tester) async {
+    await pumpCover(tester);
+    final String cacheKey = tester
+        .widget<CachedNetworkImage>(networkImageLayer())
+        .cacheKey!;
+    expect(blurHashLayer(), findsOneWidget);
+
+    // 先卸掉这棵树并清空缓存：首次挂载已经把同一个 provider 登记成 pending，
+    // 不清掉的话 putIfAbsent 会直接返回那条永远不会完成的记录。
+    await tester.pumpWidget(const SizedBox.shrink());
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
+
+    // 造一条解码成功的缓存记录。provider 的相等只看 (cacheKey, scale, maxWidth,
+    // maxHeight)，所以这里的 url 随便给也能命中同一个键。
+    // `createTestImage` 要真异步才会完成，fake-async 里 await 会永久挂住。
+    final ui.Image decoded = (await tester.runAsync(
+      () => createTestImage(width: 4, height: 6),
+    ))!;
+    final CachedNetworkImageProvider provider = CachedNetworkImageProvider(
+      url,
+      cacheKey: cacheKey,
+    );
+    PaintingBinding.instance.imageCache.putIfAbsent(
+      provider,
+      () => OneFrameImageStreamCompleter(
+        SynchronousFuture<ImageInfo>(ImageInfo(image: decoded)),
+      ),
+    );
+    addTearDown(PaintingBinding.instance.imageCache.clear);
+    expect(
+      PaintingBinding.instance.imageCache.statusForKey(provider).keepAlive,
+      isTrue,
+    );
+
+    // 翻页就是把整棵子树卸掉重挂，这里重新挂一次制造同样的效果。
+    await pumpCover(tester);
+
+    expect(blurHashLayer(), findsNothing);
+    expect(networkImageLayer(), findsOneWidget);
   });
 
   testWidgets('网络图单层淡入，按尺寸档请求图床并使用高质量采样', (WidgetTester tester) async {

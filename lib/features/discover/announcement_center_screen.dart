@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../data/api/models.dart';
 import '../../shared/format.dart';
+import '../../shared/paging/scroll_prefetch.dart';
 import '../../shared/widgets/state_views.dart';
 import '../announcement/announcement_providers.dart';
 
@@ -50,17 +51,6 @@ String _buildSummary(String contentHtml) {
 class AnnouncementCenterScreen extends ConsumerWidget {
   const AnnouncementCenterScreen({super.key});
 
-  bool _onScroll(ScrollNotification notification, VoidCallback loadMore) {
-    if (notification.metrics.axis != Axis.vertical) return false;
-    final metrics = notification.metrics;
-    // 距底不足 0.4 屏时预取下一页。
-    if (metrics.pixels >=
-        metrics.maxScrollExtent - metrics.viewportDimension * 0.4) {
-      loadMore();
-    }
-    return false;
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(announcementCenterProvider);
@@ -100,10 +90,11 @@ class AnnouncementCenterScreen extends ConsumerWidget {
         );
       }
     } else {
-      body = NotificationListener<ScrollNotification>(
-        onNotification: (notification) => canLoadMore && !state.loadingMore
-            ? _onScroll(notification, controller.loadMore)
-            : false,
+      body = PrefetchOnScroll(
+        onLoadMore: () {
+          if (!canLoadMore || state.loadingMore) return;
+          controller.loadMore();
+        },
         child: ListView.separated(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 48),
           physics: const AlwaysScrollableScrollPhysics(),

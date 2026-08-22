@@ -171,20 +171,26 @@ class _AuthPasswordFieldState extends State<AuthPasswordField> {
       autofillHints: widget.autofillHints,
       onSubmitted: widget.onSubmitted,
       style: authFieldTextStyle(context),
-      decoration: authFieldDecoration(context, hintText: widget.hintText).copyWith(
-        // 48 小于 52，避免图标约束决定输入框高度。
-        suffixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-        suffixIcon: InkResponse(
-          radius: 22,
-          onTap: () => setState(() => _obscured = !_obscured),
-          child: Icon(
-            _obscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-            size: 20,
-            color: colors.onSurfaceVariant,
-            semanticLabel: _obscured ? '显示密码' : '隐藏密码',
+      decoration: authFieldDecoration(context, hintText: widget.hintText)
+          .copyWith(
+            // 48 小于 52，避免图标约束决定输入框高度。
+            suffixIconConstraints: const BoxConstraints(
+              minWidth: 48,
+              minHeight: 48,
+            ),
+            suffixIcon: InkResponse(
+              radius: 22,
+              onTap: () => setState(() => _obscured = !_obscured),
+              child: Icon(
+                _obscured
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                size: 20,
+                color: colors.onSurfaceVariant,
+                semanticLabel: _obscured ? '显示密码' : '隐藏密码',
+              ),
+            ),
           ),
-        ),
-      ),
     );
   }
 }
@@ -220,7 +226,9 @@ class AuthSubmitButton extends StatelessWidget {
           disabledForegroundColor: onAccent,
           minimumSize: const Size.fromHeight(52),
           padding: const EdgeInsets.symmetric(horizontal: 18),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -230,7 +238,10 @@ class AuthSubmitButton extends StatelessWidget {
               SizedBox(
                 width: 18,
                 height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: onAccent),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: onAccent,
+                ),
               ),
               const SizedBox(width: 8),
             ],

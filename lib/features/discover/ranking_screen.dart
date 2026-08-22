@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/providers.dart';
 import '../../data/settings/app_settings.dart';
+import '../../shared/widgets/paged_grid.dart';
 import 'catalog_providers.dart';
 import 'home_providers.dart';
 import 'widgets/book_grid.dart';
@@ -32,7 +33,7 @@ class _RankingScreenState extends ConsumerState<RankingScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('排行榜')),
-      body: BookGrid(
+      body: PagedGrid.books(
         header: SegmentedButton<HomeRankType>(
           segments: <ButtonSegment<HomeRankType>>[
             for (final period in HomeRankType.values)

@@ -143,7 +143,9 @@ void main() {
     expect(find.text('3'), findsOneWidget);
     expect(find.text('单本甲'), findsNothing);
 
-    final request = api.calls.firstWhere((call) => call.$1 == 'GetSeriesList').$2;
+    final request = api.calls
+        .firstWhere((call) => call.$1 == 'GetSeriesList')
+        .$2;
     expect(request['Type'], 'Novel');
     expect(request['Order'], 'latest');
   });

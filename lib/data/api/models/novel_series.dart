@@ -49,9 +49,10 @@ class NovelSeriesListPage {
     return NovelSeriesListPage(
       page: asInt(record['Page'], 1),
       totalPages: asInt(record['TotalPages'], 1),
-      items: asArray(record['Data'], '小说系列列表项')
-          .map(NovelSeriesListItem.decode)
-          .toList(),
+      items: asArray(
+        record['Data'],
+        '小说系列列表项',
+      ).map(NovelSeriesListItem.decode).toList(),
     );
   }
 }

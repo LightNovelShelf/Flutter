@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/api/api_client.dart';
-import '../../data/api/community_models.dart';
+import '../../data/api/models.dart';
 import '../../data/providers.dart';
 import '../../shared/format.dart';
 import 'widgets/community_feed_card.dart';
@@ -39,8 +39,9 @@ class _MyCommunityScreenState extends ConsumerState<MyCommunityScreen> {
       _error = null;
     });
     try {
-      final overview =
-          await ref.read(apiClientProvider).getMyCommunityOverview();
+      final overview = await ref
+          .read(apiClientProvider)
+          .getMyCommunityOverview();
       if (!mounted || token != _operation) return;
       setState(() {
         _overview = overview;
@@ -81,108 +82,117 @@ class _MyCommunityScreenState extends ConsumerState<MyCommunityScreen> {
                     ),
                 ],
               )
-            : ListView(
+            : ListView.builder(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 44),
-                children: <Widget>[
-                  _ProfileCard(overview: overview),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: SegmentedButton<_MineTab>(
-                      segments: const <ButtonSegment<_MineTab>>[
-                        ButtonSegment<_MineTab>(
-                          value: _MineTab.published,
-                          label: Text('已发布'),
-                        ),
-                        ButtonSegment<_MineTab>(
-                          value: _MineTab.participated,
-                          label: Text('已参与'),
-                        ),
-                        ButtonSegment<_MineTab>(
-                          value: _MineTab.favorites,
-                          label: Text('收藏'),
-                        ),
-                      ],
-                      selected: <_MineTab>{_tab},
-                      onSelectionChanged: _loading
-                          ? null
-                          : (selection) =>
-                              setState(() => _tab = selection.first),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ..._buildSection(overview),
-                ],
+                itemCount: _sectionCount(overview) + 1,
+                itemBuilder: (_, index) => index == 0
+                    ? _header(overview)
+                    : _sectionItem(overview, index - 1),
               ),
       ),
     );
   }
 
-  List<Widget> _buildSection(CommunityMyOverview overview) {
+  /// 列表首格：资料卡与分页按钮。
+  ///
+  /// `stretch` 保住原来直接放在 ListView 里时的满宽约束。
+  Widget _header(CommunityMyOverview overview) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: <Widget>[
+      _ProfileCard(overview: overview),
+      const SizedBox(height: 16),
+      SegmentedButton<_MineTab>(
+        segments: const <ButtonSegment<_MineTab>>[
+          ButtonSegment<_MineTab>(
+            value: _MineTab.published,
+            label: Text('已发布'),
+          ),
+          ButtonSegment<_MineTab>(
+            value: _MineTab.participated,
+            label: Text('已参与'),
+          ),
+          ButtonSegment<_MineTab>(value: _MineTab.favorites, label: Text('收藏')),
+        ],
+        selected: <_MineTab>{_tab},
+        onSelectionChanged: _loading
+            ? null
+            : (selection) => setState(() => _tab = selection.first),
+      ),
+      const SizedBox(height: 16),
+    ],
+  );
+
+  /// 空态也占一格，用来显示状态卡。
+  int _sectionCount(CommunityMyOverview overview) {
+    final int length = switch (_tab) {
+      _MineTab.published => overview.publishedThreads.length,
+      _MineTab.favorites => overview.favoriteThreads.length,
+      _MineTab.participated => overview.participatedReplies.length,
+    };
+    return length == 0 ? 1 : length;
+  }
+
+  Widget _sectionItem(CommunityMyOverview overview, int index) {
     switch (_tab) {
       case _MineTab.published:
-        return _threadList(
+        return _threadItem(
           overview.publishedThreads,
+          index,
           emptyTitle: '还没有发布讨论',
           emptyDescription: '你发布的讨论会显示在这里。',
         );
       case _MineTab.favorites:
-        return _threadList(
+        return _threadItem(
           overview.favoriteThreads,
+          index,
           emptyTitle: '还没有收藏',
           emptyDescription: '你收藏的讨论会显示在这里。',
         );
       case _MineTab.participated:
-        if (overview.participatedReplies.isEmpty) {
-          return const <Widget>[
-            CommunityStateCard(
-              title: '还没有参与的讨论',
-              description: '你在社区讨论中发布的回复会显示在这里。',
-              icon: Icons.mode_comment_outlined,
-            ),
-          ];
+        final List<CommunityMyReplyItem> replies = overview.participatedReplies;
+        if (replies.isEmpty) {
+          return const CommunityStateCard(
+            title: '还没有参与的讨论',
+            description: '你在社区讨论中发布的回复会显示在这里。',
+            icon: Icons.mode_comment_outlined,
+          );
         }
-        return <Widget>[
-          for (final CommunityMyReplyItem reply in overview.participatedReplies)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _MyReplyCard(
-                reply: reply,
-                // 深链带 replyId，帖子页会翻页定位并高亮这条回复。
-                onTap: () => context.push(
-                  '/community/thread/${reply.threadId}?replyId=${reply.id}',
-                ),
-              ),
+        final CommunityMyReplyItem reply = replies[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _MyReplyCard(
+            reply: reply,
+            // 深链带 replyId，帖子页会翻页定位并高亮这条回复。
+            onTap: () => context.push(
+              '/community/thread/${reply.threadId}?replyId=${reply.id}',
             ),
-        ];
+          ),
+        );
     }
   }
 
-  List<Widget> _threadList(
-    List<CommunityFeedItem> items, {
+  Widget _threadItem(
+    List<CommunityFeedItem> items,
+    int index, {
     required String emptyTitle,
     required String emptyDescription,
   }) {
     if (items.isEmpty) {
-      return <Widget>[
-        CommunityStateCard(
-          title: emptyTitle,
-          description: emptyDescription,
-          icon: Icons.forum_outlined,
-        ),
-      ];
+      return CommunityStateCard(
+        title: emptyTitle,
+        description: emptyDescription,
+        icon: Icons.forum_outlined,
+      );
     }
-    return <Widget>[
-      for (final CommunityFeedItem item in items)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: CommunityFeedCard(
-            item: item,
-            onTap: () => context.push('/community/thread/${item.id}'),
-          ),
-        ),
-    ];
+    final CommunityFeedItem item = items[index];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: CommunityFeedCard(
+        item: item,
+        onTap: () => context.push('/community/thread/${item.id}'),
+      ),
+    );
   }
 }
 

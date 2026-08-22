@@ -1,91 +1,19 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 
 import '../../core/network/api_error.dart';
 import '../../data/api/api_client.dart';
-import '../../data/api/community_models.dart';
+import '../../data/api/models.dart';
 import '../../data/providers.dart';
 import '../../shared/paging/paged_list.dart';
 import 'community_providers.dart';
+import 'community_reply_tree.dart';
+import 'community_thread_state.dart';
 
 const int communityReplyPageSize = 5;
 const int communityChildReplyPageSize = 3;
-
-@immutable
-class CommunityThreadState {
-  const CommunityThreadState({
-    this.thread,
-    this.loading = true,
-    this.refreshing = false,
-    this.loadingMore = false,
-    this.error,
-    this.loadMoreError,
-    this.threadActionBusy = false,
-    this.replyActionId,
-    this.notice,
-    this.noticeTag = 0,
-  });
-
-  final CommunityThreadDetail? thread;
-  final bool loading;
-  final bool refreshing;
-  final bool loadingMore;
-  final String? error;
-  final String? loadMoreError;
-
-  /// 帖子级动作（点赞/收藏）的忙碌位，与回复级动作分开，避免互相禁用。
-  final bool threadActionBusy;
-
-  /// 进行中的回复级动作，形如 `like:12` / `children:12`，id 用于定位进度指示。
-  final String? replyActionId;
-
-  /// 操作失败的一次性提示，`noticeTag` 每次递增，用于区分文案相同的重复失败。
-  final String? notice;
-  final int noticeTag;
-
-  bool get canReply => thread != null && !thread!.item.locked;
-
-  /// 在回复树中按 id 查找回复。
-  CommunityThreadReply? findReply(int id) {
-    final detail = thread;
-    return detail == null ? null : _findReply(detail.replyItems, id);
-  }
-
-  static const Object _keep = Object();
-
-  CommunityThreadState copyWith({
-    Object? thread = _keep,
-    bool? loading,
-    bool? refreshing,
-    bool? loadingMore,
-    Object? error = _keep,
-    Object? loadMoreError = _keep,
-    bool? threadActionBusy,
-    Object? replyActionId = _keep,
-    String? notice,
-    int? noticeTag,
-  }) => CommunityThreadState(
-    thread: identical(thread, _keep)
-        ? this.thread
-        : thread as CommunityThreadDetail?,
-    loading: loading ?? this.loading,
-    refreshing: refreshing ?? this.refreshing,
-    loadingMore: loadingMore ?? this.loadingMore,
-    error: identical(error, _keep) ? this.error : error as String?,
-    loadMoreError: identical(loadMoreError, _keep)
-        ? this.loadMoreError
-        : loadMoreError as String?,
-    threadActionBusy: threadActionBusy ?? this.threadActionBusy,
-    replyActionId: identical(replyActionId, _keep)
-        ? this.replyActionId
-        : replyActionId as String?,
-    notice: notice ?? this.notice,
-    noticeTag: noticeTag ?? this.noticeTag,
-  );
-}
 
 /// 帖子详情的分页与乐观互动状态，滚动、高亮等 UI 状态留在页面。
 class CommunityThreadController extends Notifier<CommunityThreadState> {
@@ -111,7 +39,7 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
     ref.onDispose(() => _disposed = true);
     // build 里不能同步改 state，首屏加载推到微任务。
     _initialLoad = Future<void>.microtask(_load);
-    return const CommunityThreadState();
+    return CommunityThreadState();
   }
 
   ApiClient get _api => ref.read(apiClientProvider);
@@ -139,11 +67,7 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
       );
       if (_isStale(token)) return;
       _viewTracked = true;
-      state = state.copyWith(
-        thread: detail,
-        loading: false,
-        refreshing: false,
-      );
+      state = state.copyWith(thread: detail, loading: false, refreshing: false);
     } catch (error) {
       if (isCancellation(error) || _isStale(token)) return;
       state = state.copyWith(
@@ -221,7 +145,7 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
       state = state.copyWith(
         replyActionId: null,
         thread: detail?.copyWith(
-          replyItems: _updateReplies(
+          replyItems: updateReplies(
             detail.replyItems,
             parent.id,
             (reply) => reply.copyWith(
@@ -283,7 +207,7 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
     return _optimistic<CommunityLikeToggleResult>(
       busyKey: 'like:${reply.id}',
       apply: (current) => current.copyWith(
-        replyItems: _updateReplies(
+        replyItems: updateReplies(
           current.replyItems,
           reply.id,
           (item) => item.copyWith(
@@ -294,7 +218,7 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
       ),
       commit: () => _api.toggleCommunityReplyLike(reply.id),
       settle: (current, result) => current.copyWith(
-        replyItems: _updateReplies(
+        replyItems: updateReplies(
           current.replyItems,
           reply.id,
           (item) => item.copyWith(liked: result.liked, likes: result.likes),
@@ -302,7 +226,7 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
       ),
       // 只回滚这一条，保留期间展开的子回复。
       revert: (current) => current.copyWith(
-        replyItems: _updateReplies(
+        replyItems: updateReplies(
           current.replyItems,
           reply.id,
           (item) => item.copyWith(liked: reply.liked, likes: reply.likes),
@@ -377,16 +301,13 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
       ? next.copyWith(threadActionBusy: false)
       : next.copyWith(replyActionId: null);
 
-  CommunityThreadState _withNotice(
-    CommunityThreadState next,
-    String message,
-  ) => next.copyWith(notice: message, noticeTag: next.noticeTag + 1);
+  CommunityThreadState _withNotice(CommunityThreadState next, String message) =>
+      next.copyWith(notice: message, noticeTag: next.noticeTag + 1);
 
   bool _isStale(int token) => _disposed || token != _operation;
 }
 
-final
-NotifierProviderFamily<
+final NotifierProviderFamily<
   CommunityThreadController,
   CommunityThreadState,
   int
@@ -398,63 +319,17 @@ communityThreadProvider =
       int
     >(CommunityThreadController.new, isAutoDispose: true);
 
-/// 复制帖子并替换计数，`CommunityFeedItem` 没有 copyWith。
+/// 复制帖子并替换互动计数。
 CommunityThreadDetail _withCounts(
   CommunityThreadDetail detail, {
   int? likes,
   int? favorites,
-}) {
-  final item = detail.item;
-  return CommunityThreadDetail(
-    item: CommunityFeedItem(
-      id: item.id,
-      boardKey: item.boardKey,
-      boardName: item.boardName,
-      subCategoryKey: item.subCategoryKey,
-      subCategoryLabel: item.subCategoryLabel,
-      title: item.title,
-      excerpt: item.excerpt,
-      authorName: item.authorName,
-      authorIsDeleted: item.authorIsDeleted,
-      authorAvatar: item.authorAvatar,
-      publishedAt: item.publishedAt,
-      replies: item.replies,
-      views: item.views,
-      heat: item.heat,
-      likes: likes ?? item.likes,
-      favorites: favorites ?? item.favorites,
-      tags: item.tags,
-      featured: item.featured,
-      pinned: item.pinned,
-      locked: item.locked,
-    ),
-    liked: detail.liked,
-    favorited: detail.favorited,
-    bodyHtml: detail.bodyHtml,
-    repliesPage: detail.repliesPage,
-    replyItems: detail.replyItems,
-    relatedThreads: detail.relatedThreads,
-  );
-}
-
-CommunityThreadReply? _findReply(List<CommunityThreadReply> items, int id) {
-  for (final CommunityThreadReply reply in items) {
-    if (reply.id == id) return reply;
-    final child = _findReply(reply.childReplies, id);
-    if (child != null) return child;
-  }
-  return null;
-}
-
-/// 命中 id 就替换，否则递归子回复。
-List<CommunityThreadReply> _updateReplies(
-  List<CommunityThreadReply> items,
-  int id,
-  CommunityThreadReply Function(CommunityThreadReply reply) update,
-) => items.map((reply) {
-  if (reply.id == id) return update(reply);
-  if (reply.childReplies.isEmpty) return reply;
-  return reply.copyWith(
-    childReplies: _updateReplies(reply.childReplies, id, update),
-  );
-}).toList(growable: false);
+}) => CommunityThreadDetail(
+  item: detail.item.copyWith(likes: likes, favorites: favorites),
+  liked: detail.liked,
+  favorited: detail.favorited,
+  bodyHtml: detail.bodyHtml,
+  repliesPage: detail.repliesPage,
+  replyItems: detail.replyItems,
+  relatedThreads: detail.relatedThreads,
+);

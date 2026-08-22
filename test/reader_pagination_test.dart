@@ -152,6 +152,42 @@ void main() {
     });
   });
 
+  group('进度块定位', () {
+    const tops = <double>[0, 60, 130];
+    const bottoms = <double>[50, 120, 190];
+    int locate(double offset, {required bool paged, double pageHeight = 100}) =>
+        readerLocatorBlockIndex(
+          blockTops: tops,
+          blockBottoms: bottoms,
+          offset: offset,
+          paged: paged,
+          pageHeight: pageHeight,
+        );
+
+    test('滚动模式取偏移处的块', () {
+      expect(locate(0, paged: false), 0);
+      expect(locate(30, paged: false), 0);
+      expect(locate(55, paged: false), 1);
+      expect(locate(500, paged: false), 2);
+    });
+
+    test('翻页模式跳过跨自上一页的块', () {
+      // 块 1 覆盖 60..120，跨过页顶 100。
+      expect(locate(100, paged: false), 1);
+      expect(locate(100, paged: true), 2);
+    });
+
+    test('偏移正好落在块顶时算本页的块', () {
+      expect(locate(60, paged: true), 1);
+      expect(locate(130, paged: true), 2);
+    });
+
+    test('本页放不下整块时仍取跨页的那个块', () {
+      expect(locate(100, paged: true, pageHeight: 20), 1);
+      expect(locate(500, paged: true), 2);
+    });
+  });
+
   group('跨章翻页条', () {
     final strip = ReaderPageStrip<String>.of(
       <String>['上一章', '本章', '下一章'],

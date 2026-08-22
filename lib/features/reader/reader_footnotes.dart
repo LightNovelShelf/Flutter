@@ -92,8 +92,8 @@ NovelFootnoteProcessingResult processNovelFootnotes(
   FootnoteMarkerContent markerContent = FootnoteMarkerContent.placeholder,
 }) {
   final notesById = <String, String>{};
-  final elements = _parseHtmlElementRanges(html);
-  final markers = _selectOutermostFootnoteMarkers(elements, html);
+  final index = _ElementIndex(_parseHtmlElementRanges(html));
+  final markers = _selectOutermostFootnoteMarkers(index.elements, html);
   final marker = markerContent == FootnoteMarkerContent.empty ? '' : '*';
   final replacements = <_HtmlReplacement>[];
   final notes = <_HtmlElementRange>[];
@@ -116,8 +116,8 @@ NovelFootnoteProcessingResult processNovelFootnotes(
     );
 
     final note =
-        _findFootnoteTarget(elements, id) ??
-        _findFollowingLegacyFootnoteTarget(elements, element, markers);
+        _findFootnoteTarget(index, id) ??
+        _findFollowingLegacyFootnoteTarget(index, element, markers);
     if (note == null) continue;
     final key = '${note.start}:${note.end}';
     if (!removedTargets.add(key)) continue;
@@ -128,7 +128,7 @@ NovelFootnoteProcessingResult processNovelFootnotes(
   return NovelFootnoteProcessingResult(
     html: _applyHtmlReplacements(
       html,
-      _withNoteRemovals(html, elements, notes, replacements),
+      _withNoteRemovals(html, index, notes, replacements),
     ),
     notesById: notesById,
   );
@@ -138,19 +138,24 @@ NovelFootnoteProcessingResult processNovelFootnotes(
 /// 不处理。
 List<_HtmlReplacement> _withNoteRemovals(
   String html,
-  List<_HtmlElementRange> elements,
+  _ElementIndex index,
   List<_HtmlElementRange> notes,
   List<_HtmlReplacement> markerReplacements,
 ) {
   final ordered = List<_HtmlElementRange>.of(notes)
     ..sort((left, right) => left.start.compareTo(right.start));
+  // 同一个祖先会被同段落里的每条注文问一遍，而判空要扫完它的整段正文，缓存结果。
+  final emptied = <_HtmlElementRange, bool>{};
+  bool isEmptied(_HtmlElementRange element) =>
+      emptied[element] ??= _isEmptiedBy(html, element, ordered);
+
   final removals = <String, _HtmlReplacement>{};
   for (final note in ordered) {
     var target = note;
     for (
-      var parent = _enclosingElement(elements, target);
-      parent != null && _isEmptiedBy(html, parent, ordered);
-      parent = _enclosingElement(elements, target)
+      var parent = index.enclosing(target);
+      parent != null && isEmptied(parent);
+      parent = index.enclosing(target)
     ) {
       target = parent;
     }
@@ -162,32 +167,79 @@ List<_HtmlReplacement> _withNoteRemovals(
   }
 
   // 被整段删除的范围内再做替换会错位，落在其中的标记一并丢弃。
-  bool covered(_HtmlReplacement item) => removals.values.any(
-    (removal) =>
-        removal.start <= item.start &&
-        removal.end >= item.end &&
-        (removal.start != item.start || removal.end != item.end),
-  );
-
+  final coverage = _CoveredRanges(removals.values);
   return <_HtmlReplacement>[
     for (final marker in markerReplacements)
-      if (!covered(marker)) marker,
+      if (!coverage.covers(marker)) marker,
     for (final removal in removals.values)
-      if (!covered(removal)) removal,
+      if (!coverage.covers(removal)) removal,
   ];
 }
 
-/// 最小的严格包含 [child] 的元素。
-_HtmlElementRange? _enclosingElement(
-  List<_HtmlElementRange> elements,
+/// 判断一个替换是否被某个更大的删除范围整段盖住。删除范围按 start 升序后，前缀最大
+/// end 就够判定，不必两两相比。
+class _CoveredRanges {
+  _CoveredRanges(Iterable<_HtmlReplacement> removals) {
+    final ordered = removals.toList()
+      ..sort((left, right) => left.start.compareTo(right.start));
+    var maxEnd = -1;
+    var minStart = 0;
+    for (final removal in ordered) {
+      if (removal.end > maxEnd) {
+        maxEnd = removal.end;
+        // 按 start 升序推进，先达到这个 end 的那个 start 最小。
+        minStart = removal.start;
+      }
+      _starts.add(removal.start);
+      _maxEnd.add(maxEnd);
+      _minStartAtMaxEnd.add(minStart);
+    }
+  }
+
+  final List<int> _starts = <int>[];
+  final List<int> _maxEnd = <int>[];
+  final List<int> _minStartAtMaxEnd = <int>[];
+
+  bool covers(_HtmlReplacement item) {
+    final prefix = _countStartsUpTo(item.start);
+    if (prefix == 0) return false;
+    final maxEnd = _maxEnd[prefix - 1];
+    if (maxEnd > item.end) return true;
+    // end 相同时只有起点更靠前的才算盖住，范围完全相同的那个就是它自己。
+    return maxEnd == item.end && _minStartAtMaxEnd[prefix - 1] < item.start;
+  }
+
+  /// start 不大于 [start] 的删除范围个数。
+  int _countStartsUpTo(int start) {
+    var low = 0;
+    var high = _starts.length;
+    while (low < high) {
+      final middle = (low + high) >> 1;
+      if (_starts[middle] <= start) {
+        low = middle + 1;
+      } else {
+        high = middle;
+      }
+    }
+    return low;
+  }
+}
+
+/// 包含 [child] 的最小候选元素，[candidates] 已按文档顺序排列。
+_HtmlElementRange? _smallestContaining(
+  List<_HtmlElementRange> candidates,
   _HtmlElementRange child,
 ) {
-  _HtmlElementRange? closest;
-  for (final element in elements) {
-    if (element.start >= child.start || element.end <= child.end) continue;
-    if (closest == null || element.start > closest.start) closest = element;
+  _HtmlElementRange? best;
+  for (final candidate in candidates) {
+    if (candidate.start > child.start) break;
+    if (candidate.end < child.end) continue;
+    if (best == null ||
+        candidate.end - candidate.start < best.end - best.start) {
+      best = candidate;
+    }
   }
-  return closest;
+  return best;
 }
 
 /// 移除 [removals] 覆盖的片段后，[element] 是否还有可渲染内容。
@@ -216,6 +268,113 @@ String _footnoteFragmentId(String? href) {
     return Uri.decodeComponent(fragment);
   } catch (_) {
     return fragment;
+  }
+}
+
+/// 脚注抽取要反复按 id、标签名和包含关系查元素，每个标记都线性扫一遍元素表会退化成
+/// O(n²)。这里的查表结构按需建一次，没有脚注的章节一张也不建。
+class _ElementIndex {
+  _ElementIndex(this.elements);
+
+  /// 按 start 升序、end 降序排好。
+  final List<_HtmlElementRange> elements;
+
+  /// id 与锚点 name 取文档里第一个，与原先的顺序扫描一致。
+  late final Map<String, _HtmlElementRange> byId = _collect(
+    (element) => readHtmlAttribute(element.openingTag, 'id'),
+  );
+
+  late final Map<String, _HtmlElementRange> byAnchorName = _collect(
+    (element) => element.tag == 'a'
+        ? readHtmlAttribute(element.openingTag, 'name')
+        : null,
+  );
+
+  late final List<_HtmlElementRange> listItems = <_HtmlElementRange>[
+    for (final element in elements)
+      if (element.tag == 'li') element,
+  ];
+
+  late final List<_HtmlElementRange> lists = <_HtmlElementRange>[
+    for (final element in elements)
+      if (element.tag == 'ol' || element.tag == 'ul') element,
+  ];
+
+  late final int _leaves = _treeLeaves();
+  late final List<int> _maxEnd = _buildMaxEndTree();
+
+  /// 最小的严格包含 [child] 的元素。源站 HTML 可以交叉闭合，元素范围不保证真嵌套，
+  /// 不能按栈串父子，只能在「start 更小且 end 更大」里取 start 最大的那个。
+  _HtmlElementRange? enclosing(_HtmlElementRange child) {
+    var index = _rightmostLongerThan(_lowerBound(child.start), child.end);
+    if (index < 0) return null;
+    // start 相同的一串里取文档靠前那个，也就是 end 最大的。
+    while (index > 0 && elements[index - 1].start == elements[index].start) {
+      index--;
+    }
+    return elements[index];
+  }
+
+  /// 第一个 start 大于 [start] 的下标。
+  int firstStartAfter(int start) => _lowerBound(start + 1);
+
+  Map<String, _HtmlElementRange> _collect(
+    String? Function(_HtmlElementRange element) key,
+  ) {
+    final result = <String, _HtmlElementRange>{};
+    for (final element in elements) {
+      final value = key(element);
+      if (value != null) result.putIfAbsent(value, () => element);
+    }
+    return result;
+  }
+
+  int _lowerBound(int start) {
+    var low = 0;
+    var high = elements.length;
+    while (low < high) {
+      final middle = (low + high) >> 1;
+      if (elements[middle].start < start) {
+        low = middle + 1;
+      } else {
+        high = middle;
+      }
+    }
+    return low;
+  }
+
+  int _treeLeaves() {
+    var leaves = 1;
+    while (leaves < elements.length) {
+      leaves <<= 1;
+    }
+    return leaves;
+  }
+
+  /// end 的区间最大值树，叶子按 elements 下标排列，空位填 -1。
+  List<int> _buildMaxEndTree() {
+    final tree = List<int>.filled(_leaves * 2, -1);
+    for (var index = 0; index < elements.length; index++) {
+      tree[_leaves + index] = elements[index].end;
+    }
+    for (var node = _leaves - 1; node > 0; node--) {
+      final left = tree[node * 2];
+      final right = tree[node * 2 + 1];
+      tree[node] = left > right ? left : right;
+    }
+    return tree;
+  }
+
+  /// 下标小于 [limit] 且 end 大于 [end] 的最大下标，没有就 -1。
+  int _rightmostLongerThan(int limit, int end) =>
+      limit <= 0 ? -1 : _descend(1, 0, _leaves, limit, end);
+
+  int _descend(int node, int low, int high, int limit, int end) {
+    if (low >= limit || _maxEnd[node] <= end) return -1;
+    if (high - low == 1) return low;
+    final middle = (low + high) >> 1;
+    final right = _descend(node * 2 + 1, middle, high, limit, end);
+    return right >= 0 ? right : _descend(node * 2, low, middle, limit, end);
   }
 }
 
@@ -297,103 +456,78 @@ List<_HtmlElementRange> _selectOutermostFootnoteMarkers(
   }).toList();
 
   // 嵌套在外层标记内部的标记会被外层整段替换，必须丢弃。
-  return <_HtmlElementRange>[
-    for (var index = 0; index < markers.length; index++)
-      if (!markers
-          .take(index)
-          .any(
-            (other) =>
-                other.start <= markers[index].start &&
-                other.end >= markers[index].end,
-          ))
-        markers[index],
-  ];
+  // 嵌套在外层标记内部的标记会被外层整段替换，必须丢弃。elements 按 start 升序，
+  // 更早的标记起点都不更晚，end 没超过此前最大 end 的就是被包住了。
+  final outermost = <_HtmlElementRange>[];
+  var maxEnd = -1;
+  for (final marker in markers) {
+    if (maxEnd >= marker.end) continue;
+    outermost.add(marker);
+    maxEnd = marker.end;
+  }
+  return outermost;
 }
 
-_HtmlElementRange? _findFootnoteTarget(
-  List<_HtmlElementRange> elements,
-  String id,
-) {
-  for (final element in elements) {
-    if (readHtmlAttribute(element.openingTag, 'id') == id) return element;
-  }
-  _HtmlElementRange? namedTarget;
-  for (final element in elements) {
-    if (element.tag == 'a' &&
-        readHtmlAttribute(element.openingTag, 'name') == id) {
-      namedTarget = element;
-      break;
-    }
-  }
-  final named = namedTarget;
+_HtmlElementRange? _findFootnoteTarget(_ElementIndex index, String id) {
+  final target = index.byId[id];
+  if (target != null) return target;
+  final named = index.byAnchorName[id];
   if (named == null) return null;
-
-  final containing =
-      elements
-          .where(
-            (element) =>
-                element.tag == 'li' &&
-                element.start <= named.start &&
-                element.end >= named.end,
-          )
-          .toList()
-        ..sort(
-          (left, right) =>
-              (left.end - left.start).compareTo(right.end - right.start),
-        );
-  return containing.isEmpty ? named : containing.first;
+  // 锚点多半是列表项里的空 `<a name>`，注文取整个 `<li>`。
+  return _smallestContaining(index.listItems, named) ?? named;
 }
 
 /// 旧书源没有 id 关联：注文是紧跟标记之后、下一个标记之前的 `<li data-line>`。
 _HtmlElementRange? _findFollowingLegacyFootnoteTarget(
-  List<_HtmlElementRange> elements,
+  _ElementIndex index,
   _HtmlElementRange marker,
   List<_HtmlElementRange> markers,
 ) {
-  var nextMarkerStart = 1 << 62;
-  for (final candidate in markers) {
-    if (candidate.start > marker.start && candidate.start < nextMarkerStart) {
-      nextMarkerStart = candidate.start;
-    }
-  }
-  _HtmlElementRange? legacyTarget;
-  for (final element in elements) {
+  final nextMarkerStart = _nextMarkerStart(markers, marker.start);
+  final elements = index.elements;
+  _HtmlElementRange? candidate;
+  for (
+    var cursor = index.firstStartAfter(marker.end);
+    cursor < elements.length;
+    cursor++
+  ) {
+    final element = elements[cursor];
+    if (element.start >= nextMarkerStart) break;
     if (element.tag == 'li' &&
-        element.start > marker.end &&
-        element.start < nextMarkerStart &&
         _dataLinePattern.hasMatch(
           readHtmlAttribute(element.openingTag, 'data-line') ?? '',
         )) {
-      legacyTarget = element;
+      candidate = element;
       break;
     }
   }
-  final candidate = legacyTarget;
   if (candidate == null) return null;
 
-  final lists =
-      elements
-          .where(
-            (element) =>
-                (element.tag == 'ol' || element.tag == 'ul') &&
-                element.start <= candidate.start &&
-                element.end >= candidate.end,
-          )
-          .toList()
-        ..sort(
-          (left, right) =>
-              (left.end - left.start).compareTo(right.end - right.start),
-        );
-  if (lists.isEmpty) return candidate;
+  final list = _smallestContaining(index.lists, candidate);
+  if (list == null) return candidate;
 
-  final list = lists.first;
-  final items = elements.where(
-    (element) =>
-        element.tag == 'li' &&
-        element.start >= list.start &&
-        element.end <= list.end,
-  );
-  return items.length == 1 ? list : candidate;
+  // 整个列表只有这一条时连列表一起摘走。
+  var items = 0;
+  for (final item in index.listItems) {
+    if (item.start > list.end) break;
+    if (item.start >= list.start && item.end <= list.end) items++;
+  }
+  return items == 1 ? list : candidate;
+}
+
+/// [markers] 按 start 升序，下一个标记的起点；没有下一个时给一个比任何下标都大的值。
+int _nextMarkerStart(List<_HtmlElementRange> markers, int start) {
+  var low = 0;
+  var high = markers.length;
+  while (low < high) {
+    final middle = (low + high) >> 1;
+    if (markers[middle].start <= start) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+  return low == markers.length ? 1 << 62 : markers[low].start;
 }
 
 String _applyHtmlReplacements(

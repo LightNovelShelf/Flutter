@@ -132,17 +132,17 @@ class BookHtmlContent extends StatelessWidget {
   }
 
   static Map<String, String> _heading(double size) => <String, String>{
-        'font-size': '${size.toStringAsFixed(2)}px',
-        'font-weight': 'bold',
-        'text-align': 'center',
-        'line-height': '1.2',
-      };
+    'font-size': '${size.toStringAsFixed(2)}px',
+    'font-weight': 'bold',
+    'text-align': 'center',
+    'line-height': '1.2',
+  };
 
   static Map<String, String> _subheading(double size) => <String, String>{
-        'font-size': '${size.toStringAsFixed(2)}px',
-        'font-weight': 'bold',
-        'padding-left': '1.333em',
-      };
+    'font-size': '${size.toStringAsFixed(2)}px',
+    'font-weight': 'bold',
+    'padding-left': '1.333em',
+  };
 
   /// 站内 `em05`…`em30` 类名表示相对字号，跳过 em10。
   static double? _emScale(String className) {
@@ -172,7 +172,8 @@ class BookHtmlContent extends StatelessWidget {
         if (element.localName == 'a') {
           return <String, String>{
             ...?styles,
-            'color': '#${colors.primary.toARGB32().toRadixString(16).substring(2)}',
+            'color':
+                '#${colors.primary.toARGB32().toRadixString(16).substring(2)}',
             'text-decoration': 'underline',
           };
         }
@@ -203,15 +204,15 @@ class BookHtmlContent extends StatelessWidget {
       onLoadingBuilder: preview
           ? null
           : (context, element, loadingProgress) => const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Center(
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               ),
+            ),
     );
   }
 }

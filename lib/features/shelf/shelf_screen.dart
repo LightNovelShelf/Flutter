@@ -7,13 +7,13 @@ import '../../data/providers.dart';
 import '../../data/repositories/shelf_draft.dart';
 import '../../data/repositories/shelf_repository.dart';
 import '../../shared/layout/book_grid_layout.dart';
+import '../../shared/paging/identity_child_delegate.dart';
 import '../../shared/widgets/app_dialogs.dart';
-import '../../shared/widgets/book_cover_grid_item.dart';
+import '../../shared/widgets/book_grid_slivers.dart';
 import '../../shared/widgets/state_views.dart';
 import 'shelf_editor_controller.dart';
-import 'widgets/shelf_folder_tile.dart';
 import 'widgets/shelf_manage_sheet.dart';
-import 'widgets/unavailable_book_tile.dart';
+import 'widgets/shelf_tile.dart';
 
 /// 书架页：根目录（`parents` 为空）与任意层级文件夹共用同一个界面。
 class ShelfScreen extends ConsumerStatefulWidget {
@@ -81,10 +81,10 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   }
 
   ShelfManageCommand get _modeCommand => switch (_state.mode) {
-        ShelfMode.browse => ShelfManageCommand.browse,
-        ShelfMode.select => ShelfManageCommand.select,
-        ShelfMode.drag => ShelfManageCommand.drag,
-      };
+    ShelfMode.browse => ShelfManageCommand.browse,
+    ShelfMode.select => ShelfManageCommand.select,
+    ShelfMode.drag => ShelfManageCommand.drag,
+  };
 
   Future<void> _openManageSheet() async {
     final snapshot = ref.read(shelfProvider).value;
@@ -102,8 +102,10 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
         ShelfManageCommand.drag,
         ShelfManageCommand.select,
         ShelfManageCommand.createFolder,
-        if (folders.length == 1 && books.isEmpty) ShelfManageCommand.renameFolder,
-        if (folders.isNotEmpty && books.isEmpty) ShelfManageCommand.deleteFolder,
+        if (folders.length == 1 && books.isEmpty)
+          ShelfManageCommand.renameFolder,
+        if (folders.isNotEmpty && books.isEmpty)
+          ShelfManageCommand.deleteFolder,
         if (books.isNotEmpty && folders.isEmpty) ShelfManageCommand.moveBooks,
         if (_state.selected.isNotEmpty) ShelfManageCommand.removeItems,
         if (dirty) ShelfManageCommand.save,
@@ -226,105 +228,13 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
     context.push(uri.toString());
   }
 
-  void _openBook(int bookId, BookListItem book) {
+  void _openBook(BookListItem book) {
     if (book.type == BookType.comic) {
       final series = Uri.encodeComponent(book.seriesTitle ?? book.title);
-      context.push('/book/$bookId?type=Comic&seriesTitle=$series');
+      context.push('/book/${book.id}?type=Comic&seriesTitle=$series');
       return;
     }
-    context.push('/book/$bookId?type=Novel');
-  }
-
-  Widget _tile({
-    required ShelfItem item,
-    required int index,
-    required ShelfEditorState editor,
-    required ShelfSnapshot snapshot,
-    required List<ShelfItem> siblings,
-    required Map<String, List<ShelfItem>> children,
-    required double tileWidth,
-  }) {
-    final selected = editor.selected.contains(item.key);
-    final sorting = editor.mode == ShelfMode.drag;
-    final Widget tile;
-
-    if (item.isBook) {
-      final book = snapshot.bookById[item.bookId];
-      if (book == null) {
-        tile = UnavailableBookTile(
-          selected: selected,
-          sorting: sorting,
-          onTap: () => _state.mode == ShelfMode.select
-              ? _editor.toggleSelection(item)
-              : _editor.beginSelection(item),
-          onLongPress: () => _editor.beginSelection(item),
-        );
-      } else {
-        tile = BookCoverGridItem.fromBook(
-          book,
-          coverHeight: tileWidth / BookGridLayout.coverAspectRatio,
-          selected: selected,
-          sorting: sorting,
-          onTap: () => _state.mode == ShelfMode.select
-              ? _editor.toggleSelection(item)
-              : _openBook(item.bookId!, book),
-          onLongPress: () => _editor.beginSelection(item),
-        );
-      }
-    } else {
-      final folderId = item.folderId!;
-      final bucket = children[folderId] ?? const <ShelfItem>[];
-      final covers = <BookListItem>[];
-      for (final child in bucket) {
-        if (!child.isBook) continue;
-        final book = snapshot.bookById[child.bookId];
-        if (book != null) covers.add(book);
-        if (covers.length == 4) break;
-      }
-      final title = item.title.trim();
-      tile = ShelfFolderTile(
-        title: title.isEmpty ? '未命名文件夹' : title,
-        covers: covers,
-        childCount: bucket.length,
-        selected: selected,
-        sorting: sorting,
-        onTap: () => _state.mode == ShelfMode.select
-            ? _editor.toggleSelection(item)
-            : _openFolder(folderId),
-        onLongPress: () => _editor.beginSelection(item),
-      );
-    }
-
-    if (!sorting) return tile;
-    return DragTarget<int>(
-      onWillAcceptWithDetails: (details) => details.data != index,
-      onAcceptWithDetails: (details) =>
-          _editor.reorder(siblings, details.data, index),
-      builder: (context, candidate, _) => LongPressDraggable<int>(
-        data: index,
-        delay: const Duration(milliseconds: 180),
-        feedback: Material(
-          type: MaterialType.transparency,
-          child: Opacity(
-            opacity: 0.9,
-            child: SizedBox(width: tileWidth, child: tile),
-          ),
-        ),
-        childWhenDragging: Opacity(opacity: 0.3, child: tile),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: candidate.isEmpty
-                  ? Colors.transparent
-                  : Theme.of(context).colorScheme.primary,
-              width: 2,
-            ),
-          ),
-          child: tile,
-        ),
-      ),
-    );
+    context.push('/book/${book.id}?type=Novel');
   }
 
   Widget _banner(
@@ -349,7 +259,11 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(fontSize: 14, height: 19 / 14, color: colors.onSurface),
+              style: TextStyle(
+                fontSize: 14,
+                height: 19 / 14,
+                color: colors.onSurface,
+              ),
             ),
           ),
           const SizedBox(width: 10),
@@ -487,32 +401,25 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
       return CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: <Widget>[
-          SliverPadding(
+          bookGridSkeletonSliver(
+            layout: layout,
+            count: layout.skeletonCount(media.height, headerOffset: 120),
             padding: const EdgeInsets.fromLTRB(
               BookGridLayout.horizontalPadding,
               20,
               BookGridLayout.horizontalPadding,
               20,
             ),
-            sliver: SliverGrid.builder(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: layout.columns,
-                crossAxisSpacing: BookGridLayout.columnGap,
-                mainAxisSpacing: BookGridLayout.rowGap,
-                childAspectRatio: layout.tileWidth / layout.skeletonTileHeight,
-              ),
-              itemCount: layout.skeletonCount(media.height, headerOffset: 120),
-              itemBuilder: (_, _) => const BookGridSkeletonTile(),
-            ),
           ),
         ],
       );
     }
 
-    final siblings = shelfItemsAtPath(draft, _parents);
-    final folders = siblings.where((item) => !item.isBook).toList();
-    final children = _editor.directChildren(draft, folders);
-    final refreshError = async.hasError ? describeShelfError(async.error!) : null;
+    final level = _editor.level(snapshot, draft);
+    final siblings = level.siblings;
+    final refreshError = async.hasError
+        ? describeShelfError(async.error!)
+        : null;
     final editorError = editor.error;
 
     return CustomScrollView(
@@ -586,23 +493,26 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
               BookGridLayout.horizontalPadding,
               32,
             ),
-            sliver: SliverGrid.builder(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: layout.columns,
-                crossAxisSpacing: BookGridLayout.columnGap,
-                mainAxisSpacing:
-                    editor.mode == ShelfMode.drag ? 18 : BookGridLayout.rowGap,
-                childAspectRatio: layout.childAspectRatio,
+            sliver: SliverGrid(
+              gridDelegate: layout.tileGridDelegate(
+                mainAxisSpacing: editor.mode == ShelfMode.drag ? 18 : null,
               ),
-              itemCount: siblings.length,
-              itemBuilder: (_, index) => _tile(
-                item: siblings[index],
-                index: index,
-                editor: editor,
-                snapshot: snapshot,
-                siblings: siblings,
-                children: children,
-                tileWidth: layout.tileWidth,
+              delegate: IdentityChildDelegate<ShelfItem>(
+                items: level.siblings,
+                revision: (level, layout.tileWidth),
+                itemBuilder: (_, item, index) => ShelfTile(
+                  editorKey: _editorKey,
+                  item: item,
+                  index: index,
+                  siblings: level.siblings,
+                  book: item.isBook ? level.bookById[item.bookId] : null,
+                  folder: item.isBook
+                      ? null
+                      : level.folderPreviews[item.folderId],
+                  tileWidth: layout.tileWidth,
+                  onOpenBook: _openBook,
+                  onOpenFolder: _openFolder,
+                ),
               ),
             ),
           ),

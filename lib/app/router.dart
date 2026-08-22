@@ -47,16 +47,20 @@ import 'home_shell.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
-/// 让 go_router 跟随认证状态刷新。
+/// 让 go_router 跟随认证状态刷新。只有 redirect 真正判断的两个状态位翻转才通知，
+/// 否则 refreshing/signingIn 这类中间态会让 go_router 重解析路由、重跑栈上所有 builder。
 class _AuthRefreshListenable extends ChangeNotifier {
-  _AuthRefreshListenable(this._ref) {
-    _ref.listen<AuthenticationSnapshot>(
-      authSnapshotProvider,
+  _AuthRefreshListenable(Ref ref) {
+    ref.listen<(bool, bool)>(
+      authSnapshotProvider.select(
+        (snapshot) => (
+          snapshot.status == AuthenticationStatus.authenticated,
+          snapshot.status == AuthenticationStatus.signedOut,
+        ),
+      ),
       (_, _) => notifyListeners(),
     );
   }
-
-  final Ref _ref;
 }
 
 const Set<String> _authRoutes = <String>{
@@ -117,33 +121,49 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       ),
       StatefulShellRoute.indexedStack(
         builder: (_, _, shell) => HomeShell(shell: shell),
+        // 每个 branch 独立成层，切 tab 时 NavigationBar 指示器动画与刚露出的页面互不牵连。
         branches: <StatefulShellBranch>[
           StatefulShellBranch(
             routes: <RouteBase>[
-              GoRoute(path: '/discover', builder: (_, _) => const DiscoverScreen()),
+              GoRoute(
+                path: '/discover',
+                builder: (_, _) =>
+                    const RepaintBoundary(child: DiscoverScreen()),
+              ),
             ],
           ),
           StatefulShellBranch(
             routes: <RouteBase>[
-              GoRoute(path: '/shelf', builder: (_, _) => const ShelfScreen()),
+              GoRoute(
+                path: '/shelf',
+                builder: (_, _) => const RepaintBoundary(child: ShelfScreen()),
+              ),
             ],
           ),
           StatefulShellBranch(
             routes: <RouteBase>[
-              GoRoute(path: '/history', builder: (_, _) => const HistoryScreen()),
+              GoRoute(
+                path: '/history',
+                builder: (_, _) =>
+                    const RepaintBoundary(child: HistoryScreen()),
+              ),
             ],
           ),
           StatefulShellBranch(
             routes: <RouteBase>[
               GoRoute(
                 path: '/community',
-                builder: (_, _) => const CommunityHomeScreen(),
+                builder: (_, _) =>
+                    const RepaintBoundary(child: CommunityHomeScreen()),
               ),
             ],
           ),
           StatefulShellBranch(
             routes: <RouteBase>[
-              GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
+              GoRoute(
+                path: '/search',
+                builder: (_, _) => const RepaintBoundary(child: SearchScreen()),
+              ),
             ],
           ),
         ],
@@ -183,8 +203,8 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
           type: state.uri.queryParameters['type'] == 'Comic'
               ? BookType.comic
               : state.uri.queryParameters['type'] == 'Novel'
-                  ? BookType.novel
-                  : null,
+              ? BookType.novel
+              : null,
           seriesTitle: state.uri.queryParameters['seriesTitle'],
           fromSeries: state.uri.queryParameters['fromSeries'],
         ),
@@ -211,8 +231,10 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/reader/:bookId/:sortNum',
         builder: (_, state) {
-          final bookId = int.tryParse(state.pathParameters['bookId'] ?? '') ?? 0;
-          final sortNum = int.tryParse(state.pathParameters['sortNum'] ?? '') ?? 1;
+          final bookId =
+              int.tryParse(state.pathParameters['bookId'] ?? '') ?? 0;
+          final sortNum =
+              int.tryParse(state.pathParameters['sortNum'] ?? '') ?? 1;
           final position = switch (state.uri.queryParameters['position']) {
             'start' => ReaderOpenPosition.start,
             'end' => ReaderOpenPosition.end,
@@ -232,8 +254,9 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         path: '/community/thread/:id',
         builder: (_, state) => CommunityThreadScreen(
           threadId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
-          parentReplyId:
-              int.tryParse(state.uri.queryParameters['parentReplyId'] ?? ''),
+          parentReplyId: int.tryParse(
+            state.uri.queryParameters['parentReplyId'] ?? '',
+          ),
           replyId: int.tryParse(state.uri.queryParameters['replyId'] ?? ''),
         ),
       ),
@@ -261,7 +284,10 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const SettingsScreen(),
         routes: <RouteBase>[
           GoRoute(path: 'profile', builder: (_, _) => const ProfileScreen()),
-          GoRoute(path: 'avatar', builder: (_, _) => const AvatarSettingsScreen()),
+          GoRoute(
+            path: 'avatar',
+            builder: (_, _) => const AvatarSettingsScreen(),
+          ),
           GoRoute(
             path: 'appearance',
             builder: (_, _) => const AppearanceSettingsScreen(),
@@ -270,9 +296,18 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
             path: 'content',
             builder: (_, _) => const ContentSettingsScreen(),
           ),
-          GoRoute(path: 'reader', builder: (_, _) => const ReaderSettingsScreen()),
-          GoRoute(path: 'cache', builder: (_, _) => const CacheSettingsScreen()),
-          GoRoute(path: 'about', builder: (_, _) => const AboutSettingsScreen()),
+          GoRoute(
+            path: 'reader',
+            builder: (_, _) => const ReaderSettingsScreen(),
+          ),
+          GoRoute(
+            path: 'cache',
+            builder: (_, _) => const CacheSettingsScreen(),
+          ),
+          GoRoute(
+            path: 'about',
+            builder: (_, _) => const AboutSettingsScreen(),
+          ),
         ],
       ),
     ],

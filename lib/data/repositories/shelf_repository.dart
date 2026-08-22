@@ -29,8 +29,11 @@ class ShelfController extends AsyncNotifier<ShelfSnapshot?> {
 
   @override
   Future<ShelfSnapshot?> build() async {
-    final snapshot = ref.watch(authSnapshotProvider);
-    if (!snapshot.isAuthenticated) return null;
+    // 只看登录与否，token 刷新途中的 refreshing 快照不该把书架拆掉重拉。
+    final authenticated = ref.watch(
+      authSnapshotProvider.select((snapshot) => snapshot.isAuthenticated),
+    );
+    if (!authenticated) return null;
     return _load();
   }
 
@@ -91,7 +94,9 @@ class ShelfController extends AsyncNotifier<ShelfSnapshot?> {
           .toSet();
       final snapshot = ShelfSnapshot(
         items: normalized.items,
-        books: knownBooks.values.where((book) => nextIds.contains(book.id)).toList(),
+        books: knownBooks.values
+            .where((book) => nextIds.contains(book.id))
+            .toList(),
         version: normalized.version,
       );
       if (generation == _mutationGeneration) {
@@ -118,8 +123,8 @@ class ShelfController extends AsyncNotifier<ShelfSnapshot?> {
     final isInShelf = shelfContainsBook(shelf.items, bookId);
     final items = isInShelf
         ? shelf.items
-            .where((item) => !item.isBook || item.bookId != bookId)
-            .toList()
+              .where((item) => !item.isBook || item.bookId != bookId)
+              .toList()
         : <ShelfItem>[
             ShelfItem.book(
               id: bookId,

@@ -41,7 +41,10 @@ Future<Color?> seedColorFromRawRgba(
   return argb == null ? null : Color(argb);
 }
 
-Future<int?> _seedArgbFromRawRgba(Uint8List bytes, int maximumColorCount) async {
+Future<int?> _seedArgbFromRawRgba(
+  Uint8List bytes,
+  int maximumColorCount,
+) async {
   // 预分配到像素数上限，避免 growable List 反复扩容。
   final packed = Uint32List(bytes.length ~/ 4);
   var count = 0;

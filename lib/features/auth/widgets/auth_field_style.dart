@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 
 /// 输入框共用的文字样式与装饰，保证密码框与普通框视觉一致。
-TextStyle authFieldTextStyle(BuildContext context) => TextStyle(
-      color: Theme.of(context).colorScheme.onSurface,
-      fontSize: 17,
-    );
+TextStyle authFieldTextStyle(BuildContext context) =>
+    TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 17);
 
 InputDecoration authFieldDecoration(
   BuildContext context, {

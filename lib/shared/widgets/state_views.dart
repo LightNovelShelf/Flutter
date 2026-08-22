@@ -38,12 +38,17 @@ class EmptyStateView extends StatelessWidget {
               Text(
                 description!,
                 textAlign: TextAlign.center,
-                style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+                style: text.bodyMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
               ),
             ],
             if (actionLabel != null && onAction != null) ...<Widget>[
               const SizedBox(height: 16),
-              FilledButton.tonal(onPressed: onAction, child: Text(actionLabel!)),
+              FilledButton.tonal(
+                onPressed: onAction,
+                child: Text(actionLabel!),
+              ),
             ],
           ],
         ),
@@ -66,12 +71,12 @@ class ErrorStateView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => EmptyStateView(
-        icon: Icons.error_outline,
-        title: title,
-        description: message,
-        actionLabel: onRetry == null ? null : '重试',
-        onAction: onRetry,
-      );
+    icon: Icons.error_outline,
+    title: title,
+    description: message,
+    actionLabel: onRetry == null ? null : '重试',
+    onAction: onRetry,
+  );
 }
 
 /// 列表底部的加载/到底提示。

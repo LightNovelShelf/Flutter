@@ -64,10 +64,8 @@ class _ReaderFootnoteSheet extends StatelessWidget {
                 // 注文按段落阅读，补段间距；列表补左内边距容纳项目符号。
                 return switch (element.localName) {
                   'p' => <String, String>{...?styles, 'margin': '0 0 0.8em'},
-                  'ol' || 'ul' => <String, String>{
-                    ...?styles,
-                    'padding-left': '1.2em',
-                  },
+                  'ol' ||
+                  'ul' => <String, String>{...?styles, 'padding-left': '1.2em'},
                   _ => styles,
                 };
               },

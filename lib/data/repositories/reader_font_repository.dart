@@ -8,18 +8,19 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
-import 'woff2.dart';
-import '../../data/api/endpoints.dart';
+// woff2.dart 的 @Native assetId 与 hook/build.dart 里的条目都写死了这个库路径，挪走要同步改原生构建，故留在 features 下。
+import '../../features/reader/woff2.dart';
+import '../api/endpoints.dart';
 
 /// 章节字体缓存。正文字形被服务端混淆，需配套字体才能正确显示；WOFF2 先经
 /// libwoff2 转成 TTF 再注册进 Flutter 引擎，正文按族名排版。
-class ReaderFontCache {
-  const ReaderFontCache._();
+class ReaderFontRepository {
+  const ReaderFontRepository();
 
   static const String _directoryName = 'reader-fonts';
+  // 引擎的字体注册无法撤销，去重状态与实例无关，只能挂在进程上。
   static final Map<String, Future<String>> _inflight =
       <String, Future<String>>{};
-  // 引擎的字体注册无法撤销，记下族名以跳过重复的下载与磁盘读取。
   static final Set<String> _registered = <String>{};
 
   /// 相对地址按 API 源站补全；空地址表示该章节不用字体。
@@ -34,7 +35,7 @@ class ReaderFontCache {
 
   /// 返回已注册到 Flutter 引擎的字体族名。
   /// 无字体返回 null；下载、校验、转换或注册失败抛异常，调用方转错误态。
-  static Future<String?> loadFamily(
+  Future<String?> loadFamily(
     String? fontUrl, {
     bool cacheEnabled = true,
     int cacheLimit = 30,

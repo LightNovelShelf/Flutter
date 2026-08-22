@@ -62,8 +62,8 @@ class BookVersionsScreen extends ConsumerWidget {
                   child: Text(
                     '${series.title} · ${series.volumes.length}个版本',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 );
               }
@@ -141,14 +141,16 @@ class _VolumeRow extends StatelessWidget {
                       ' · ${volume.chapters.length}章',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: text.bodySmall
-                          ?.copyWith(color: colors.onSurfaceVariant),
+                      style: text.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '更新于 ${formatRelativeTime(volume.lastUpdatedAt)}',
-                      style: text.bodySmall
-                          ?.copyWith(color: colors.onSurfaceVariant),
+                      style: text.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),

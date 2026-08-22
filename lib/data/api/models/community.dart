@@ -36,24 +36,23 @@ class CommunityListQuery {
     CommunityFeedScope? scope,
     int? page,
     int? size,
-  }) =>
-      CommunityListQuery(
-        boardKey: boardKey ?? this.boardKey,
-        subCategoryKey: subCategoryKey ?? this.subCategoryKey,
-        order: order ?? this.order,
-        scope: scope ?? this.scope,
-        page: page ?? this.page,
-        size: size ?? this.size,
-      );
+  }) => CommunityListQuery(
+    boardKey: boardKey ?? this.boardKey,
+    subCategoryKey: subCategoryKey ?? this.subCategoryKey,
+    order: order ?? this.order,
+    scope: scope ?? this.scope,
+    page: page ?? this.page,
+    size: size ?? this.size,
+  );
 
   Map<String, Object?> encode() => <String, Object?>{
-        'BoardKey': boardKey,
-        'SubCategoryKey': subCategoryKey,
-        'Order': order.wire,
-        'Scope': scope.wire,
-        'Page': page < 1 ? 1 : page,
-        'Size': size < 1 ? 1 : size,
-      };
+    'BoardKey': boardKey,
+    'SubCategoryKey': subCategoryKey,
+    'Order': order.wire,
+    'Scope': scope.wire,
+    'Page': page < 1 ? 1 : page,
+    'Size': size < 1 ? 1 : size,
+  };
 }
 
 class CommunityCatalogSubCategory {
@@ -93,18 +92,16 @@ class CommunityCatalogBoard {
       title: asString(board['Title']),
       description: asStringOrEmpty(board['Description']),
       icon: asStringOrEmpty(board['Icon']),
-      subCategories: decodeOptionalList(
-        board['SubCategories'],
-        '社区子分类目录',
-        (item) {
-          final subCategory = asRecord(item, '社区子分类');
-          return CommunityCatalogSubCategory(
-            id: asInt(subCategory['Id']),
-            key: asString(subCategory['Key']),
-            label: asString(subCategory['Label']),
-          );
-        },
-      ),
+      subCategories: decodeOptionalList(board['SubCategories'], '社区子分类目录', (
+        item,
+      ) {
+        final subCategory = asRecord(item, '社区子分类');
+        return CommunityCatalogSubCategory(
+          id: asInt(subCategory['Id']),
+          key: asString(subCategory['Key']),
+          label: asString(subCategory['Label']),
+        );
+      }),
     );
   }
 }
@@ -243,6 +240,37 @@ class CommunityFeedItem {
   final bool pinned;
   final bool locked;
 
+  /// 复制并替换计数与锁定位，乐观互动只改这几项。
+  CommunityFeedItem copyWith({
+    int? replies,
+    int? views,
+    int? heat,
+    int? likes,
+    int? favorites,
+    bool? locked,
+  }) => CommunityFeedItem(
+    id: id,
+    boardKey: boardKey,
+    boardName: boardName,
+    subCategoryKey: subCategoryKey,
+    subCategoryLabel: subCategoryLabel,
+    title: title,
+    excerpt: excerpt,
+    authorName: authorName,
+    authorIsDeleted: authorIsDeleted,
+    authorAvatar: authorAvatar,
+    publishedAt: publishedAt,
+    replies: replies ?? this.replies,
+    views: views ?? this.views,
+    heat: heat ?? this.heat,
+    likes: likes ?? this.likes,
+    favorites: favorites ?? this.favorites,
+    tags: tags,
+    featured: featured,
+    pinned: pinned,
+    locked: locked ?? this.locked,
+  );
+
   static CommunityFeedItem decode(Object? value) {
     final item = asRecord(value, '社区帖子');
     return CommunityFeedItem(
@@ -373,21 +401,20 @@ class CommunityThreadReply {
     bool? liked,
     List<CommunityThreadReply>? childReplies,
     CommunityPagination? childPage,
-  }) =>
-      CommunityThreadReply(
-        id: id,
-        authorName: authorName,
-        authorIsDeleted: authorIsDeleted,
-        authorBadge: authorBadge,
-        authorAvatar: authorAvatar,
-        publishedAt: publishedAt,
-        content: content,
-        likes: likes ?? this.likes,
-        liked: liked ?? this.liked,
-        replyTo: replyTo,
-        childReplies: childReplies ?? this.childReplies,
-        childPage: childPage ?? this.childPage,
-      );
+  }) => CommunityThreadReply(
+    id: id,
+    authorName: authorName,
+    authorIsDeleted: authorIsDeleted,
+    authorBadge: authorBadge,
+    authorAvatar: authorAvatar,
+    publishedAt: publishedAt,
+    content: content,
+    likes: likes ?? this.likes,
+    liked: liked ?? this.liked,
+    replyTo: replyTo,
+    childReplies: childReplies ?? this.childReplies,
+    childPage: childPage ?? this.childPage,
+  );
 
   static CommunityThreadReply decode(Object? value) {
     final reply = asRecord(value, '社区回复');
@@ -443,16 +470,15 @@ class CommunityThreadDetail {
     bool? favorited,
     CommunityPagination? repliesPage,
     List<CommunityThreadReply>? replyItems,
-  }) =>
-      CommunityThreadDetail(
-        item: item,
-        liked: liked ?? this.liked,
-        favorited: favorited ?? this.favorited,
-        bodyHtml: bodyHtml,
-        repliesPage: repliesPage ?? this.repliesPage,
-        replyItems: replyItems ?? this.replyItems,
-        relatedThreads: relatedThreads,
-      );
+  }) => CommunityThreadDetail(
+    item: item,
+    liked: liked ?? this.liked,
+    favorited: favorited ?? this.favorited,
+    bodyHtml: bodyHtml,
+    repliesPage: repliesPage ?? this.repliesPage,
+    replyItems: replyItems ?? this.replyItems,
+    relatedThreads: relatedThreads,
+  );
 
   static CommunityThreadDetail decodeRequired(Object? value) {
     final response = asRecord(value, '社区帖子详情响应');
@@ -540,7 +566,9 @@ class CommunityHomePayload {
         '社区子分类',
         CommunitySubCategorySummary.decode,
       ),
-      selectedSubCategoryKey: asStringOrEmpty(response['SelectedSubCategoryKey']),
+      selectedSubCategoryKey: asStringOrEmpty(
+        response['SelectedSubCategoryKey'],
+      ),
       feed: decodeOptionalList(
         response['Feed'],
         '社区帖子流',
@@ -582,7 +610,9 @@ class CommunityFeedPayload {
         '社区子分类',
         CommunitySubCategorySummary.decode,
       ),
-      selectedSubCategoryKey: asStringOrEmpty(response['SelectedSubCategoryKey']),
+      selectedSubCategoryKey: asStringOrEmpty(
+        response['SelectedSubCategoryKey'],
+      ),
       feed: decodeOptionalList(
         response['Feed'],
         '社区帖子流',
@@ -594,7 +624,10 @@ class CommunityFeedPayload {
 }
 
 class CommunityReplyChildrenPayload {
-  const CommunityReplyChildrenPayload({required this.items, required this.page});
+  const CommunityReplyChildrenPayload({
+    required this.items,
+    required this.page,
+  });
 
   final List<CommunityThreadReply> items;
   final CommunityPagination page;

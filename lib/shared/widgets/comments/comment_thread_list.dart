@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/api/models.dart';
-import '../../../features/book/book_providers.dart';
+import '../../../data/repositories/comment_thread_repository.dart';
+import '../../paging/identity_child_delegate.dart';
+import '../../paging/scroll_prefetch.dart';
 import '../app_dialogs.dart';
 import '../skeleton.dart';
 import '../state_views.dart';
@@ -65,17 +67,23 @@ class CommentThreadList extends ConsumerStatefulWidget {
 }
 
 class _CommentThreadListState extends ConsumerState<CommentThreadList> {
-  bool _onScroll(ScrollNotification notification) {
-    if (notification.metrics.axis != Axis.vertical) return false;
-    if (notification.metrics.pixels <
-        notification.metrics.maxScrollExtent - 480) {
-      return false;
+  List<CommentItem>? _flattenedFrom;
+  List<_CommentRow> _rows = const <_CommentRow>[];
+
+  /// 扁平化按 `items` 身份缓存，翻页追加以外的重建不重算。
+  List<_CommentRow> _rowsFor(List<CommentItem> items) {
+    if (!identical(items, _flattenedFrom)) {
+      _flattenedFrom = items;
+      _rows = _flatten(items);
     }
+    return _rows;
+  }
+
+  void _loadMore() {
     final state = ref.read(commentThreadProvider(widget.target)).value;
-    if (state == null || state.loadingMore || !state.hasMore) return false;
-    if (state.moreError != null) return false;
+    if (state == null || state.loadingMore || !state.hasMore) return;
+    if (state.moreError != null) return;
     ref.read(commentThreadProvider(widget.target).notifier).loadMore();
-    return false;
   }
 
   Future<void> _reply(CommentItem parent, CommentReply? reply) async {
@@ -129,72 +137,86 @@ class _CommentThreadListState extends ConsumerState<CommentThreadList> {
       );
     }
 
-    final rows = _flatten(state.items);
-    final headerCount = widget.header == null ? 0 : 1;
-    final footerCount = 1;
+    final rows = _rowsFor(state.items);
 
-    return NotificationListener<ScrollNotification>(
-      onNotification: _onScroll,
-      child: ListView.builder(
-        padding: widget.padding,
+    return PrefetchOnScroll(
+      onLoadMore: _loadMore,
+      child: CustomScrollView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        itemCount: headerCount + (rows.isEmpty ? 1 : rows.length) + footerCount,
-        itemBuilder: (context, index) {
-          if (headerCount == 1 && index == 0) return widget.header!;
-          final offset = index - headerCount;
-          if (rows.isEmpty) {
-            if (offset == 0) {
-              return const EmptyStateView(
-                icon: Icons.mode_comment_outlined,
-                title: '还没有评论。',
-              );
-            }
-            return _footer(state);
-          }
-          if (offset >= rows.length) return _footer(state);
-          final row = rows[offset];
-          return switch (row) {
-            _RootRow(:final comment, :final closesGroup) => ThreadReplyGroup(
-              isChild: false,
-              closesGroup: closesGroup,
-              child: ThreadReplyRow(
-                userName: comment.user.userName,
-                avatarUrl: comment.user.avatarUrl,
-                content: comment.content,
-                publishedAt: comment.createdAt,
-                isChild: false,
-                actions: _actions(
-                  isChild: false,
-                  canEdit: comment.canEdit,
-                  onReply: () => _reply(comment, null),
-                  onDelete: () => _delete(comment.id),
-                ),
-              ),
-            ),
-            _ReplyRow(:final parent, :final reply, :final closesGroup) =>
-              ThreadReplyGroup(
-                isChild: true,
-                closesGroup: closesGroup,
-                child: ThreadReplyRow(
-                  userName: reply.user.userName,
-                  avatarUrl: reply.user.avatarUrl,
-                  content: reply.content,
-                  publishedAt: reply.createdAt,
-                  isChild: true,
-                  replyToUserName: reply.replyToUser?.userName,
-                  actions: _actions(
-                    isChild: true,
-                    canEdit: reply.canEdit,
-                    onReply: () => _reply(parent, reply),
-                    onDelete: () => _delete(reply.id),
+        slivers: <Widget>[
+          SliverPadding(
+            padding: widget.padding,
+            sliver: SliverMainAxisGroup(
+              slivers: <Widget>[
+                if (widget.header != null)
+                  SliverToBoxAdapter(child: widget.header!),
+                if (rows.isEmpty)
+                  const SliverToBoxAdapter(
+                    child: EmptyStateView(
+                      icon: Icons.mode_comment_outlined,
+                      title: '还没有评论。',
+                    ),
+                  ),
+                SliverList(
+                  delegate: IdentityChildDelegate<_CommentRow>(
+                    items: rows,
+                    itemBuilder: _buildRow,
+                    revision: (
+                      state.loadingMore,
+                      state.hasMore,
+                      state.moreError,
+                    ),
+                    trailingCount: 1,
+                    trailingBuilder: (context, _) => _footer(state),
                   ),
                 ),
-              ),
-          };
-        },
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
+
+  Widget _buildRow(BuildContext context, _CommentRow row, int index) =>
+      switch (row) {
+        _RootRow(:final comment, :final closesGroup) => ThreadReplyGroup(
+          isChild: false,
+          closesGroup: closesGroup,
+          child: ThreadReplyRow(
+            userName: comment.user.userName,
+            avatarUrl: comment.user.avatarUrl,
+            content: comment.content,
+            publishedAt: comment.createdAt,
+            isChild: false,
+            actions: _actions(
+              isChild: false,
+              canEdit: comment.canEdit,
+              onReply: () => _reply(comment, null),
+              onDelete: () => _delete(comment.id),
+            ),
+          ),
+        ),
+        _ReplyRow(:final parent, :final reply, :final closesGroup) =>
+          ThreadReplyGroup(
+            isChild: true,
+            closesGroup: closesGroup,
+            child: ThreadReplyRow(
+              userName: reply.user.userName,
+              avatarUrl: reply.user.avatarUrl,
+              content: reply.content,
+              publishedAt: reply.createdAt,
+              isChild: true,
+              replyToUserName: reply.replyToUser?.userName,
+              actions: _actions(
+                isChild: true,
+                canEdit: reply.canEdit,
+                onReply: () => _reply(parent, reply),
+                onDelete: () => _delete(reply.id),
+              ),
+            ),
+          ),
+      };
 
   Widget _footer(CommentThreadState state) => ListFooterStatus(
     loading: state.loadingMore,

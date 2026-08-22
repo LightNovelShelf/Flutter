@@ -30,7 +30,7 @@ String withImageHeight(String url, int height) {
   if (url.isEmpty || height <= 0) return url;
   final int queryStart = url.indexOf('?');
   if (queryStart < 0) return '$url?height=$height';
-  if (queryStart == url.length - 1) return '$url' 'height=$height';
+  if (queryStart == url.length - 1) return '${url}height=$height';
 
   var pairStart = queryStart + 1;
   while (pairStart < url.length) {
@@ -55,7 +55,5 @@ String sizedImageUrl(
   String url, {
   required double logicalHeight,
   required double devicePixelRatio,
-}) => withImageHeight(
-  url,
-  imageHeightBucketFor(logicalHeight, devicePixelRatio),
-);
+}) =>
+    withImageHeight(url, imageHeightBucketFor(logicalHeight, devicePixelRatio));

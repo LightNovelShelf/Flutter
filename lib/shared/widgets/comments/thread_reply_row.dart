@@ -9,6 +9,7 @@ double threadRowIconSize(bool isChild) => isChild ? 16.0 : 18.0;
 /// 社区回复与评论共用的一行。
 /// 主楼头像 40、正文缩进 56；子级头像 24、正文顶格。
 /// 点赞/回复/删除各页不同，由 [actions] 传入，时间戳固定占左侧。
+/// 文本选择靠列表外层的 SelectionArea，逐行包会给每行装上一套手势识别与选区注册。
 class ThreadReplyRow extends StatelessWidget {
   const ThreadReplyRow({
     super.key,
@@ -125,14 +126,12 @@ class ThreadReplyRow extends StatelessWidget {
         const SizedBox(height: 4),
         Padding(
           padding: EdgeInsets.only(left: indent),
-          child: SelectionArea(
-            child: Text(
-              content.trim(),
-              style: TextStyle(
-                fontSize: 14,
-                height: 19 / 14,
-                color: colors.onSurface,
-              ),
+          child: Text(
+            content.trim(),
+            style: TextStyle(
+              fontSize: 14,
+              height: 19 / 14,
+              color: colors.onSurface,
             ),
           ),
         ),
@@ -159,20 +158,24 @@ class ThreadReplyRow extends StatelessWidget {
       ],
     );
 
-    return AnimatedContainer(
+    final EdgeInsets padding = EdgeInsets.symmetric(vertical: isChild ? 2 : 8);
+    if (!highlighted) return Padding(padding: padding, child: body);
+    // 高亮只有深链定位那一行会出现，隐式动画容器只包这一行，别让整列都进动画。
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
       duration: const Duration(milliseconds: 180),
-      decoration: BoxDecoration(
-        color: highlighted ? colors.primaryContainer : Colors.transparent,
-        border: highlighted
-            ? Border(left: BorderSide(color: colors.primary, width: 3))
-            : null,
-        borderRadius: BorderRadius.circular(highlighted ? 12 : 0),
-      ),
-      padding: EdgeInsets.symmetric(
-        horizontal: highlighted ? 6 : 0,
-        vertical: isChild ? 2 : 8,
-      ),
       child: body,
+      builder: (context, t, child) => Container(
+        decoration: BoxDecoration(
+          color: Color.lerp(Colors.transparent, colors.primaryContainer, t),
+          border: Border(
+            left: BorderSide(color: colors.primary, width: 3).scale(t),
+          ),
+          borderRadius: BorderRadius.circular(12 * t),
+        ),
+        padding: padding.copyWith(left: 6 * t, right: 6 * t),
+        child: child,
+      ),
     );
   }
 }

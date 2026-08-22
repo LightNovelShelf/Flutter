@@ -6,10 +6,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 /// 回包在 UI isolate 解码，实测单次回调占用 17~30ms 帧预算并触发 minor GC。
 /// `JsonCacheInfoRepository` 是纯 Dart 实现，不走 channel。
 final CacheManager appImageCacheManager = CacheManager(
-  Config(
-    _cacheKey,
-    repo: JsonCacheInfoRepository(databaseName: _cacheKey),
-  ),
+  Config(_cacheKey, repo: JsonCacheInfoRepository(databaseName: _cacheKey)),
 );
 
 const String _cacheKey = 'lightnovelImageCache';

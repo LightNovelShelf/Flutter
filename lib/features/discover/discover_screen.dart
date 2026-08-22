@@ -28,49 +28,89 @@ class DiscoverScreen extends ConsumerWidget {
   ]);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final period = ref.watch(
-      appSettingsProvider.select((settings) => settings.homeRankType),
-    );
-
-    return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: () => _refreshAll(ref),
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: <Widget>[
-            SliverAppBar(
-              pinned: true,
-              title: const Text('发现'),
-              actions: <Widget>[
-                IconButton(
-                  tooltip: '个人资料与设置',
-                  icon: const Icon(Icons.account_circle_outlined),
-                  onPressed: () => context.push('/settings'),
-                ),
-              ],
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate(<Widget>[
-                  for (final (int index, _SectionSpec spec)
-                      in _sections.indexed) ...<Widget>[
-                    if (index > 0) const SizedBox(height: 18),
-                    _AsyncSection(
-                      spec: spec,
-                      title: spec.showRankPeriod
-                          ? '${spec.title} · ${rankPeriodLabels[period]}'
-                          : spec.title,
-                      value: ref.watch(spec.provider),
-                      onRetry: () => ref.invalidate(spec.provider),
-                    ),
-                  ],
-                ]),
+  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    body: RefreshIndicator(
+      onRefresh: () => _refreshAll(ref),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: <Widget>[
+          SliverAppBar(
+            pinned: true,
+            title: const Text('发现'),
+            actions: <Widget>[
+              IconButton(
+                tooltip: '个人资料与设置',
+                icon: const Icon(Icons.account_circle_outlined),
+                onPressed: () => context.push('/settings'),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+            sliver: SliverList(delegate: _sectionDelegate),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// 分区惰性构建：屏外分区不提前建封面行，任一分区的数据到达也不会重建整屏。
+/// 建过的分区不再卸载，见 [_DiscoverSectionState]。
+final SliverChildDelegate _sectionDelegate = _SectionListDelegate();
+
+class _SectionListDelegate extends SliverChildBuilderDelegate {
+  _SectionListDelegate()
+    : super(
+        (context, index) => _DiscoverSection(index: index),
+        childCount: _sections.length,
+        addAutomaticKeepAlives: true,
+      );
+
+  /// 分区列表是编译期固定的，子节点只认下标。
+  @override
+  bool shouldRebuild(covariant _SectionListDelegate oldDelegate) => false;
+}
+
+/// 单个分区：自己订阅数据源与排行周期，重建范围止于这张卡片。
+///
+/// 建过之后常驻：分区滚出视口被卸载会带走 provider 唯一的监听者，`isAutoDispose`
+/// 的数据源随即丢弃数据，滚回来要重新请求，先出骨架再补图。发现页只有五个分区，
+/// 常驻的代价远小于每次回滚重来一遍。
+class _DiscoverSection extends ConsumerStatefulWidget {
+  const _DiscoverSection({required this.index});
+
+  final int index;
+
+  @override
+  ConsumerState<_DiscoverSection> createState() => _DiscoverSectionState();
+}
+
+class _DiscoverSectionState extends ConsumerState<_DiscoverSection>
+    with AutomaticKeepAliveClientMixin<_DiscoverSection> {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final spec = _sections[widget.index];
+    final String title;
+    if (spec.showRankPeriod) {
+      final period = ref.watch(
+        appSettingsProvider.select((settings) => settings.homeRankType),
+      );
+      title = '${spec.title} · ${rankPeriodLabels[period]}';
+    } else {
+      title = spec.title;
+    }
+    return Padding(
+      padding: EdgeInsets.only(top: widget.index == 0 ? 0 : 18),
+      child: _AsyncSection(
+        spec: spec,
+        title: title,
+        value: ref.watch(spec.provider),
+        onRetry: () => ref.invalidate(spec.provider),
       ),
     );
   }

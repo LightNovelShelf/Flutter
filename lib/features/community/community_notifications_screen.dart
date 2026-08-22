@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../data/api/community_models.dart';
+import '../../data/api/models.dart';
 import '../../shared/format.dart';
 import '../../shared/paging/paged_list.dart';
 import '../../shared/paging/scroll_prefetch.dart';
-import '../../shared/widgets/state_views.dart';
 import '../../shared/widgets/user_avatar.dart';
 import 'community_notifications_providers.dart';
 import 'widgets/community_feed_card.dart';
@@ -116,24 +115,23 @@ class _CommunityNotificationsScreenState
       );
     }
     if (state.items.isEmpty) {
-      return ListView(
+      final error = state.error;
+      return ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-        children: <Widget>[
-          if (state.error != null)
-            CommunityStateCard(
-              title: '无法加载通知',
-              description: state.error!,
-              isError: true,
-              onRetry: controller.retry,
-            )
-          else
-            const CommunityStateCard(
-              title: '没有通知',
-              description: '讨论回复和评论动态会显示在这里。',
-              icon: Icons.notifications_none,
-            ),
-        ],
+        itemCount: 1,
+        itemBuilder: (_, _) => error != null
+            ? CommunityStateCard(
+                title: '无法加载通知',
+                description: error,
+                isError: true,
+                onRetry: controller.retry,
+              )
+            : const CommunityStateCard(
+                title: '没有通知',
+                description: '讨论回复和评论动态会显示在这里。',
+                icon: Icons.notifications_none,
+              ),
       );
     }
     return ListView.separated(
@@ -150,22 +148,15 @@ class _CommunityNotificationsScreenState
     );
   }
 
-  /// 翻页失败时显示社区风格的错误卡，其余状态用通用列表尾。
   Widget _buildFooter(
     PagedList<AppNotificationItem> state,
     CommunityNotificationsController controller,
-  ) {
-    final error = state.loadMoreError;
-    if (error != null) {
-      return CommunityStateCard(
-        title: '无法加载更多',
-        description: error,
-        isError: true,
-        onRetry: controller.loadMore,
-      );
-    }
-    return ListFooterStatus(loading: state.loadingMore, hasMore: state.hasMore);
-  }
+  ) => CommunityLoadMoreFooter(
+    loading: state.loadingMore,
+    error: state.loadMoreError,
+    atEnd: !state.hasMore,
+    onRetry: controller.loadMore,
+  );
 }
 
 class _NotificationCard extends StatelessWidget {

@@ -281,6 +281,64 @@ class AppSettings {
     'convertType': convertType.name,
     'autoCheckUpdate': autoCheckUpdate,
   };
+
+  @override
+  bool operator ==(Object other) =>
+      other is AppSettings &&
+      other.bookDetailCacheEnabled == bookDetailCacheEnabled &&
+      setEquals(other.cleanChapterTitleScopes, cleanChapterTitleScopes) &&
+      other.coverColorExtraction == coverColorExtraction &&
+      other.fontCacheEnabled == fontCacheEnabled &&
+      other.fontCacheLimit == fontCacheLimit &&
+      other.fontSize == fontSize &&
+      other.homeRankType == homeRankType &&
+      other.ignoreAI == ignoreAI &&
+      other.ignoreJapanese == ignoreJapanese &&
+      other.language == language &&
+      other.oledBlack == oledBlack &&
+      other.readerFirstLineIndent == readerFirstLineIndent &&
+      other.readerJustify == readerJustify &&
+      other.readerLineHeight == readerLineHeight &&
+      other.readerParagraphSpacing == readerParagraphSpacing &&
+      other.comicPagedDirection == comicPagedDirection &&
+      other.readerPrerenderAdjacent == readerPrerenderAdjacent &&
+      other.readerSidePadding == readerSidePadding &&
+      other.readerViewMode == readerViewMode &&
+      other.seedColorValue == seedColorValue &&
+      other.seriesSearchMode == seriesSearchMode &&
+      other.theme == theme &&
+      other.useSystemColor == useSystemColor &&
+      other.convertType == convertType &&
+      other.autoCheckUpdate == autoCheckUpdate;
+
+  @override
+  int get hashCode => Object.hashAll(<Object?>[
+    bookDetailCacheEnabled,
+    Object.hashAllUnordered(cleanChapterTitleScopes),
+    coverColorExtraction,
+    fontCacheEnabled,
+    fontCacheLimit,
+    fontSize,
+    homeRankType,
+    ignoreAI,
+    ignoreJapanese,
+    language,
+    oledBlack,
+    readerFirstLineIndent,
+    readerJustify,
+    readerLineHeight,
+    readerParagraphSpacing,
+    comicPagedDirection,
+    readerPrerenderAdjacent,
+    readerSidePadding,
+    readerViewMode,
+    seedColorValue,
+    seriesSearchMode,
+    theme,
+    useSystemColor,
+    convertType,
+    autoCheckUpdate,
+  ]);
 }
 
 /// 设置存取：整体以一个 JSON blob 持久化，写入串行化。
@@ -313,6 +371,8 @@ class SettingsController extends ChangeNotifier {
     final next = AppSettings.decode(
       mutate(_settings).encode().cast<String, dynamic>(),
     );
+    // 滑块之类会反复写同一个值，相等就别惊动 MaterialApp 与所有设置订阅者。
+    if (next == _settings) return;
     _settings = next;
     notifyListeners();
     _write = _write.then(

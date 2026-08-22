@@ -74,8 +74,10 @@ void main() {
 
     test('空地址与非法高度原样返回', () {
       expect(withImageHeight('', 512), '');
-      expect(withImageHeight('https://img.example/a.webp', 0),
-          'https://img.example/a.webp');
+      expect(
+        withImageHeight('https://img.example/a.webp', 0),
+        'https://img.example/a.webp',
+      );
     });
   });
 }

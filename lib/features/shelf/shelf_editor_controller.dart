@@ -44,6 +44,34 @@ class ShelfEditorState {
   );
 }
 
+/// 文件夹卡片的预览数据：最多 4 张直接子书籍封面与直接条目数。
+@immutable
+class ShelfFolderPreview {
+  const ShelfFolderPreview({required this.covers, required this.count});
+
+  static const ShelfFolderPreview empty = ShelfFolderPreview(
+    covers: <BookListItem>[],
+    count: 0,
+  );
+
+  final List<BookListItem> covers;
+  final int count;
+}
+
+/// 渲染当前层需要的全部派生数据，由 [ShelfEditorController.level] 记忆化。
+@immutable
+class ShelfLevel {
+  const ShelfLevel({
+    required this.siblings,
+    required this.bookById,
+    required this.folderPreviews,
+  });
+
+  final List<ShelfItem> siblings;
+  final Map<int, BookListItem> bookById;
+  final Map<String, ShelfFolderPreview> folderPreviews;
+}
+
 /// family 键必须值相等，而 `List<String>` 是引用相等（路由每次重建都给新列表），
 /// 所以按编码后的路径分桶。
 String shelfEditorKey(List<String> parents) => jsonEncode(parents);
@@ -55,8 +83,8 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
   /// [shelfEditorKey] 编码后的当前文件夹路径。
   final String arg;
 
-  late final List<String> parents =
-      (jsonDecode(arg) as List<Object?>).cast<String>();
+  late final List<String> parents = (jsonDecode(arg) as List<Object?>)
+      .cast<String>();
 
   bool _disposed = false;
 
@@ -69,8 +97,20 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
 
   static String _now() => DateTime.now().toUtc().toIso8601String();
 
-  ShelfDraft effectiveDraft(ShelfSnapshot snapshot) =>
-      state.draft ?? snapshot.toDraft();
+  ShelfSnapshot? _draftSource;
+  ShelfDraft? _snapshotDraft;
+
+  /// `toDraft` 会深拷全部条目，按快照引用缓存，编辑态抖动时不再每帧重建草稿。
+  ShelfDraft effectiveDraft(ShelfSnapshot snapshot) {
+    final draft = state.draft;
+    if (draft != null) return draft;
+    final cached = _snapshotDraft;
+    if (cached != null && identical(_draftSource, snapshot)) return cached;
+    final derived = snapshot.toDraft();
+    _draftSource = snapshot;
+    _snapshotDraft = derived;
+    return derived;
+  }
 
   bool isDirty(ShelfSnapshot snapshot) {
     final draft = state.draft;
@@ -111,14 +151,33 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
     return true;
   }
 
-  /// 当前层文件夹的直接子条目，按 index 排序，供封面预览与计数用。
-  Map<String, List<ShelfItem>> directChildren(
-    ShelfDraft draft,
-    List<ShelfItem> folders,
-  ) {
-    final buckets = <String, List<ShelfItem>>{
-      for (final folder in folders) folder.folderId!: <ShelfItem>[],
-    };
+  ShelfDraft? _levelDraft;
+  ShelfSnapshot? _levelSnapshot;
+  ShelfLevel? _level;
+
+  /// 当前层的派生视图。选中、切模式、清错误都不改草稿，命中缓存就不再重排整个书架。
+  ShelfLevel level(ShelfSnapshot snapshot, ShelfDraft draft) {
+    final cached = _level;
+    if (cached != null &&
+        identical(_levelDraft, draft) &&
+        identical(_levelSnapshot, snapshot)) {
+      return cached;
+    }
+    final computed = _computeLevel(snapshot, draft);
+    _levelDraft = draft;
+    _levelSnapshot = snapshot;
+    _level = computed;
+    return computed;
+  }
+
+  ShelfLevel _computeLevel(ShelfSnapshot snapshot, ShelfDraft draft) {
+    final siblings = shelfItemsAtPath(draft, parents);
+    // `bookById` 是每次调用都重建整张表的 getter，一层只取一次。
+    final bookById = snapshot.bookById;
+    final buckets = <String, List<ShelfItem>>{};
+    for (final item in siblings) {
+      if (!item.isBook) buckets[item.folderId!] = <ShelfItem>[];
+    }
     for (final item in draft.items) {
       if (item.parents.length != parents.length + 1) continue;
       final bucket = buckets[item.parents.last];
@@ -132,8 +191,24 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
       }
       if (matches) bucket.add(item);
     }
-    return buckets.map(
-      (id, items) => MapEntry<String, List<ShelfItem>>(id, sortShelfItems(items)),
+    final previews = <String, ShelfFolderPreview>{};
+    for (final entry in buckets.entries) {
+      final covers = <BookListItem>[];
+      for (final child in sortShelfItems(entry.value)) {
+        if (!child.isBook) continue;
+        final book = bookById[child.bookId];
+        if (book != null) covers.add(book);
+        if (covers.length == 4) break;
+      }
+      previews[entry.key] = ShelfFolderPreview(
+        covers: covers,
+        count: entry.value.length,
+      );
+    }
+    return ShelfLevel(
+      siblings: siblings,
+      bookById: bookById,
+      folderPreviews: previews,
     );
   }
 
@@ -142,7 +217,10 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
     final snapshot = ref.read(shelfProvider).value;
     if (snapshot == null || state.saving) return;
     try {
-      state = state.copyWith(draft: apply(effectiveDraft(snapshot)), clearError: true);
+      state = state.copyWith(
+        draft: apply(effectiveDraft(snapshot)),
+        clearError: true,
+      );
     } catch (error) {
       state = state.copyWith(
         error: describeShelfError(error, fallback: '书架操作失败。'),
@@ -180,8 +258,7 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
     selected: siblings.map((item) => item.key).toSet(),
   );
 
-  void _clearSelection() =>
-      state = state.copyWith(selected: const <String>{});
+  void _clearSelection() => state = state.copyWith(selected: const <String>{});
 
   void reorder(List<ShelfItem> siblings, int from, int to) {
     if (from == to) return;
@@ -265,8 +342,7 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
   void discard() => state = ShelfEditorState(saving: state.saving);
 }
 
-final
-NotifierProviderFamily<ShelfEditorController, ShelfEditorState, String>
+final NotifierProviderFamily<ShelfEditorController, ShelfEditorState, String>
 shelfEditorProvider =
     NotifierProvider.family<ShelfEditorController, ShelfEditorState, String>(
       ShelfEditorController.new,

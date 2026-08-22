@@ -10,6 +10,8 @@ import 'package:lightnovel/shared/widgets/blurhash_image.dart';
 import 'package:lightnovel/shared/widgets/book_image.dart';
 import 'package:lightnovel/shared/widgets/image_preview.dart';
 import 'package:lightnovel/features/reader/widgets/reader_content_view.dart';
+import 'package:lightnovel/features/reader/widgets/reader_measure_box.dart';
+import 'package:lightnovel/features/reader/widgets/reader_page_body.dart';
 
 const ReaderContentStyle _style = ReaderContentStyle(
   fontSize: 18,
@@ -160,7 +162,7 @@ void main() {
       await tester.pumpWidget(harness.build());
       await tester.pumpAndSettle();
       Finder paragraph(String text) => find.descendant(
-        of: find.byType(SingleChildScrollView),
+        of: find.byType(ListView),
         matching: find.byWidgetPredicate(
           (widget) =>
               widget is RichText && widget.text.toPlainText().contains(text),
@@ -341,10 +343,7 @@ void main() {
     expect(harness.last.progression, 0);
     final first = harness.last.locator;
 
-    await tester.drag(
-      find.byType(SingleChildScrollView),
-      const Offset(0, -400),
-    );
+    await tester.drag(find.byType(ListView), const Offset(0, -400));
     await tester.pumpAndSettle();
     // 上报有 250ms 节流，滑动停止后还需等待最后一次补报。
     await tester.pump(const Duration(milliseconds: 300));
@@ -367,6 +366,34 @@ void main() {
 
     expect(scrolling.last.pages, 0);
     expect(scrolling.last.locator, locator);
+  });
+
+  testWidgets('换排版后重测期间：正文照旧显示，块与几何不脱节', (tester) async {
+    final harness = await _pump(tester, paged: false, count: 30);
+    expect(find.byType(ListView), findsOneWidget);
+
+    // 正文块整批重建、几何要按分片重测，这期间渲染层必须仍有一批对得上的块可摆。
+    harness.chapter = ReaderChapterContent(
+      sortNum: harness.chapter.sortNum,
+      blocks: harness.blocks,
+      style: const ReaderContentStyle(
+        fontSize: 26,
+        lineHeight: 1.6,
+        color: Color(0xFF000000),
+        firstLineIndent: false,
+        justify: false,
+      ),
+    );
+    await tester.pumpWidget(harness.build());
+    for (var frame = 0; frame < 6; frame++) {
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ListView), findsOneWidget);
+    }
+
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(ListView), findsOneWidget);
   });
   testWidgets('站内正文图使用 URL 元数据，并统一保留 6px 下边距', (tester) async {
     const hash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj';
@@ -438,6 +465,68 @@ void main() {
     expect(hasEdge(marginsOf(secondImages), top: 6), isFalse);
     expect(hasEdge(marginsOf(firstImages), bottom: 6), isTrue);
     expect(hasEdge(marginsOf(secondImages), bottom: 6), isTrue);
+  });
+
+  testWidgets('测量层不建图片组件，分页几何照常按图片尺寸算', (tester) async {
+    const hash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj';
+    debugBlurHashPixelDecoder = (_, {required width, required height}) =>
+        Uint8List.fromList(List<int>.filled(width * height * 4, 255));
+    addTearDown(() => debugBlurHashPixelDecoder = null);
+
+    final harness = _Harness(
+      blocks: normalizeNovelBlocks(
+        '<div class="illus duokan-image-single"><img '
+        'src="https://img.example/only.webp?size=40x60&amp;placeholder=$hash"/>'
+        '</div><p>图片后的正文</p>',
+      ),
+      paged: false,
+    );
+    await tester.pumpWidget(harness.build());
+
+    // 测量层只在测量期间挂着，逐帧看：这一层里一个图片组件都不许有。
+    final measureLayer = find.byKey(const ValueKey<String>('reader-measure'));
+    var measured = false;
+    for (var frame = 0; frame < 6; frame++) {
+      if (measureLayer.evaluate().isNotEmpty) {
+        measured = true;
+        expect(
+          find.descendant(of: measureLayer, matching: find.byType(BookImage)),
+          findsNothing,
+        );
+      }
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(measured, isTrue);
+
+    await tester.pumpAndSettle();
+    expect(find.byType(BookImage), findsOneWidget);
+
+    // 图片块的高度仍是「按 URL 元数据算出的 60 + 6px 下边距」，几何没变。
+    expect(tester.getSize(find.byType(ReaderBlockBox).first).height, 66);
+  });
+
+  testWidgets('尺寸未知的图不挡正文：先按 2:3 占位出画面，不等图片下载', (tester) async {
+    final harness = _Harness(
+      blocks: normalizeNovelBlocks(
+        '<div class="illus duokan-image-single">'
+        '<img src="https://img.example/unknown.webp"/></div><p>图片后的正文</p>',
+      ),
+      paged: false,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    // 图片一张都没加载成功（测试环境的请求一律 400），正文照样已经摆出来了。
+    expect(harness.ready, 1);
+    expect(find.byType(ListView), findsOneWidget);
+    expect(harness.positions, isNotEmpty);
+
+    // 几何按占位尺寸算：正文宽 800-24-24，占位比例 2:3，外加 6px 图片下边距。
+    const width = 800 - 48.0;
+    expect(
+      tester.getSize(find.byType(ReaderBlockBox).first).height,
+      width * 3 / 2 + 6,
+    );
   });
 
   testWidgets('末页再往后翻直接进下一章：不走加载，窗口挪过来也不重排', (tester) async {

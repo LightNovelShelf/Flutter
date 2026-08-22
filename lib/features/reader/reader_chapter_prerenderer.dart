@@ -1,9 +1,10 @@
 import 'dart:async';
+import 'dart:isolate';
 
 import '../../core/network/request_scheduler.dart';
 import '../../data/api/api_client.dart';
 import '../../data/api/models.dart';
-import 'reader_font_cache.dart';
+import '../../data/repositories/reader_font_repository.dart';
 import 'reader_footnotes.dart';
 import 'reader_html_blocks.dart';
 
@@ -40,11 +41,16 @@ class _PrerenderEntry {
 
 /// 章节预渲染：当前章与前后各一章常驻，取数、分块、脚注、字体一次备齐。
 class ReaderChapterPrerenderer {
-  ReaderChapterPrerenderer({required ApiClient api, required int bookId})
-    : _api = api,
-      _bookId = bookId;
+  ReaderChapterPrerenderer({
+    required ApiClient api,
+    required ReaderFontRepository fonts,
+    required int bookId,
+  }) : _api = api,
+       _fonts = fonts,
+       _bookId = bookId;
 
   final ApiClient _api;
+  final ReaderFontRepository _fonts;
   final int _bookId;
   final Map<(int, String?), _PrerenderEntry> _entries =
       <(int, String?), _PrerenderEntry>{};
@@ -147,17 +153,16 @@ class ReaderChapterPrerenderer {
         priority: priority,
         cancelToken: entry.token,
       );
-      final fontFamily = await ReaderFontCache.loadFamily(
+      final fontFamily = await _fonts.loadFamily(
         content.chapter.fontUrl,
         cacheEnabled: fontCacheEnabled,
         cacheLimit: fontCacheLimit,
       );
-      final footnotes = processNovelFootnotes(content.chapter.content);
-      // 分块文本与渲染出来的正文必须逐字一致，否则保存的定位会漂。
+      final markup = await _buildChapterMarkup(content.chapter.content);
       final prepared = ReaderPreparedChapter(
         content: content,
-        blocks: normalizeNovelBlocks(footnotes.html),
-        notes: footnotes.notesById,
+        blocks: markup.blocks,
+        notes: markup.notes,
         fontFamily: fontFamily,
       );
       if (content.chapter.bookId == _bookId &&
@@ -170,4 +175,30 @@ class ReaderChapterPrerenderer {
       rethrow;
     }
   }
+}
+
+/// 脚注抽取与分块的产物，只含字符串与数字，可整体跨 isolate 交回。
+class _ChapterMarkup {
+  const _ChapterMarkup({required this.blocks, required this.notes});
+
+  final List<NovelReaderBlock> blocks;
+  final Map<String, String> notes;
+}
+
+/// 短于此长度的正文直接在当前 isolate 算：spawn 与入参拷贝比这点扫描还贵。
+const int _isolateMarkupThreshold = 4096;
+
+/// 全章正则扫描加建树，放在 UI isolate 上会在阅读途中掉帧，两步合并进一次 spawn。
+Future<_ChapterMarkup> _buildChapterMarkup(String html) =>
+    html.length < _isolateMarkupThreshold
+    ? Future<_ChapterMarkup>.value(_chapterMarkup(html))
+    : Isolate.run(() => _chapterMarkup(html));
+
+_ChapterMarkup _chapterMarkup(String html) {
+  final footnotes = processNovelFootnotes(html);
+  // 分块文本与渲染出来的正文必须逐字一致，否则保存的定位会漂。
+  return _ChapterMarkup(
+    blocks: normalizeNovelBlocks(footnotes.html),
+    notes: footnotes.notesById,
+  );
 }

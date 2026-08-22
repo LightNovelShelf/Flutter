@@ -44,7 +44,8 @@ class HistoryTabState {
   bool get hasMore => loadedPages < totalPages;
 
   /// 首页尚未加载且无错误，此时展示骨架屏。
-  bool get isInitialLoading => loadedPages == 0 && ids.isNotEmpty && error == null;
+  bool get isInitialLoading =>
+      loadedPages == 0 && ids.isNotEmpty && error == null;
 
   HistoryTabState copyWith({
     List<int>? ids,
@@ -53,14 +54,13 @@ class HistoryTabState {
     bool? loadingMore,
     String? error,
     bool clearError = false,
-  }) =>
-      HistoryTabState(
-        ids: ids ?? this.ids,
-        items: items ?? this.items,
-        loadedPages: loadedPages ?? this.loadedPages,
-        loadingMore: loadingMore ?? this.loadingMore,
-        error: clearError ? null : (error ?? this.error),
-      );
+  }) => HistoryTabState(
+    ids: ids ?? this.ids,
+    items: items ?? this.items,
+    loadedPages: loadedPages ?? this.loadedPages,
+    loadingMore: loadingMore ?? this.loadingMore,
+    error: clearError ? null : (error ?? this.error),
+  );
 }
 
 @immutable
@@ -89,12 +89,11 @@ class HistoryState {
     HistoryTabState? novel,
     HistoryTabState? comic,
     bool? clearing,
-  }) =>
-      HistoryState(
-        novel: novel ?? this.novel,
-        comic: comic ?? this.comic,
-        clearing: clearing ?? this.clearing,
-      );
+  }) => HistoryState(
+    novel: novel ?? this.novel,
+    comic: comic ?? this.comic,
+    clearing: clearing ?? this.clearing,
+  );
 
   HistoryState withTab(HistoryTab which, HistoryTabState next) =>
       which == HistoryTab.novel ? copyWith(novel: next) : copyWith(comic: next);
@@ -109,7 +108,11 @@ class HistoryController extends AsyncNotifier<HistoryState> {
 
   @override
   Future<HistoryState> build() async {
-    if (!ref.watch(authSnapshotProvider).isAuthenticated) return HistoryState.empty;
+    // 只看登录与否，token 刷新途中的 refreshing 快照不该把历史列表拆掉重拉。
+    final authenticated = ref.watch(
+      authSnapshotProvider.select((snapshot) => snapshot.isAuthenticated),
+    );
+    if (!authenticated) return HistoryState.empty;
     final generation = ++_generation;
     final history = await _api.getReadHistory();
     final indexed = HistoryState(
@@ -125,7 +128,10 @@ class HistoryController extends AsyncNotifier<HistoryState> {
     return HistoryState(novel: pages[0], comic: pages[1]);
   }
 
-  Future<HistoryTabState> _guardedPage(HistoryTabState tab, HistoryTab which) async {
+  Future<HistoryTabState> _guardedPage(
+    HistoryTabState tab,
+    HistoryTab which,
+  ) async {
     try {
       return await _fetchPage(tab, which);
     } catch (error) {
@@ -134,7 +140,10 @@ class HistoryController extends AsyncNotifier<HistoryState> {
   }
 
   /// 追加 `tab.loadedPages + 1` 页；服务端返回顺序不保证，按请求顺序还原。
-  Future<HistoryTabState> _fetchPage(HistoryTabState tab, HistoryTab which) async {
+  Future<HistoryTabState> _fetchPage(
+    HistoryTabState tab,
+    HistoryTab which,
+  ) async {
     final start = tab.loadedPages * historyPageSize;
     if (start >= tab.ids.length) return tab;
     final slice = tab.ids.sublist(
@@ -143,10 +152,9 @@ class HistoryController extends AsyncNotifier<HistoryState> {
     );
     final fetched = which == HistoryTab.novel
         ? await _api.getBookListByIds(slice)
-        : (await _api.getComicSeriesByIds(slice))
-            .items
-            .map((series) => series.toBookListItem())
-            .toList();
+        : (await _api.getComicSeriesByIds(slice)).items
+              .map((series) => series.toBookListItem())
+              .toList();
     return tab.copyWith(
       items: _orderBySlice(
         tab.items,
@@ -171,7 +179,8 @@ class HistoryController extends AsyncNotifier<HistoryState> {
     final seenIds = <int>{for (final book in existing) book.id};
     // 漫画按系列聚合，同一系列可能在后续页里再次出现，额外按标题去重。
     final seenTitles = <String>{
-      if (dedupeByTitle) for (final book in existing) book.title,
+      if (dedupeByTitle)
+        for (final book in existing) book.title,
     };
     final merged = List<BookListItem>.of(existing);
     for (final id in slice) {
@@ -202,10 +211,9 @@ class HistoryController extends AsyncNotifier<HistoryState> {
       state = AsyncValue<HistoryState>.data(
         state.value!.withTab(
           which,
-          state.value!.tab(which).copyWith(
-                loadingMore: false,
-                error: describeHistoryError(error),
-              ),
+          state.value!
+              .tab(which)
+              .copyWith(loadingMore: false, error: describeHistoryError(error)),
         ),
       );
     }
@@ -251,4 +259,6 @@ class HistoryController extends AsyncNotifier<HistoryState> {
 }
 
 final AsyncNotifierProvider<HistoryController, HistoryState> historyProvider =
-    AsyncNotifierProvider<HistoryController, HistoryState>(HistoryController.new);
+    AsyncNotifierProvider<HistoryController, HistoryState>(
+      HistoryController.new,
+    );

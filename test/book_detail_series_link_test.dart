@@ -170,7 +170,8 @@ void main() {
   testWidgets('列表页带来的系列键优先于分类器字段', (tester) async {
     final opened = await _open(
       tester,
-      initialLocation: '/book/$_bookId?seriesTitle=%E5%88%97%E8%A1%A8%E7%BB%99%E7%9A%84%E7%B3%BB%E5%88%97',
+      initialLocation:
+          '/book/$_bookId?seriesTitle=%E5%88%97%E8%A1%A8%E7%BB%99%E7%9A%84%E7%B3%BB%E5%88%97',
     );
 
     await tester.tap(find.text(_bookTitle));
@@ -185,8 +186,7 @@ void main() {
   testWidgets('从系列页点进详情再点标题，原路返回而不是叠一层', (tester) async {
     final opened = await _open(
       tester,
-      initialLocation:
-          '/books/series?name=%E4%B8%AD%E6%96%87%E7%B3%BB%E5%88%97&order=latest',
+      initialLocation: '/books/series?name=%E4%B8%AD%E6%96%87%E7%B3%BB%E5%88%97&order=latest',
     );
 
     await tester.tap(find.text('同系列的另一本'));

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../data/api/community_models.dart';
+import '../../../data/api/models.dart';
 import '../../../shared/format.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../../../shared/widgets/user_avatar.dart';
@@ -268,18 +268,22 @@ class CommunityFeedCardSkeleton extends StatelessWidget {
   );
 }
 
-/// 帖子流底部的翻页状态，加载中显示骨架，失败显示可重试的错误卡。
+/// 帖子流底部的翻页状态，加载中显示骨架，失败显示可重试的错误卡，到底显示结束提示。
 class CommunityLoadMoreFooter extends StatelessWidget {
   const CommunityLoadMoreFooter({
     super.key,
     required this.loading,
     required this.onRetry,
     this.error,
+    this.atEnd = false,
+    this.endLabel = '没有更多内容了',
   });
 
   final bool loading;
   final VoidCallback onRetry;
   final String? error;
+  final bool atEnd;
+  final String endLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -293,12 +297,34 @@ class CommunityLoadMoreFooter extends StatelessWidget {
       );
     }
     final message = error;
-    if (message == null) return const SizedBox.shrink();
-    return CommunityStateCard(
-      title: '无法加载更多',
-      description: message,
-      isError: true,
-      onRetry: onRetry,
+    if (message != null) {
+      return CommunityStateCard(
+        title: '无法加载更多',
+        description: message,
+        isError: true,
+        onRetry: onRetry,
+      );
+    }
+    if (!atEnd) return const SizedBox.shrink();
+    final colors = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        Icon(
+          Icons.check_circle_outline,
+          size: 17,
+          color: colors.onSurfaceVariant,
+        ),
+        const SizedBox(width: 7),
+        Text(
+          endLabel,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: colors.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }

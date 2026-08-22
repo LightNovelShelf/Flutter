@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -10,8 +11,8 @@ import '../image_sizing.dart';
 
 /// 站内图片统一入口（封面、漫画整页）：BlurHash 占位、网络图淡入，失败自动重试一次并提供手动重试。
 ///
-/// 占位层是 Stack 里常驻网络图下方的一层，交给 `CachedNetworkImage.placeholder` 会边淡入边淡出、
-/// 中途露底闪烁。
+/// 占位层是 Stack 里网络图下方的一层，交给 `CachedNetworkImage.placeholder` 会边淡入边淡出、
+/// 中途露底闪烁；淡入结束后摘掉，不再重复填充整块区域。
 class BookImage extends StatefulWidget {
   const BookImage({
     super.key,
@@ -94,25 +95,97 @@ class _BookImageState extends State<BookImage> {
   int _attempt = 0;
   bool _failed = false;
 
+  /// 真图淡入结束后置位，之后不再构建占位层。
+  bool _placeholderHidden = false;
+  Timer? _fadeTimer;
+
+  /// build 期间只读的解析结果，只在 (url, displayHeight, DPR) 变化时重算。
+  String _url = '';
+  String _cacheKey = '';
+  bool _wasRevealed = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _resolve();
+  }
+
   @override
   void didUpdateWidget(covariant BookImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.url != widget.url) {
       _attempt = 0;
       _failed = false;
+      _fadeTimer?.cancel();
+      _fadeTimer = null;
+      _placeholderHidden = false;
+    }
+    if (oldWidget.url != widget.url ||
+        oldWidget.displayHeight != widget.displayHeight ||
+        oldWidget.requestSizedVariant != widget.requestSizedVariant) {
+      _resolve();
     }
   }
 
-  /// 记录已展示过的图片，放在帧后执行，避免在 build 期间修改全局状态。
-  void _markRevealed(String cacheKey) {
-    if (BookImage._revealed.contains(cacheKey)) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final LinkedHashSet<String> revealed = BookImage._revealed;
-      revealed.remove(cacheKey);
-      revealed.add(cacheKey);
-      while (revealed.length > BookImage._revealedCapacity) {
-        revealed.remove(revealed.first);
-      }
+  @override
+  void dispose() {
+    _fadeTimer?.cancel();
+    super.dispose();
+  }
+
+  /// 取尺寸档地址和缓存键都要扫字符串、解析 URI，滚动时不能每帧重算。
+  void _resolve() {
+    if (widget.url.isEmpty) {
+      _url = '';
+      _cacheKey = '';
+      _wasRevealed = false;
+      return;
+    }
+    _url = widget.requestSizedVariant
+        ? sizedImageUrl(
+            widget.url,
+            logicalHeight: widget.displayHeight,
+            devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+          )
+        : widget.url;
+    // `height` 保留在缓存键里，每个尺寸档一份缓存。
+    _cacheKey = BookImage.cacheKeyFor(_url);
+    _wasRevealed = BookImage._revealed.contains(_cacheKey);
+    // 已解码在内存里的图会在第一帧就画出来，占位层一帧都不必上。翻页、列表回滚都会
+    // 把整棵子树重新挂载（PageView 不保留离屏页），照常走占位层就是一次 BlurHash 闪。
+    _placeholderHidden = _isDecoded();
+  }
+
+  /// 解码结果是否还在 `ImageCache` 的常驻区里。键就是 `CachedNetworkImage` 内部用的
+  /// provider，相等只看 (cacheKey, scale, maxWidth, maxHeight)，所以这里能造出同一个键。
+  ///
+  /// 只认 `keepAlive`：那是解码成功后才进的一档。`live` 在刚发起解析、甚至加载失败时
+  /// 也可能为真，拿它当依据会在真图还没有的时候就把占位层摘掉。
+  bool _isDecoded() => PaintingBinding.instance.imageCache
+      .statusForKey(CachedNetworkImageProvider(_url, cacheKey: _cacheKey))
+      .keepAlive;
+
+  /// 真图出现：记录进程级已展示集合，并在淡入结束后摘掉占位层。
+  ///
+  /// 写集合放在帧后执行，避免在 build 期间修改全局状态。占位层要留满整个淡入过程，
+  /// 提前摘会露底，多给一点余量等动画真正结束。
+  void _onImageShown() {
+    final String cacheKey = _cacheKey;
+    if (!BookImage._revealed.contains(cacheKey)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final LinkedHashSet<String> revealed = BookImage._revealed;
+        revealed.remove(cacheKey);
+        revealed.add(cacheKey);
+        while (revealed.length > BookImage._revealedCapacity) {
+          revealed.remove(revealed.first);
+        }
+      });
+    }
+    if (_placeholderHidden || _fadeTimer != null) return;
+    final Duration fade = _wasRevealed ? Duration.zero : widget.fadeInDuration;
+    _fadeTimer = Timer(fade + const Duration(milliseconds: 50), () {
+      _fadeTimer = null;
+      if (mounted) setState(() => _placeholderHidden = true);
     });
   }
 
@@ -154,38 +227,31 @@ class _BookImageState extends State<BookImage> {
   Widget build(BuildContext context) {
     if (widget.url.isEmpty) return _placeholder(context);
 
-    final String url = widget.requestSizedVariant
-        ? sizedImageUrl(
-            widget.url,
-            logicalHeight: widget.displayHeight,
-            devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
-          )
-        : widget.url;
-    // `height` 保留在缓存键里，每个尺寸档一份缓存。
-    final String cacheKey = BookImage.cacheKeyFor(url);
-    final bool wasRevealed = BookImage._revealed.contains(cacheKey);
-
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
-        _placeholder(context),
+        // 真图不透明后占位层还画一整块 16px 拉满的图，白付一倍填充率，淡入结束就摘掉。
+        if (!_placeholderHidden) _placeholder(context),
         if (_failed)
           (widget.errorBuilder ?? _defaultErrorBuilder)(context, _retry)
         else
           CachedNetworkImage(
-            key: ValueKey<String>('$cacheKey#$_attempt'),
-            imageUrl: url,
-            cacheKey: cacheKey,
+            // 摘占位层会改 Stack 子节点位置，靠这个键认出同一张网络图、不重新加载。
+            key: ValueKey<int>(_attempt),
+            imageUrl: _url,
+            cacheKey: _cacheKey,
             cacheManager: appImageCacheManager,
             fit: widget.fit,
             width: double.infinity,
             height: double.infinity,
-            fadeInDuration: wasRevealed ? Duration.zero : widget.fadeInDuration,
+            fadeInDuration: _wasRevealed
+                ? Duration.zero
+                : widget.fadeInDuration,
             // 占位层由外层 Stack 负责，不能再淡出一层，否则中途露底。
             fadeOutDuration: Duration.zero,
             placeholder: (context, _) => const SizedBox.expand(),
             imageBuilder: (context, provider) {
-              _markRevealed(cacheKey);
+              _onImageShown();
               return Image(
                 image: provider,
                 fit: widget.fit,
@@ -217,6 +283,9 @@ class _BookImageState extends State<BookImage> {
   void _retry() => setState(() {
     _failed = false;
     _attempt += 1;
+    _fadeTimer?.cancel();
+    _fadeTimer = null;
+    _placeholderHidden = false;
   });
 
   static Widget _defaultErrorBuilder(

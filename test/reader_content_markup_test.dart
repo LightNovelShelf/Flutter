@@ -22,7 +22,8 @@ void main() {
         '<p>甲<a data-reader-footnote-id="n1">*</a></p>'
         '<p>乙<a data-reader-footnote-id="n2">*</a></p>',
       );
-      final markup = buildReaderBlockMarkup(blocks, _style());
+      final builder = ReaderBlockMarkupBuilder(_style());
+      final markup = <String>[for (final block in blocks) builder.next(block)];
 
       expect(markup, hasLength(2));
       expect(markup[0], contains('href="$readerFootnoteScheme:n1"'));
@@ -33,11 +34,11 @@ void main() {
     });
 
     test('转义过的 id 还原成 processNovelFootnotes 交出的原值', () {
-      final markup = buildReaderBlockMarkup(
-        _blocks('<p>甲<a data-reader-footnote-id="a&amp;b">*</a></p>'),
-        _style(),
-      );
-      final href = RegExp(r'href="([^"]+)"').firstMatch(markup.single)?[1];
+      final block = _blocks(
+        '<p>甲<a data-reader-footnote-id="a&amp;b">*</a></p>',
+      ).single;
+      final markup = ReaderBlockMarkupBuilder(_style()).next(block);
+      final href = RegExp(r'href="([^"]+)"').firstMatch(markup)?[1];
 
       expect(href, isNotNull);
       expect(readerFootnoteIdFromUrl(href!), 'a&b');
@@ -51,8 +52,10 @@ void main() {
 
     test('段首缩进插在块内，且只插在会缩进的段落上', () {
       final blocks = _blocks('<p>正文</p><p class="center">居中</p><h2>标题</h2>');
-      final off = buildReaderBlockMarkup(blocks, _style());
-      final on = buildReaderBlockMarkup(blocks, _style(indent: true));
+      final offBuilder = ReaderBlockMarkupBuilder(_style());
+      final onBuilder = ReaderBlockMarkupBuilder(_style(indent: true));
+      final off = <String>[for (final block in blocks) offBuilder.next(block)];
+      final on = <String>[for (final block in blocks) onBuilder.next(block)];
 
       expect(off.every((html) => !html.contains(readerIndentElement)), isTrue);
       expect(on[0], '<p><$readerIndentElement></$readerIndentElement>正文</p>');

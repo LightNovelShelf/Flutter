@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_error.dart';
 import '../../core/network/request_scheduler.dart';
 import '../../data/api/api_client.dart';
-import '../../data/api/community_models.dart';
+import '../../data/api/models.dart';
 import '../../data/providers.dart';
 import '../../shared/paging/paged_list.dart';
 
@@ -22,12 +22,22 @@ int communityFeedItemId(CommunityFeedItem item) => item.id;
 
 int communityReplyId(CommunityThreadReply reply) => reply.id;
 
+final RegExp _iconPrefixPattern = RegExp(r'^mdi');
+final RegExp _iconSeparatorPattern = RegExp(r'[^a-z0-9]');
+
+/// 首页每个版块 chip 每次 build 都要解析一次图标，结果按 `icon|title` 缓存。
+/// 版块来自服务端，数量是个位数，不做淘汰。
+final Map<String, IconData> _boardIconCache = <String, IconData>{};
+
 /// 服务端图标名映射到 Material 图标，未命中时按版块标题关键字推断。
-IconData resolveCommunityBoardIcon(String icon, String title) {
+IconData resolveCommunityBoardIcon(String icon, String title) => _boardIconCache
+    .putIfAbsent('$icon|$title', () => _resolveBoardIcon(icon, title));
+
+IconData _resolveBoardIcon(String icon, String title) {
   final normalized = icon
       .toLowerCase()
-      .replaceFirst(RegExp(r'^mdi'), '')
-      .replaceAll(RegExp(r'[^a-z0-9]'), '');
+      .replaceFirst(_iconPrefixPattern, '')
+      .replaceAll(_iconSeparatorPattern, '');
   final mapped = switch (normalized) {
     'forum' || 'forumoutline' || 'commentmultiple' => Icons.forum_outlined,
     'messageoutline' => Icons.chat_bubble_outline,

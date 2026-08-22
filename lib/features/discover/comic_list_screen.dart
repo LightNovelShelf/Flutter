@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/api/api_client.dart';
+import '../../shared/widgets/paged_grid.dart';
 import 'catalog_providers.dart';
 import 'widgets/book_grid.dart';
 
@@ -23,7 +24,7 @@ class _ComicListScreenState extends ConsumerState<ComicListScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('全部漫画')),
-      body: BookGrid(
+      body: PagedGrid.books(
         header: SegmentedButton<ComicOrder>(
           segments: const <ButtonSegment<ComicOrder>>[
             ButtonSegment<ComicOrder>(

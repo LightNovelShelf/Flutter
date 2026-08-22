@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/api/models.dart';
+import '../../data/repositories/comment_thread_repository.dart';
 import '../../shared/widgets/comments/comment_compose_sheet.dart';
 import '../../shared/widgets/comments/comment_thread_list.dart';
-import 'book_providers.dart';
 
 class BookCommentsScreen extends ConsumerStatefulWidget {
   const BookCommentsScreen({

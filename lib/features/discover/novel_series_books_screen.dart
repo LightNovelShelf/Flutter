@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/api/api_client.dart';
+import '../../shared/widgets/paged_grid.dart';
 import 'catalog_providers.dart';
 import 'widgets/book_grid.dart';
 import 'widgets/novel_order_selector.dart';
@@ -39,7 +40,7 @@ class _NovelSeriesBooksScreenState
           overflow: TextOverflow.ellipsis,
         ),
       ),
-      body: BookGrid(
+      body: PagedGrid.books(
         header: NovelOrderSelector(
           order: _order,
           onChanged: (order) => setState(() => _order = order),

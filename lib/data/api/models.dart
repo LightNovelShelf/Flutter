@@ -3,6 +3,8 @@ export 'models/book.dart';
 export 'models/comic.dart';
 export 'models/comic_series.dart';
 export 'models/comment.dart';
+export 'models/community.dart';
+export 'models/notification.dart';
 export 'models/novel.dart';
 export 'models/novel_series.dart';
 export 'models/read_position.dart';

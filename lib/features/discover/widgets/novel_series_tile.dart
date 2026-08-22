@@ -55,7 +55,6 @@ class NovelSeriesTile extends StatelessWidget {
                           url: series.coverUrl,
                           displayHeight: coverHeight,
                           blurHash: series.coverPlaceholder,
-                          filterQuality: FilterQuality.high,
                         ),
                       Positioned(
                         right: 6,

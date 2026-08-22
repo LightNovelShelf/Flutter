@@ -9,13 +9,12 @@ enum AppNotificationType {
 }
 
 AppNotificationType _decodeNotificationType(Object? value) => switch (value) {
-      'Comment' => AppNotificationType.comment,
-      'CommentReply' => AppNotificationType.commentReply,
-      'CommunityThreadReply' => AppNotificationType.communityThreadReply,
-      'CommunityThreadChildReply' =>
-        AppNotificationType.communityThreadChildReply,
-      _ => AppNotificationType.unknown,
-    };
+  'Comment' => AppNotificationType.comment,
+  'CommentReply' => AppNotificationType.commentReply,
+  'CommunityThreadReply' => AppNotificationType.communityThreadReply,
+  'CommunityThreadChildReply' => AppNotificationType.communityThreadChildReply,
+  _ => AppNotificationType.unknown,
+};
 
 enum AppNotificationObjectType {
   book,
@@ -90,15 +89,15 @@ class AppNotificationItem {
   final AppNotificationExtra extra;
 
   AppNotificationItem copyWith({bool? isRead}) => AppNotificationItem(
-        id: id,
-        actor: actor,
-        type: type,
-        objectType: objectType,
-        objectId: objectId,
-        isRead: isRead ?? this.isRead,
-        createdAt: createdAt,
-        extra: extra,
-      );
+    id: id,
+    actor: actor,
+    type: type,
+    objectType: objectType,
+    objectId: objectId,
+    isRead: isRead ?? this.isRead,
+    createdAt: createdAt,
+    extra: extra,
+  );
 
   static AppNotificationItem decode(Object? value) {
     final item = asRecord(value, '通知');

@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../../data/api/models.dart';
 import '../../../shared/layout/book_grid_layout.dart';
 import '../../../shared/widgets/book_cover_grid_item.dart';
-import '../../../shared/widgets/paged_grid.dart';
 
 /// 打开书籍详情，漫画需带上系列名，详情页据此拉取系列信息。
 ///
@@ -22,68 +21,6 @@ void openBookDetail(
   };
   context.push(
     Uri(path: '/book/${book.id}', queryParameters: query).toString(),
-  );
-}
-
-/// 目录与榜单共用的书籍网格，基于通用分页网格外壳。
-class BookGrid extends StatelessWidget {
-  const BookGrid({
-    super.key,
-    required this.books,
-    required this.onOpen,
-    required this.onRefresh,
-    this.header,
-    this.loading = false,
-    this.loadingMore = false,
-    this.hasMore = false,
-    this.onLoadMore,
-    this.loadMoreError,
-    this.errorMessage,
-    this.onRetry,
-    this.showRank = false,
-    this.emptyIcon = Icons.menu_book_outlined,
-    this.emptyTitle = '暂无内容',
-    this.emptyDescription,
-  });
-
-  final List<BookListItem> books;
-  final void Function(BookListItem book) onOpen;
-  final Future<void> Function() onRefresh;
-  final Widget? header;
-  final bool loading;
-  final bool loadingMore;
-  final bool hasMore;
-  final VoidCallback? onLoadMore;
-  final String? loadMoreError;
-  final String? errorMessage;
-  final VoidCallback? onRetry;
-  final bool showRank;
-  final IconData emptyIcon;
-  final String emptyTitle;
-  final String? emptyDescription;
-
-  @override
-  Widget build(BuildContext context) => PagedGrid<BookListItem>(
-    items: books,
-    header: header,
-    loading: loading,
-    loadingMore: loadingMore,
-    hasMore: hasMore,
-    onLoadMore: onLoadMore,
-    loadMoreError: loadMoreError,
-    errorMessage: errorMessage,
-    onRetry: onRetry,
-    onRefresh: onRefresh,
-    emptyIcon: emptyIcon,
-    emptyTitle: emptyTitle,
-    emptyDescription: emptyDescription,
-    itemBuilder: (book, index, coverHeight) => BookCoverGridItem.fromBook(
-      book,
-      key: ValueKey<int>(book.id),
-      rank: showRank ? index + 1 : null,
-      coverHeight: coverHeight,
-      onTap: () => onOpen(book),
-    ),
   );
 }
 
@@ -110,15 +47,18 @@ class BookGridPreview extends StatelessWidget {
         constraints.maxWidth,
         horizontalPadding: 0,
       );
-      final visible = books.take(layout.columns * maxRows).toList();
+      final limit = layout.columns * maxRows;
       return _gridRows(
         layout: layout,
-        itemCount: visible.length,
-        itemBuilder: (index) => BookCoverGridItem.fromBook(
-          visible[index],
-          coverHeight: layout.coverHeight,
-          rank: showRank ? index + 1 : null,
-          onTap: () => onOpen(visible[index]),
+        itemCount: books.length < limit ? books.length : limit,
+        // 一张封面淡入只重绘自己那格，手写的 Column/Row 没有天然的绘制边界。
+        itemBuilder: (index) => RepaintBoundary(
+          child: BookCoverGridItem.fromBook(
+            books[index],
+            coverHeight: layout.coverHeight,
+            rank: showRank ? index + 1 : null,
+            onTap: () => onOpen(books[index]),
+          ),
         ),
       );
     },

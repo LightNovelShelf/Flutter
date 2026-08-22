@@ -155,24 +155,27 @@ class CommunityTagPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final (Color background, Color foreground, FontWeight weight) =
-        switch (tone) {
-          CommunityTagTone.accent => (
-            colors.primaryContainer,
-            colors.onPrimaryContainer,
-            FontWeight.w700,
-          ),
-          CommunityTagTone.neutral => (
-            colors.surfaceContainerHighest,
-            colors.onSurfaceVariant,
-            FontWeight.w600,
-          ),
-          CommunityTagTone.locked => (
-            _lockedBackground,
-            _lockedForeground,
-            FontWeight.w700,
-          ),
-        };
+    final (
+      Color background,
+      Color foreground,
+      FontWeight weight,
+    ) = switch (tone) {
+      CommunityTagTone.accent => (
+        colors.primaryContainer,
+        colors.onPrimaryContainer,
+        FontWeight.w700,
+      ),
+      CommunityTagTone.neutral => (
+        colors.surfaceContainerHighest,
+        colors.onSurfaceVariant,
+        FontWeight.w600,
+      ),
+      CommunityTagTone.locked => (
+        _lockedBackground,
+        _lockedForeground,
+        FontWeight.w700,
+      ),
+    };
     return Container(
       decoration: BoxDecoration(
         color: background,

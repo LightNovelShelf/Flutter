@@ -35,13 +35,15 @@ class AnnouncementCenterController
   }
 }
 
-final
-NotifierProvider<AnnouncementCenterController, PagedList<AnnouncementItem>>
+final NotifierProvider<
+  AnnouncementCenterController,
+  PagedList<AnnouncementItem>
+>
 announcementCenterProvider =
-    NotifierProvider<
-      AnnouncementCenterController,
-      PagedList<AnnouncementItem>
-    >(AnnouncementCenterController.new, isAutoDispose: true);
+    NotifierProvider<AnnouncementCenterController, PagedList<AnnouncementItem>>(
+      AnnouncementCenterController.new,
+      isAutoDispose: true,
+    );
 
 final FutureProviderFamily<AnnouncementItem, int> announcementDetailProvider =
     FutureProvider.family<AnnouncementItem, int>((ref, id) async {

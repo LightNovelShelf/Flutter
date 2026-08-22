@@ -46,36 +46,32 @@ class _AboutSettingsScreenState extends State<AboutSettingsScreen> {
       opened = false;
     }
     if (!opened && mounted) {
-      await showAppAlert(
-        context: context,
-        title: '无法打开链接',
-        message: '请稍后重试。',
-      );
+      await showAppAlert(context: context, title: '无法打开链接', message: '请稍后重试。');
     }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('关于')),
-        body: SettingsList(
+    appBar: AppBar(title: const Text('关于')),
+    body: SettingsList(
+      children: <Widget>[
+        SettingsSection(
+          title: '本应用',
           children: <Widget>[
-            SettingsSection(
-              title: '本应用',
-              children: <Widget>[
-                SettingsValueRow(
-                  title: '版本',
-                  icon: Icons.sell_outlined,
-                  value: _version,
-                ),
-                SettingsNavigationRow(
-                  title: '轻书架',
-                  description: 'www.lightnovel.app',
-                  icon: Icons.public,
-                  onTap: _openWebsite,
-                ),
-              ],
+            SettingsValueRow(
+              title: '版本',
+              icon: Icons.sell_outlined,
+              value: _version,
+            ),
+            SettingsNavigationRow(
+              title: '轻书架',
+              description: 'www.lightnovel.app',
+              icon: Icons.public,
+              onTap: _openWebsite,
             ),
           ],
         ),
-      );
+      ],
+    ),
+  );
 }

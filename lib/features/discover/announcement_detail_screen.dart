@@ -4,12 +4,12 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
 
 import '../../core/network/api_error.dart';
 import '../../data/api/models.dart';
+import '../../data/repositories/comment_thread_repository.dart';
 import '../../shared/format.dart';
 import '../../shared/widgets/comments/comment_compose_sheet.dart';
 import '../../shared/widgets/comments/comment_thread_list.dart';
 import '../../shared/widgets/image_preview.dart';
 import '../announcement/announcement_providers.dart';
-import '../book/book_providers.dart';
 
 /// 正文作为评论列表的头部，整页只有一个滚动容器。
 class AnnouncementDetailScreen extends ConsumerWidget {
@@ -61,8 +61,7 @@ class AnnouncementDetailScreen extends ConsumerWidget {
               tooltip: '写评论',
               icon: const Icon(Icons.edit_outlined),
               // 弹窗提交成功后自行刷新评论列表。
-              onPressed: () =>
-                  showCommentComposeSheet(context, target: target),
+              onPressed: () => showCommentComposeSheet(context, target: target),
             ),
         ],
       ),
@@ -180,7 +179,11 @@ class _ArticleError extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, height: 20 / 14, color: colors.error),
+            style: TextStyle(
+              fontSize: 14,
+              height: 20 / 14,
+              color: colors.error,
+            ),
           ),
           if (onRetry != null) ...<Widget>[
             const SizedBox(height: 6),

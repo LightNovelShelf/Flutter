@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/api/api_client.dart';
-import '../../data/api/community_models.dart';
+import '../../data/api/models.dart';
 import '../../data/providers.dart';
 import 'community_providers.dart';
 import 'widgets/community_primitives.dart';
@@ -30,7 +30,9 @@ class _CommunityRankingsScreenState
       _error = null;
     });
     try {
-      final payload = await ref.read(apiClientProvider).getCommunityHome(
+      final payload = await ref
+          .read(apiClientProvider)
+          .getCommunityHome(
             const CommunityListQuery(page: 1, size: communityPageSize),
           );
       if (!mounted) return;

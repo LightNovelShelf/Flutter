@@ -113,7 +113,9 @@ class _RegisterVerifyScreenState extends ConsumerState<RegisterVerifyScreen> {
       _error = null;
     });
     try {
-      await ref.read(authControllerProvider).register(
+      await ref
+          .read(authControllerProvider)
+          .register(
             userName: draft.userName,
             email: draft.email,
             password: draft.password,

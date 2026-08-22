@@ -4,7 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../data/api/models.dart';
 import '../../shared/layout/book_grid_layout.dart';
+import '../../shared/paging/identity_child_delegate.dart';
+import '../../shared/paging/scroll_prefetch.dart';
 import '../../shared/widgets/book_cover_grid_item.dart';
+import '../../shared/widgets/book_grid_slivers.dart';
 import '../../shared/widgets/state_views.dart';
 import 'history_providers.dart';
 
@@ -19,6 +22,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   HistoryTab _tab = HistoryTab.novel;
 
   static const double _horizontalPadding = 16;
+  static const EdgeInsets _gridPadding = EdgeInsets.symmetric(
+    horizontal: _horizontalPadding,
+  );
 
   void _openBook(BookListItem book) {
     if (_tab == HistoryTab.comic) {
@@ -57,51 +63,46 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     } catch (error) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text(describeHistoryError(error, fallback: '清空失败，请稍后重试。'))),
+        SnackBar(
+          content: Text(describeHistoryError(error, fallback: '清空失败，请稍后重试。')),
+        ),
       );
     }
   }
 
-  bool _onScroll(ScrollNotification notification, HistoryState data) {
-    if (notification.metrics.axis != Axis.vertical) return false;
-    if (notification.metrics.extentAfter > 480) return false;
-    if (data.clearing) return false;
+  void _loadMore() {
+    final data = ref.read(historyProvider).value;
+    if (data == null || data.clearing) return;
+    final tab = data.tab(_tab);
+    if (tab.loadingMore || !tab.hasMore || tab.error != null) return;
     ref.read(historyProvider.notifier).loadMore(_tab);
-    return false;
   }
 
-  SliverGridDelegate _tileDelegate(BookGridLayout layout) =>
-      SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: layout.columns,
-        crossAxisSpacing: BookGridLayout.columnGap,
-        mainAxisSpacing: BookGridLayout.rowGap,
-        childAspectRatio: layout.childAspectRatio,
-      );
-
-  SliverGridDelegate _skeletonDelegate(BookGridLayout layout) =>
-      SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: layout.columns,
-        crossAxisSpacing: BookGridLayout.columnGap,
-        mainAxisSpacing: BookGridLayout.rowGap,
-        childAspectRatio: layout.tileWidth / layout.skeletonTileHeight,
-      );
-
   Widget _segmentedHeader({required bool enabled}) => Padding(
-        padding: const EdgeInsets.fromLTRB(_horizontalPadding, 8, _horizontalPadding, 12),
-        child: SegmentedButton<HistoryTab>(
-          segments: const <ButtonSegment<HistoryTab>>[
-            ButtonSegment<HistoryTab>(value: HistoryTab.novel, label: Text('小说')),
-            ButtonSegment<HistoryTab>(value: HistoryTab.comic, label: Text('漫画')),
-          ],
-          selected: <HistoryTab>{_tab},
-          showSelectedIcon: false,
-          onSelectionChanged: enabled
-              ? (selection) => setState(() => _tab = selection.first)
-              : null,
-        ),
-      );
+    padding: const EdgeInsets.fromLTRB(
+      _horizontalPadding,
+      8,
+      _horizontalPadding,
+      12,
+    ),
+    child: SegmentedButton<HistoryTab>(
+      segments: const <ButtonSegment<HistoryTab>>[
+        ButtonSegment<HistoryTab>(value: HistoryTab.novel, label: Text('小说')),
+        ButtonSegment<HistoryTab>(value: HistoryTab.comic, label: Text('漫画')),
+      ],
+      selected: <HistoryTab>{_tab},
+      showSelectedIcon: false,
+      onSelectionChanged: enabled
+          ? (selection) => setState(() => _tab = selection.first)
+          : null,
+    ),
+  );
 
-  List<Widget> _tabSlivers(HistoryState data, BookGridLayout layout, double height) {
+  List<Widget> _tabSlivers(
+    HistoryState data,
+    BookGridLayout layout,
+    double height,
+  ) {
     final tab = data.tab(_tab);
     final isNovel = _tab == HistoryTab.novel;
 
@@ -118,16 +119,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     }
 
     if (tab.items.isEmpty && tab.isInitialLoading) {
-      return <Widget>[
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: _horizontalPadding),
-          sliver: SliverGrid.builder(
-            gridDelegate: _skeletonDelegate(layout),
-            itemCount: layout.skeletonCount(height, headerOffset: 150),
-            itemBuilder: (_, _) => const BookGridSkeletonTile(),
-          ),
-        ),
-      ];
+      return <Widget>[_skeletonGrid(layout, height)];
     }
 
     if (tab.items.isEmpty) {
@@ -143,36 +135,34 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       ];
     }
 
-    final placeholders =
-        tab.loadingMore ? layout.loadMorePlaceholderCount(tab.items.length) : 0;
+    final placeholders = tab.loadingMore
+        ? layout.loadMorePlaceholderCount(tab.items.length)
+        : 0;
     return <Widget>[
       SliverPadding(
-        padding: const EdgeInsets.symmetric(horizontal: _horizontalPadding),
-        sliver: SliverGrid.builder(
-          gridDelegate: _tileDelegate(layout),
-          itemCount: tab.items.length,
-          itemBuilder: (_, index) {
-            final book = tab.items[index];
-            return BookCoverGridItem.fromBook(
+        padding: _gridPadding,
+        sliver: SliverGrid(
+          gridDelegate: layout.tileGridDelegate(),
+          delegate: IdentityChildDelegate<BookListItem>(
+            items: tab.items,
+            revision: (layout.coverHeight,),
+            itemBuilder: (_, book, _) => BookCoverGridItem.fromBook(
               book,
               coverHeight: layout.coverHeight,
               onTap: () => _openBook(book),
-            );
-          },
+            ),
+          ),
         ),
       ),
       if (placeholders > 0)
-        SliverPadding(
+        bookGridSkeletonSliver(
+          layout: layout,
+          count: placeholders,
           padding: const EdgeInsets.fromLTRB(
             _horizontalPadding,
             BookGridLayout.rowGap,
             _horizontalPadding,
             0,
-          ),
-          sliver: SliverGrid.builder(
-            gridDelegate: _skeletonDelegate(layout),
-            itemCount: placeholders,
-            itemBuilder: (_, _) => const BookGridSkeletonTile(),
           ),
         ),
       SliverToBoxAdapter(
@@ -186,6 +176,13 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       ),
     ];
   }
+
+  Widget _skeletonGrid(BookGridLayout layout, double height) =>
+      bookGridSkeletonSliver(
+        layout: layout,
+        count: layout.skeletonCount(height, headerOffset: 150),
+        padding: _gridPadding,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -214,8 +211,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         onRefresh: () => ref.read(historyProvider.notifier).reload(),
         child: data == null
             ? _initialBody(async, layout, media.height)
-            : NotificationListener<ScrollNotification>(
-                onNotification: (notification) => _onScroll(notification, data),
+            // 切换分页要重置预取去重，否则新分页首屏不会触发加载。
+            : PrefetchOnScroll(
+                key: ValueKey<HistoryTab>(_tab),
+                onLoadMore: _loadMore,
                 child: CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: <Widget>[
@@ -254,14 +253,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: <Widget>[
         SliverToBoxAdapter(child: _segmentedHeader(enabled: false)),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: _horizontalPadding),
-          sliver: SliverGrid.builder(
-            gridDelegate: _skeletonDelegate(layout),
-            itemCount: layout.skeletonCount(height, headerOffset: 150),
-            itemBuilder: (_, _) => const BookGridSkeletonTile(),
-          ),
-        ),
+        _skeletonGrid(layout, height),
       ],
     );
   }

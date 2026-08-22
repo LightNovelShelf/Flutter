@@ -11,7 +11,7 @@ import '../../data/repositories/profile_repository.dart';
 import '../../shared/widgets/user_avatar.dart';
 
 const Map<AvatarSource, ({String label, String placeholder, String hint})>
-    _sourceCopy = <AvatarSource, ({String label, String placeholder, String hint})>{
+_sourceCopy = <AvatarSource, ({String label, String placeholder, String hint})>{
   AvatarSource.url: (
     label: 'HTTPS 图片网址',
     placeholder: 'https://example.com/avatar.jpg',
@@ -243,8 +243,9 @@ class _AvatarSettingsScreenState extends ConsumerState<AvatarSettingsScreen> {
             ],
             selected: <AvatarSource>{_source},
             showSelectedIcon: false,
-            onSelectionChanged:
-                _saving ? null : (selection) => _selectSource(selection.first),
+            onSelectionChanged: _saving
+                ? null
+                : (selection) => _selectSource(selection.first),
           ),
           const SizedBox(height: 22),
           Text(

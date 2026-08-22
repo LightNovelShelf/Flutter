@@ -13,10 +13,11 @@ import 'widgets/auth_cover_mosaic.dart';
 /// 拼贴封面来源，取最新书单前 6 本。失败时降级为骨架，不报错。
 final FutureProvider<List<BookListItem>> welcomeCoversProvider =
     FutureProvider<List<BookListItem>>((ref) async {
-  final BookListPage page =
-      await ref.watch(apiClientProvider).getLatestBookList(size: 12);
-  return page.items.take(6).toList(growable: false);
-});
+      final BookListPage page = await ref
+          .watch(apiClientProvider)
+          .getLatestBookList(size: 12);
+      return page.items.take(6).toList(growable: false);
+    });
 
 class WelcomeScreen extends ConsumerStatefulWidget {
   const WelcomeScreen({super.key});
@@ -36,10 +37,13 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     final double mosaicHeight = (screen.height * 0.76).clamp(470.0, 670.0);
 
     // 不在栈顶或系统要求减少动效时冻结跑马灯，避免后台空转。
-    final bool isActive = (ModalRoute.of(context)?.isCurrent ?? true) &&
+    final bool isActive =
+        (ModalRoute.of(context)?.isCurrent ?? true) &&
         !MediaQuery.disableAnimationsOf(context);
 
-    final List<BookListItem> books = ref.watch(welcomeCoversProvider).maybeWhen(
+    final List<BookListItem> books = ref
+        .watch(welcomeCoversProvider)
+        .maybeWhen(
           data: (List<BookListItem> value) => value,
           orElse: () => const <BookListItem>[],
         );
@@ -174,7 +178,11 @@ class _StartReadingButton extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Icon(Icons.arrow_forward_rounded, size: 21, color: colors.onPrimary),
+              Icon(
+                Icons.arrow_forward_rounded,
+                size: 21,
+                color: colors.onPrimary,
+              ),
             ],
           ),
         ),

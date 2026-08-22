@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../data/settings/app_settings.dart';
-
 /// 阅读器整屏的底色与前景色。OLED 纯黑模式用纯黑与纯白，深色主题的浅灰底在 OLED 上会发亮。
 ({Color background, Color foreground}) readerSurfaceColors(
-  BuildContext context,
-  AppSettings settings,
-) {
+  BuildContext context, {
+  required bool oledBlack,
+}) {
   final theme = Theme.of(context);
-  final oled = theme.brightness == Brightness.dark && settings.oledBlack;
+  final oled = theme.brightness == Brightness.dark && oledBlack;
   final colors = theme.colorScheme;
   return (
     background: oled ? Colors.black : colors.surface,

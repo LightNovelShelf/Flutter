@@ -125,9 +125,7 @@ class _AuthCoverMosaicState extends State<AuthCoverMosaic>
       for (int i = 0; i < _booksPerTrack; i += 1)
         books[(trackIndex + i * 3) % books.length],
     ];
-    return <BookListItem?>[
-      for (int i = 0; i < _repeatCount; i += 1) ...pair,
-    ];
+    return <BookListItem?>[for (int i = 0; i < _repeatCount; i += 1) ...pair];
   }
 
   @override
@@ -270,13 +268,15 @@ class _MarqueeTrackState extends State<_MarqueeTrack>
             child: AnimatedBuilder(
               animation: Listenable.merge(<Listenable>[_marquee, _entrance]),
               builder: (BuildContext context, Widget? child) {
-                final double progress = (_marquee.value + widget.spec.phase) % 1.0;
+                final double progress =
+                    (_marquee.value + widget.spec.phase) % 1.0;
                 // 向下滚动时内容从 −loop 平移到 0，首尾同形以保证循环无跳变。
                 final double scroll = widget.spec.movesDown
                     ? (progress - 1) * loopDistance
                     : -progress * loopDistance;
-                final double entered =
-                    Curves.easeOutCubic.transform(_entrance.value);
+                final double entered = Curves.easeOutCubic.transform(
+                  _entrance.value,
+                );
                 return Opacity(
                   opacity: widget.spec.opacity * entered,
                   child: Transform.translate(

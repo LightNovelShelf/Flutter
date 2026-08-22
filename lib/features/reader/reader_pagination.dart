@@ -89,6 +89,34 @@ int readerBlockIndexAtOffset({
   return index;
 }
 
+/// 进度落在哪个块上。
+///
+/// 翻页模式下页顶的块常常跨自上一页，进度要记在本页第一个整块上，
+/// 否则按 locator 重开会退回上一页，上报的位置也不幂等。
+int readerLocatorBlockIndex({
+  required List<double> blockTops,
+  required List<double> blockBottoms,
+  required double offset,
+  required bool paged,
+  required double pageHeight,
+}) {
+  final index = readerBlockIndexAtOffset(
+    blockTops: blockTops,
+    blockBottoms: blockBottoms,
+    offset: offset + 1,
+  );
+  if (!paged) return index;
+  var candidate = index;
+  while (candidate < blockTops.length && blockTops[candidate] < offset - 0.5) {
+    candidate++;
+  }
+  // 没有整块能放进本页（跨多页的长段、整页插图）时，仍以跨页的那个块为准。
+  return candidate < blockTops.length &&
+          blockTops[candidate] < offset + pageHeight
+      ? candidate
+      : index;
+}
+
 /// 跨章翻页条：把相邻章的页首尾相接，摊平成一个全局页序。
 ///
 /// 只做下标换算，[T] 是调用方的章节表示，页数由 `pageCount` 取。

@@ -39,10 +39,21 @@ class AuthenticationSnapshot {
       status == AuthenticationStatus.signingIn ||
       status == AuthenticationStatus.registering ||
       status == AuthenticationStatus.signingOut;
+
+  @override
+  bool operator ==(Object other) =>
+      other is AuthenticationSnapshot &&
+      other.status == status &&
+      other.error == error;
+
+  @override
+  int get hashCode => Object.hash(status, error);
 }
 
-final RegExp _emailPattern =
-    RegExp(r'^\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*$', caseSensitive: false);
+final RegExp _emailPattern = RegExp(
+  r'^\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*$',
+  caseSensitive: false,
+);
 
 /// 认证状态机：登录、注册、刷新、登出。凭据写入串行化，revision 用于丢弃被新
 /// 操作取代的旧结果。
@@ -52,10 +63,10 @@ class AuthController extends ChangeNotifier {
     required CredentialStore credentials,
     required SignalRConnection signalR,
     PasswordHasher hasher = const PasswordHasher(),
-  })  : _api = api,
-        _credentials = credentials,
-        _signalR = signalR,
-        _hasher = hasher;
+  }) : _api = api,
+       _credentials = credentials,
+       _signalR = signalR,
+       _hasher = hasher;
 
   final ApiClient _api;
   final CredentialStore _credentials;
@@ -66,18 +77,24 @@ class AuthController extends ChangeNotifier {
   Future<void> _credentialWrite = Future<void>.value();
   ({int revision, String refreshToken, Future<bool> promise})? _refreshInFlight;
 
-  AuthenticationSnapshot _snapshot =
-      const AuthenticationSnapshot(status: AuthenticationStatus.unknown);
+  AuthenticationSnapshot _snapshot = const AuthenticationSnapshot(
+    status: AuthenticationStatus.unknown,
+  );
 
   AuthenticationSnapshot get snapshot => _snapshot;
 
   void _publish(AuthenticationSnapshot next) {
+    // 重复的相同快照会把 profile/shelf/history 三个 controller 白重建一轮。
+    if (next == _snapshot) return;
     _snapshot = next;
     notifyListeners();
   }
 
   Future<T> _enqueueCredentialWrite<T>(Future<T> Function() operation) {
-    final next = _credentialWrite.then((_) => operation(), onError: (_) => operation());
+    final next = _credentialWrite.then(
+      (_) => operation(),
+      onError: (_) => operation(),
+    );
     _credentialWrite = next.then((_) {}, onError: (_) {});
     return next;
   }
@@ -109,7 +126,10 @@ class AuthController extends ChangeNotifier {
       error.isAuth &&
       (error.status == 401 || error.status == 404 || error.status == -100);
 
-  Future<bool> _performRefresh(int expectedRevision, String refreshToken) async {
+  Future<bool> _performRefresh(
+    int expectedRevision,
+    String refreshToken,
+  ) async {
     try {
       final sessionToken = await _api.refreshToken(refreshToken);
       final persisted = await _enqueueCredentialWrite(() async {
@@ -120,7 +140,9 @@ class AuthController extends ChangeNotifier {
       if (!persisted) return false;
       _revision += 1;
       _publish(
-        const AuthenticationSnapshot(status: AuthenticationStatus.authenticated),
+        const AuthenticationSnapshot(
+          status: AuthenticationStatus.authenticated,
+        ),
       );
       return true;
     } catch (error) {
@@ -145,7 +167,9 @@ class AuthController extends ChangeNotifier {
 
   Future<bool> refresh() async {
     final expectedRevision = _revision;
-    final refreshToken = await _credentials.read(AuthCredentialKeys.refreshToken);
+    final refreshToken = await _credentials.read(
+      AuthCredentialKeys.refreshToken,
+    );
     if (expectedRevision != _revision) return false;
     if (refreshToken == null || refreshToken.isEmpty) {
       _publish(
@@ -161,7 +185,9 @@ class AuthController extends ChangeNotifier {
       return shared.promise;
     }
 
-    _publish(const AuthenticationSnapshot(status: AuthenticationStatus.refreshing));
+    _publish(
+      const AuthenticationSnapshot(status: AuthenticationStatus.refreshing),
+    );
     final promise = _performRefresh(expectedRevision, refreshToken);
     _refreshInFlight = (
       revision: expectedRevision,
@@ -171,7 +197,9 @@ class AuthController extends ChangeNotifier {
     try {
       return await promise;
     } finally {
-      if (identical(_refreshInFlight?.promise, promise)) _refreshInFlight = null;
+      if (identical(_refreshInFlight?.promise, promise)) {
+        _refreshInFlight = null;
+      }
     }
   }
 
@@ -213,7 +241,9 @@ class AuthController extends ChangeNotifier {
       throw const ApiError('请输入密码。', ApiErrorCategory.unknown);
     }
     final expectedRevision = ++_revision;
-    _publish(const AuthenticationSnapshot(status: AuthenticationStatus.signingIn));
+    _publish(
+      const AuthenticationSnapshot(status: AuthenticationStatus.signingIn),
+    );
     try {
       await _clearCredentials(expectedRevision);
       final tokens = await _api.login(
@@ -224,7 +254,9 @@ class AuthController extends ChangeNotifier {
         throw const ApiError('登录已被取消。', ApiErrorCategory.unknown);
       }
       _publish(
-        const AuthenticationSnapshot(status: AuthenticationStatus.authenticated),
+        const AuthenticationSnapshot(
+          status: AuthenticationStatus.authenticated,
+        ),
       );
       await _signalR.reset();
     } catch (error) {
@@ -260,7 +292,9 @@ class AuthController extends ChangeNotifier {
     }
 
     final expectedRevision = ++_revision;
-    _publish(const AuthenticationSnapshot(status: AuthenticationStatus.registering));
+    _publish(
+      const AuthenticationSnapshot(status: AuthenticationStatus.registering),
+    );
     try {
       await _clearCredentials(expectedRevision);
       final tokens = await _api.register(
@@ -274,7 +308,9 @@ class AuthController extends ChangeNotifier {
         throw const ApiError('注册已被取消。', ApiErrorCategory.unknown);
       }
       _publish(
-        const AuthenticationSnapshot(status: AuthenticationStatus.authenticated),
+        const AuthenticationSnapshot(
+          status: AuthenticationStatus.authenticated,
+        ),
       );
       await _signalR.reset();
     } catch (error) {
@@ -317,9 +353,13 @@ class AuthController extends ChangeNotifier {
 
   Future<void> signOut() async {
     final expectedRevision = ++_revision;
-    _publish(const AuthenticationSnapshot(status: AuthenticationStatus.signingOut));
+    _publish(
+      const AuthenticationSnapshot(status: AuthenticationStatus.signingOut),
+    );
     await _clearCredentials(expectedRevision);
     await _signalR.close();
-    _publish(const AuthenticationSnapshot(status: AuthenticationStatus.signedOut));
+    _publish(
+      const AuthenticationSnapshot(status: AuthenticationStatus.signedOut),
+    );
   }
 }

@@ -132,15 +132,8 @@ extension ApiClientAccount on ApiClient {
       body: <String, Object?>{'token': refreshToken},
     );
     // 该端点用 404 表示会话过期，归入 auth 类别才能触发重新登录引导。
-    ensureOk(
-      response,
-      '登录状态已过期，请重新登录。',
-      authStatuses: const <int>{401, 404},
-    );
-    final envelope = asRecord(
-      envelopeOf(response, '登录状态已过期，请重新登录。'),
-      '刷新令牌响应',
-    );
+    ensureOk(response, '登录状态已过期，请重新登录。', authStatuses: const <int>{401, 404});
+    final envelope = asRecord(envelopeOf(response, '登录状态已过期，请重新登录。'), '刷新令牌响应');
     return asString(
       envelope['Response'] ?? envelope['response'] ?? envelope['Token'],
     );

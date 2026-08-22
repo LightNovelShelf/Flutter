@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/api/api_client.dart';
-import '../../data/api/community_models.dart';
+import '../../data/api/models.dart';
 import '../../data/providers.dart';
 import 'community_providers.dart';
 import 'widgets/community_primitives.dart';

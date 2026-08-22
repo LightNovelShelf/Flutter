@@ -206,8 +206,7 @@ class RankingController
   }
 }
 
-final
-NotifierProviderFamily<
+final NotifierProviderFamily<
   BookCatalogController,
   PagedList<BookListItem>,
   BookListOrder
@@ -219,8 +218,7 @@ bookCatalogProvider =
       BookListOrder
     >(BookCatalogController.new, isAutoDispose: true);
 
-final
-NotifierProviderFamily<
+final NotifierProviderFamily<
   NovelSeriesCatalogController,
   PagedList<NovelSeriesListItem>,
   BookListOrder
@@ -232,8 +230,7 @@ novelSeriesCatalogProvider =
       BookListOrder
     >(NovelSeriesCatalogController.new, isAutoDispose: true);
 
-final
-NotifierProviderFamily<
+final NotifierProviderFamily<
   SeriesBooksController,
   PagedList<BookListItem>,
   SeriesBooksArg
@@ -245,8 +242,7 @@ seriesBooksProvider =
       SeriesBooksArg
     >(SeriesBooksController.new, isAutoDispose: true);
 
-final
-NotifierProviderFamily<
+final NotifierProviderFamily<
   ComicCatalogController,
   PagedList<BookListItem>,
   ComicOrder
@@ -258,8 +254,7 @@ comicCatalogProvider =
       ComicOrder
     >(ComicCatalogController.new, isAutoDispose: true);
 
-final
-NotifierProviderFamily<
+final NotifierProviderFamily<
   RankingController,
   PagedList<BookListItem>,
   HomeRankType

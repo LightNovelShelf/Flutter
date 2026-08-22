@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../data/api/community_models.dart';
+import '../../../data/api/models.dart';
 import '../../../shared/format.dart';
 import '../../../shared/widgets/comments/thread_reply_row.dart';
 import 'community_primitives.dart';

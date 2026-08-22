@@ -9,8 +9,9 @@ class AvatarSourceValue {
 }
 
 const String _qqAvatarUrl = 'https://q.qlogo.cn/headimg_dl?spec=100&dst_uin=';
-final RegExp _qqGroupAvatarPattern =
-    RegExp(r'^https://p\.qlogo\.cn/gh/([0-9]+)/\1/100$');
+final RegExp _qqGroupAvatarPattern = RegExp(
+  r'^https://p\.qlogo\.cn/gh/([0-9]+)/\1/100$',
+);
 final RegExp _qqNumberPattern = RegExp(r'^[1-9]\d{4,}$');
 final RegExp _httpsImageUrlPattern = RegExp(
   r'^https:\/\/[\w-]+(?:\.[\w-]+)+(?:[\w\-.,@?^=%&:/~+#]*[\w\-@?^=%&/~+#])?$',
@@ -19,7 +20,10 @@ final RegExp _httpsImageUrlPattern = RegExp(
 
 AvatarSourceValue parseAvatarSource(String url) {
   if (url.startsWith(_qqAvatarUrl)) {
-    return AvatarSourceValue(AvatarSource.qq, url.substring(_qqAvatarUrl.length));
+    return AvatarSourceValue(
+      AvatarSource.qq,
+      url.substring(_qqAvatarUrl.length),
+    );
   }
   final groupMatch = _qqGroupAvatarPattern.firstMatch(url);
   if (groupMatch != null) {

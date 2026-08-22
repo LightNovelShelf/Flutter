@@ -17,8 +17,9 @@ class SignInScreen extends ConsumerStatefulWidget {
 }
 
 class _SignInScreenState extends ConsumerState<SignInScreen> {
-  late final TextEditingController _email =
-      TextEditingController(text: widget.initialEmail ?? '');
+  late final TextEditingController _email = TextEditingController(
+    text: widget.initialEmail ?? '',
+  );
   final TextEditingController _password = TextEditingController();
   final FocusNode _passwordFocus = FocusNode();
 

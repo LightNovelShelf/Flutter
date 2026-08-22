@@ -186,14 +186,12 @@ class LevelBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => BookBadgeChip(
-        background: spec.interior ? Colors.white : levelBadgeColor,
-        icon: Icons.hexagon_outlined,
-        iconColor: spec.interior ? levelBadgeColor : Colors.white,
-        border: spec.interior
-            ? Border.all(color: levelBadgeColor)
-            : null,
-        trailingLevel: spec.level,
-      );
+    background: spec.interior ? Colors.white : levelBadgeColor,
+    icon: Icons.hexagon_outlined,
+    iconColor: spec.interior ? levelBadgeColor : Colors.white,
+    border: spec.interior ? Border.all(color: levelBadgeColor) : null,
+    trailingLevel: spec.level,
+  );
 }
 
 class CategoryBadge extends StatelessWidget {
@@ -203,8 +201,8 @@ class CategoryBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => BookBadgeChip(
-        background: definition.color,
-        icon: definition.icon,
-        iconColor: Colors.white,
-      );
+    background: definition.color,
+    icon: definition.icon,
+    iconColor: Colors.white,
+  );
 }

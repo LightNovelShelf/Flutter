@@ -205,11 +205,13 @@ String _novelSearchMethod(BookSearchMode mode) => switch (mode) {
   BookSearchMode.tags => 'GetBookListByTags',
 };
 
-Map<String, Object?> _encodeSearch(BookSearchRequest request, String keywords) =>
-    <String, Object?>{
-      'KeyWords': keywords,
-      'Page': request.page,
-      'Size': request.size,
-      'IgnoreJapanese': request.ignoreJapanese,
-      'IgnoreAI': request.ignoreAI,
-    };
+Map<String, Object?> _encodeSearch(
+  BookSearchRequest request,
+  String keywords,
+) => <String, Object?>{
+  'KeyWords': keywords,
+  'Page': request.page,
+  'Size': request.size,
+  'IgnoreJapanese': request.ignoreJapanese,
+  'IgnoreAI': request.ignoreAI,
+};

@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/api/api_client.dart';
-import '../../data/api/community_models.dart';
+import '../../data/api/models.dart';
 import '../../data/providers.dart';
 import '../../data/repositories/profile_repository.dart';
 import '../../shared/paging/paged_list.dart';
@@ -88,8 +88,7 @@ class CommunityNotificationsController
   }
 }
 
-final
-NotifierProvider<
+final NotifierProvider<
   CommunityNotificationsController,
   PagedList<AppNotificationItem>
 >

@@ -246,8 +246,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   children: <Widget>[
                     SettingsNavigationRow(
                       title: loading ? '正在加载个人资料…' : '无法加载个人资料',
-                      description:
-                          loading ? '正在获取轻书架账号信息' : '请重试。',
+                      description: loading ? '正在获取轻书架账号信息' : '请重试。',
                       icon: loading
                           ? Icons.account_circle_outlined
                           : Icons.error_outline,

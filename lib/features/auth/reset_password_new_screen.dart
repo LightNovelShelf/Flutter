@@ -65,7 +65,9 @@ class _ResetPasswordNewScreenState
       _error = null;
     });
     try {
-      await ref.read(authControllerProvider).resetPassword(
+      await ref
+          .read(authControllerProvider)
+          .resetPassword(
             email: draft.email,
             password: _password.text,
             passwordConfirmation: _passwordConfirmation.text,

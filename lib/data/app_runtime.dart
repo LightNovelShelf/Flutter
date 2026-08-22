@@ -47,9 +47,9 @@ class AppRuntime {
     }
 
     Future<Map<String, String>> backendHeaders() async => <String, String>{
-          'User-Agent': userAgent,
-          'x-id': await visitorId(),
-        };
+      'User-Agent': userAgent,
+      'x-id': await visitorId(),
+    };
 
     final signalR = SignalRConnection(
       endpoint: ServiceEndpoints.signalRHub,
@@ -65,7 +65,8 @@ class AppRuntime {
         final token = await credentials.read(AuthCredentialKeys.sessionToken);
         return <String, String>{
           ...await backendHeaders(),
-          if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+          if (token != null && token.isNotEmpty)
+            'Authorization': 'Bearer $token',
         };
       },
     );
