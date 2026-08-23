@@ -58,3 +58,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    # 与 Web 端阅读器共用同一组纸纹贴图。
+    - assets/img/bg-paper.jpg
+    - assets/img/bg-paper-dark.jpeg

@@ -2,9 +2,23 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/theme/app_theme.dart';
 import '../../data/providers.dart';
 import '../../data/settings/app_settings.dart';
+import '../../shared/widgets/color_picker_sheet.dart';
 import '../../shared/widgets/settings_rows.dart';
+
+/// 自定义阅读背景的预设色：浅色纸张与深色底各几档。
+const List<String> _readerBackgroundPresets = <String>[
+  '#FFFFFF',
+  '#F7F1E3',
+  '#EFE7D5',
+  '#E3EDE3',
+  '#E4EBF2',
+  '#3B3A36',
+  '#1B1815',
+  '#000000',
+];
 
 /// 阅读设置页；正文与阅读器内的设置面板共用 [ReaderSettingsContent]。
 class ReaderSettingsScreen extends StatelessWidget {
@@ -35,6 +49,48 @@ class ReaderSettingsContent extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
+          SettingsSection(
+            title: '背景',
+            children: <Widget>[
+              SettingsPickerRow<ReaderBackgroundMode>(
+                title: '阅读背景',
+                description: '阅读器的底色与正文颜色',
+                icon: Icons.wallpaper_outlined,
+                value: settings.readerBackgroundMode,
+                options: const <(ReaderBackgroundMode, String)>[
+                  (ReaderBackgroundMode.auto, '默认'),
+                  (ReaderBackgroundMode.paper, '纸质'),
+                  (ReaderBackgroundMode.custom, '自定义颜色'),
+                ],
+                onChanged: (value) => controller.update(
+                  (settings) => settings.copyWith(readerBackgroundMode: value),
+                ),
+              ),
+              if (settings.readerBackgroundMode == ReaderBackgroundMode.custom)
+                SettingsRow(
+                  title: '背景颜色',
+                  description: settings.readerBackgroundColorValue,
+                  icon: Icons.colorize_outlined,
+                  onTap: () async {
+                    final picked = await showColorPickerSheet(
+                      context,
+                      initial: settings.readerBackgroundColorValue,
+                      title: '背景颜色',
+                      presets: _readerBackgroundPresets,
+                    );
+                    if (picked == null) return;
+                    controller.update(
+                      (settings) =>
+                          settings.copyWith(readerBackgroundColorValue: picked),
+                    );
+                  },
+                  trailing: _ColorSwatch(
+                    color: parseSeedColor(settings.readerBackgroundColorValue),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
           SettingsSection(
             title: '排版',
             children: <Widget>[
@@ -201,4 +257,22 @@ class ReaderSettingsContent extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// 设置行尾的颜色圆点。
+class _ColorSwatch extends StatelessWidget {
+  const _ColorSwatch({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 28,
+    height: 28,
+    decoration: BoxDecoration(
+      color: color,
+      shape: BoxShape.circle,
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+    ),
+  );
 }

@@ -18,6 +18,8 @@ enum ConvertType { none, t2s, s2t }
 
 enum ReaderViewMode { paged, scroll }
 
+enum ReaderBackgroundMode { auto, paper, custom }
+
 enum ComicPagedDirection { ltr, rtl }
 
 enum CleanChapterTitleScope { continueReading, readerTitle }
@@ -74,6 +76,8 @@ class AppSettings {
     this.ignoreJapanese = false,
     this.language = LanguageSetting.system,
     this.oledBlack = false,
+    this.readerBackgroundMode = ReaderBackgroundMode.auto,
+    this.readerBackgroundColorValue = '#F7F1E3',
     this.readerFirstLineIndent = true,
     this.readerJustify = false,
     this.readerLineHeight = 1.6,
@@ -102,6 +106,8 @@ class AppSettings {
   final bool ignoreJapanese;
   final LanguageSetting language;
   final bool oledBlack;
+  final ReaderBackgroundMode readerBackgroundMode;
+  final String readerBackgroundColorValue;
   final bool readerFirstLineIndent;
   final bool readerJustify;
   final double readerLineHeight;
@@ -130,6 +136,8 @@ class AppSettings {
     bool? ignoreJapanese,
     LanguageSetting? language,
     bool? oledBlack,
+    ReaderBackgroundMode? readerBackgroundMode,
+    String? readerBackgroundColorValue,
     bool? readerFirstLineIndent,
     bool? readerJustify,
     double? readerLineHeight,
@@ -159,6 +167,9 @@ class AppSettings {
     ignoreJapanese: ignoreJapanese ?? this.ignoreJapanese,
     language: language ?? this.language,
     oledBlack: oledBlack ?? this.oledBlack,
+    readerBackgroundMode: readerBackgroundMode ?? this.readerBackgroundMode,
+    readerBackgroundColorValue:
+        readerBackgroundColorValue ?? this.readerBackgroundColorValue,
     readerFirstLineIndent: readerFirstLineIndent ?? this.readerFirstLineIndent,
     readerJustify: readerJustify ?? this.readerJustify,
     readerLineHeight: readerLineHeight ?? this.readerLineHeight,
@@ -179,7 +190,10 @@ class AppSettings {
     autoCheckUpdate: autoCheckUpdate ?? this.autoCheckUpdate,
   );
 
-  static final RegExp _seedPattern = RegExp(r'^#[0-9A-Fa-f]{6}$');
+  static final RegExp _hexPattern = RegExp(r'^#[0-9A-Fa-f]{6}$');
+
+  static String _hexColor(Object? raw, String fallback) =>
+      raw is String && _hexPattern.hasMatch(raw) ? raw.toUpperCase() : fallback;
 
   /// 解码时同时执行钳制与校验，写入路径也走此方法。
   static AppSettings decode(Map<String, dynamic> raw) {
@@ -211,6 +225,15 @@ class AppSettings {
       ignoreJapanese: _bool(raw['ignoreJapanese'], false),
       language: _languageWire[raw['language']] ?? LanguageSetting.system,
       oledBlack: _bool(raw['oledBlack'], false),
+      readerBackgroundMode: _enumFromName(
+        ReaderBackgroundMode.values,
+        raw['readerBackgroundMode'],
+        ReaderBackgroundMode.auto,
+      ),
+      readerBackgroundColorValue: _hexColor(
+        raw['readerBackgroundColorValue'],
+        '#F7F1E3',
+      ),
       readerFirstLineIndent: _bool(raw['readerFirstLineIndent'], true),
       readerJustify: _bool(raw['readerJustify'], false),
       readerLineHeight: _clampDouble(raw['readerLineHeight'], 1, 2.5, 1.6),
@@ -236,11 +259,7 @@ class AppSettings {
         raw['readerViewMode'],
         ReaderViewMode.paged,
       ),
-      seedColorValue:
-          raw['seedColorValue'] is String &&
-              _seedPattern.hasMatch(raw['seedColorValue'] as String)
-          ? (raw['seedColorValue'] as String).toUpperCase()
-          : '#B71C1C',
+      seedColorValue: _hexColor(raw['seedColorValue'], '#B71C1C'),
       seriesSearchMode: _enumFromName(
         SeriesSearchMode.values,
         raw['seriesSearchMode'],
@@ -275,6 +294,8 @@ class AppSettings {
     'ignoreJapanese': ignoreJapanese,
     'language': language.wire,
     'oledBlack': oledBlack,
+    'readerBackgroundMode': readerBackgroundMode.name,
+    'readerBackgroundColorValue': readerBackgroundColorValue,
     'readerFirstLineIndent': readerFirstLineIndent,
     'readerJustify': readerJustify,
     'readerLineHeight': readerLineHeight,
@@ -306,6 +327,8 @@ class AppSettings {
       other.ignoreJapanese == ignoreJapanese &&
       other.language == language &&
       other.oledBlack == oledBlack &&
+      other.readerBackgroundMode == readerBackgroundMode &&
+      other.readerBackgroundColorValue == readerBackgroundColorValue &&
       other.readerFirstLineIndent == readerFirstLineIndent &&
       other.readerJustify == readerJustify &&
       other.readerLineHeight == readerLineHeight &&
@@ -335,6 +358,8 @@ class AppSettings {
     ignoreJapanese,
     language,
     oledBlack,
+    readerBackgroundMode,
+    readerBackgroundColorValue,
     readerFirstLineIndent,
     readerJustify,
     readerLineHeight,

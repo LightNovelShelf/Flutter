@@ -419,6 +419,8 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
     final settings = ref.watch(appSettingsProvider);
     final (:background, :foreground) = readerSurfaceColors(
       context,
+      mode: settings.readerBackgroundMode,
+      customColorValue: settings.readerBackgroundColorValue,
       oledBlack: settings.oledBlack,
     );
     final paged = settings.readerViewMode == ReaderViewMode.paged;
@@ -427,6 +429,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
 
     final shell = ReaderShell(
       background: background,
+      paperTexture: settings.readerBackgroundMode == ReaderBackgroundMode.paper,
       loading: loading || current == null,
       error: loadError,
       onRetry: () => unawaited(_load()),

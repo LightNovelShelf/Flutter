@@ -616,6 +616,8 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     // 只取实际用到的设置，阅读设置面板拖动滑块写入无关字段时不重建整棵树。
     final (
       :oledBlack,
+      :backgroundMode,
+      :backgroundColorValue,
       :viewMode,
       :pagedDirection,
       :volumeKeyPagingEnabled,
@@ -623,6 +625,8 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       appSettingsProvider.select(
         (settings) => (
           oledBlack: settings.oledBlack,
+          backgroundMode: settings.readerBackgroundMode,
+          backgroundColorValue: settings.readerBackgroundColorValue,
           viewMode: settings.readerViewMode,
           pagedDirection: settings.comicPagedDirection,
           volumeKeyPagingEnabled: settings.readerVolumeKeyPagingEnabled,
@@ -631,6 +635,8 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     );
     final (:background, :foreground) = readerSurfaceColors(
       context,
+      mode: backgroundMode,
+      customColorValue: backgroundColorValue,
       oledBlack: oledBlack,
     );
     if (_mode != viewMode) {
@@ -655,6 +661,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
 
     final shell = ReaderShell(
       background: background,
+      paperTexture: backgroundMode == ReaderBackgroundMode.paper,
       loading: loading || _chapter == null,
       error: loadError,
       onRetry: () => unawaited(_loadChapter()),

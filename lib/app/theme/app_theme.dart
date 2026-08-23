@@ -21,6 +21,15 @@ Color parseSeedColor(String value) {
   return Color(int.parse('FF$hex', radix: 16));
 }
 
+/// [parseSeedColor] 的逆运算，产出 `#RRGGBB`。
+String formatHexColor(Color color) {
+  final rgb =
+      ((color.r * 255).round() << 16) |
+      ((color.g * 255).round() << 8) |
+      (color.b * 255).round();
+  return '#${rgb.toRadixString(16).padLeft(6, '0').toUpperCase()}';
+}
+
 Brightness resolveBrightness(ThemeSetting theme, Brightness platform) =>
     switch (theme) {
       ThemeSetting.light => Brightness.light,

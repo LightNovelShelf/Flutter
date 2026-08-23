@@ -1,18 +1,52 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-/// 阅读器整屏的底色与前景色。OLED 纯黑模式用纯黑与纯白，深色主题的浅灰底在 OLED 上会发亮。
+import '../../../app/theme/app_theme.dart';
+import '../../../data/settings/app_settings.dart';
+
+/// 纸质背景的配色：底色取纸纹贴图的平均色，工具栏与贴图接缝处才不会露出色差。
+class ReaderPaperPalette {
+  const ReaderPaperPalette._();
+
+  static const Color lightBackground = Color(0xFFE0C4A1);
+  static const Color lightForeground = Color(0xFF2A2318);
+  static const Color darkBackground = Color(0xFF384042);
+  static const Color darkForeground = Color(0xFFE2E5E6);
+}
+
+/// 阅读器整屏的底色与前景色。
+///
+/// 默认跟随应用主题，OLED 纯黑时用纯黑与纯白，深色主题的浅灰底在 OLED 上会发亮；
+/// 纸质按明暗取两套固定配色；自定义颜色的前景色按背景的感知亮度在黑白之间挑。
 ({Color background, Color foreground}) readerSurfaceColors(
   BuildContext context, {
+  required ReaderBackgroundMode mode,
+  required String customColorValue,
   required bool oledBlack,
 }) {
-  final theme = Theme.of(context);
-  final oled = theme.brightness == Brightness.dark && oledBlack;
-  final colors = theme.colorScheme;
-  return (
-    background: oled ? Colors.black : colors.surface,
-    foreground: oled ? Colors.white : colors.onSurface,
-  );
+  switch (mode) {
+    case ReaderBackgroundMode.auto:
+      final theme = Theme.of(context);
+      final oled = theme.brightness == Brightness.dark && oledBlack;
+      final colors = theme.colorScheme;
+      return (
+        background: oled ? Colors.black : colors.surface,
+        foreground: oled ? Colors.white : colors.onSurface,
+      );
+    case ReaderBackgroundMode.paper:
+      return Theme.of(context).brightness == Brightness.dark
+          ? (
+              background: ReaderPaperPalette.darkBackground,
+              foreground: ReaderPaperPalette.darkForeground,
+            )
+          : (
+              background: ReaderPaperPalette.lightBackground,
+              foreground: ReaderPaperPalette.lightForeground,
+            );
+    case ReaderBackgroundMode.custom:
+      final background = parseSeedColor(customColorValue);
+      return (background: background, foreground: onAccentColor(background));
+  }
 }
 
 /// 阅读器悬浮工具栏，默认隐藏，点中间区域显示。

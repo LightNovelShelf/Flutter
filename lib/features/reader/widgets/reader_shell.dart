@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../shared/widgets/state_views.dart';
+import 'reader_paper_texture.dart';
 
 /// 阅读器外壳：底色、加载与错误态、正文与叠层的层序。
 ///
@@ -9,6 +11,7 @@ class ReaderShell extends StatelessWidget {
   const ReaderShell({
     super.key,
     required this.background,
+    this.paperTexture = false,
     this.loading = false,
     this.error,
     this.onRetry,
@@ -18,6 +21,9 @@ class ReaderShell extends StatelessWidget {
   });
 
   final Color background;
+
+  /// 纸质背景的纸纹，铺在正文之下。
+  final bool paperTexture;
   final bool loading;
   final String? error;
   final VoidCallback? onRetry;
@@ -42,14 +48,22 @@ class ReaderShell extends StatelessWidget {
     } else {
       content = body;
     }
-    return Scaffold(
-      backgroundColor: background,
-      body: Stack(
-        children: <Widget>[
-          Positioned.fill(child: content),
-          ?overlay,
-          ?chrome,
-        ],
+    // 自定义背景可以是任意颜色，状态栏与导航栏图标得跟着底色的明暗走，否则会看不见。
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: ThemeData.estimateBrightnessForColor(background) == Brightness.dark
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: background,
+        body: Stack(
+          children: <Widget>[
+            if (paperTexture)
+              const Positioned.fill(child: ReaderPaperTexture()),
+            Positioned.fill(child: content),
+            ?overlay,
+            ?chrome,
+          ],
+        ),
       ),
     );
   }
