@@ -48,11 +48,42 @@ class _ReplyComposeSheet extends StatefulWidget {
 
 class _ReplyComposeSheetState extends State<_ReplyComposeSheet> {
   final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+  Animation<double>? _entrance;
+  bool _focusScheduled = false;
   bool _submitting = false;
   String? _error;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_focusScheduled) return;
+    _focusScheduled = true;
+    // 入场动画期间弹键盘，IME 动画会被取消再重来（logcat 的 onCancelled at
+    // PHASE_CLIENT_APPLY_ANIMATION），看上去就是一顿。等面板落位再要焦点。
+    final animation = ModalRoute.of(context)?.animation;
+    if (animation == null || animation.isCompleted) {
+      _focusNode.requestFocus();
+      return;
+    }
+    _entrance = animation..addStatusListener(_onEntranceStatus);
+  }
+
+  void _onEntranceStatus(AnimationStatus status) {
+    if (!status.isCompleted) return;
+    _detachEntrance();
+    _focusNode.requestFocus();
+  }
+
+  void _detachEntrance() {
+    _entrance?.removeStatusListener(_onEntranceStatus);
+    _entrance = null;
+  }
+
+  @override
   void dispose() {
+    _detachEntrance();
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -81,8 +112,7 @@ class _ReplyComposeSheetState extends State<_ReplyComposeSheet> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final canSubmit = _controller.text.trim().isNotEmpty && !_submitting;
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+    return _KeyboardInsetPadding(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -96,7 +126,7 @@ class _ReplyComposeSheetState extends State<_ReplyComposeSheet> {
               ),
               child: TextField(
                 controller: _controller,
-                autofocus: true,
+                focusNode: _focusNode,
                 maxLength: 4000,
                 maxLines: null,
                 expands: false,
@@ -152,4 +182,20 @@ class _ReplyComposeSheetState extends State<_ReplyComposeSheet> {
       ),
     );
   }
+}
+
+/// 只有这一层跟着键盘 inset 重建。
+///
+/// [child] 由外层 build 产生，重建时是同一个 widget 实例，元素树会短路掉整棵子树，
+/// 键盘动画的每一帧不会再重建 TextField。
+class _KeyboardInsetPadding extends StatelessWidget {
+  const _KeyboardInsetPadding({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+    child: child,
+  );
 }
