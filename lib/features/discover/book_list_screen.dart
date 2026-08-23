@@ -121,21 +121,22 @@ class _ViewModeMenu extends StatelessWidget {
       };
 
   @override
-  Widget build(BuildContext context) => MenuAnchor(
-    alignmentOffset: const Offset(0, 4),
-    builder: (context, controller, _) => IconButton(
-      tooltip: '展示方式',
-      icon: Icon(_specs[mode]!.$1),
-      onPressed: () =>
-          controller.isOpen ? controller.close() : controller.open(),
-    ),
-    menuChildren: <Widget>[
+  Widget build(BuildContext context) => PopupMenuButton<BookListViewMode>(
+    tooltip: '展示方式',
+    icon: Icon(_specs[mode]!.$1),
+    position: PopupMenuPosition.under,
+    onSelected: onChanged,
+    itemBuilder: (_) => <PopupMenuEntry<BookListViewMode>>[
       for (final entry in _specs.entries)
-        MenuItemButton(
-          leadingIcon: Icon(entry.value.$1),
-          trailingIcon: entry.key == mode ? const Icon(Icons.check) : null,
-          onPressed: () => onChanged(entry.key),
-          child: Text(entry.value.$2),
+        PopupMenuItem<BookListViewMode>(
+          value: entry.key,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(entry.value.$1),
+            title: Text(entry.value.$2),
+            trailing: entry.key == mode ? const Icon(Icons.check) : null,
+          ),
         ),
     ],
   );
