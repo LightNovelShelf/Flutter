@@ -113,14 +113,19 @@ class _SearchScopeToggle extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final comic = ref.watch(bookSearchProvider.select((state) => state.comic));
-    return SegmentedButton<bool>(
-      segments: const <ButtonSegment<bool>>[
-        ButtonSegment<bool>(value: false, label: Text('小说')),
-        ButtonSegment<bool>(value: true, label: Text('漫画')),
-      ],
-      selected: <bool>{comic},
-      onSelectionChanged: (selection) =>
-          ref.read(bookSearchProvider.notifier).setComic(selection.first),
+    // Column 给的是松约束，撑满宽度才和历史页的分段控件一致。
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<bool>(
+        segments: const <ButtonSegment<bool>>[
+          ButtonSegment<bool>(value: false, label: Text('小说')),
+          ButtonSegment<bool>(value: true, label: Text('漫画')),
+        ],
+        selected: <bool>{comic},
+        showSelectedIcon: false,
+        onSelectionChanged: (selection) =>
+            ref.read(bookSearchProvider.notifier).setComic(selection.first),
+      ),
     );
   }
 }
