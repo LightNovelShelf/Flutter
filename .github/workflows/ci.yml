@@ -38,7 +38,7 @@ jobs:
 
       - uses: actions/upload-artifact@v5
         with:
-          name: lightnovel-shelf-debug
+          name: lightnovel-shelf-android-debug
           path: build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 7
 

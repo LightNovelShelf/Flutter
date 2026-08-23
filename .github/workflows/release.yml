@@ -51,15 +51,15 @@ jobs:
       - name: 构建 Android 安装包
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
-        run: |
-          flutter build apk --release --split-per-abi
-          flutter build appbundle --release
+        run: flutter build apk --release --split-per-abi
 
       - name: 收集产物
         run: |
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/*-release.apk dist/
-          cp build/app/outputs/bundle/release/app-release.aab dist/
+          for apk in build/app/outputs/flutter-apk/app-*-release.apk; do
+            abi=$(basename "$apk" | sed -E 's/^app-(.+)-release\.apk$/\1/')
+            cp "$apk" "dist/app-android-$abi.apk"
+          done
 
       - uses: actions/upload-artifact@v5
         with:
