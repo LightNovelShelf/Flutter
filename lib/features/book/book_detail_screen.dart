@@ -122,6 +122,8 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
       settings: settings,
       child: Builder(
         builder: (themedContext) => Scaffold(
+          // 桌面端设备没有手势返回，AppBar 需要显示返回按钮。
+          appBar: async.hasError ? AppBar() : null,
           body: async.when(
             loading: () => const BookDetailSkeleton(),
             error: (error, _) => Center(
