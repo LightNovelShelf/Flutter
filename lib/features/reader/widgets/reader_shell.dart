@@ -61,8 +61,13 @@ class ReaderShell extends StatelessWidget {
         backgroundColor: background,
         body: Stack(
           children: <Widget>[
-            if (paperTexture)
-              const Positioned.fill(child: ReaderPaperTexture()),
+            // 纸纹层常在：Stack 的孩子没有 key，少一层会让正文层错位重建，
+            // 阅读器的 State 连同分页结果一起丢。
+            Positioned.fill(
+              child: paperTexture
+                  ? const ReaderPaperTexture()
+                  : const SizedBox.shrink(),
+            ),
             Positioned.fill(child: content),
             ?overlay,
             ?chrome,

@@ -127,11 +127,7 @@ void main() {
     var next = 0;
 
     await tester.pumpWidget(
-      wrap(
-        enabled: true,
-        onPrevious: () => previous++,
-        onNext: () => next++,
-      ),
+      wrap(enabled: true, onPrevious: () => previous++, onNext: () => next++),
     );
     await tester.pumpAndSettle();
 

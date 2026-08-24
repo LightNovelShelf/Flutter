@@ -31,6 +31,7 @@ import 'widgets/reader_settings_sheet.dart';
 import 'widgets/reader_shell.dart';
 import 'widgets/reader_status_pills.dart';
 import 'widgets/reader_tap_zone.dart';
+import 'widgets/reader_theme.dart';
 
 /// 漫画阅读器：整页图片，按 12 页一批向服务端取图。
 class ComicReaderScreen extends ConsumerStatefulWidget {
@@ -61,6 +62,9 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
   final ValueNotifier<bool> _chromeVisible = ValueNotifier<bool>(false);
 
   List<ComicChapterSummary> _chapters = const <ComicChapterSummary>[];
+
+  /// 章节标题表只在 `_chapters` 换了之后重建，工具栏每帧都要读它。
+  List<String> _chapterTitles = const <String>[];
   int _chapterIndex = 0;
   ComicChapterSummary? _chapter;
   List<ComicPageSlot> _slots = const <ComicPageSlot>[];
@@ -185,6 +189,9 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       _pageNotifier.value = page;
       setState(() {
         _chapters = chapters;
+        _chapterTitles = <String>[
+          for (final chapter in chapters) chapter.title,
+        ];
         _chapterIndex = index;
         _chapter = chapter;
         _setSlots(
@@ -592,6 +599,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     required int page,
     required Color background,
     required Color foreground,
+    required bool themeLocked,
   }) => ReaderChrome(
     visible: visible,
     title: _chapter?.title.isNotEmpty == true ? _chapter!.title : '漫画阅读器',
@@ -599,8 +607,13 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     foregroundColor: foreground,
     currentChapter: _chapterIndex + 1,
     totalChapters: _chapters.length,
+    chapterTitles: _chapterTitles,
     progress: _slots.isEmpty ? null : (page + 1) / _slots.length,
     onOpenChapters: () => unawaited(_openChapterSheet()),
+    nightMode: Theme.of(context).brightness == Brightness.dark,
+    onToggleNightMode: themeLocked
+        ? null
+        : () => toggleReaderNightMode(context, ref),
     onOpenSettings: () => unawaited(showReaderSettingsSheet(context)),
     onDismiss: () => _chromeVisible.value = false,
     onPreviousChapter: _chapterIndex > 0
@@ -609,6 +622,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     onNextChapter: _chapterIndex < _chapters.length - 1
         ? () => unawaited(_openChapterIndex(_chapterIndex + 1))
         : null,
+    onChapterSelected: (chapter) => unawaited(_openChapterIndex(chapter - 1)),
   );
 
   @override
@@ -698,6 +712,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
             page: page,
             background: background,
             foreground: foreground,
+            themeLocked: backgroundMode == ReaderBackgroundMode.custom,
           ),
         ),
       ),

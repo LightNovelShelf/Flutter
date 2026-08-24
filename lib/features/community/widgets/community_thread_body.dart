@@ -58,23 +58,25 @@ class _CommunityThreadBodyState extends State<CommunityThreadBody> {
       fontSize: 16,
       lineHeight: 1.5,
       paragraphSpacing: 8,
-      color: widget.color,
       firstLineIndent: false,
       justify: false,
     );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        for (var index = 0; index < blocks.length; index++)
-          ReaderHtmlBlock(
-            markup: blocks[index],
-            style: style,
-            onTapUrl: _openExternalUrl,
-            borderIllustrations: false,
-            imagePreviewTrigger: ImagePreviewTrigger.tap,
-            applyParagraphSpacing: index + 1 < blocks.length,
-          ),
-      ],
+    return DefaultTextStyle.merge(
+      style: TextStyle(color: widget.color),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          for (var index = 0; index < blocks.length; index++)
+            ReaderHtmlBlock(
+              markup: blocks[index],
+              style: style,
+              onTapUrl: _openExternalUrl,
+              borderIllustrations: false,
+              imagePreviewTrigger: ImagePreviewTrigger.tap,
+              applyParagraphSpacing: index + 1 < blocks.length,
+            ),
+        ],
+      ),
     );
   }
 }

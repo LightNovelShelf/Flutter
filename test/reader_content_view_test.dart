@@ -16,7 +16,6 @@ import 'package:lightnovel/features/reader/widgets/reader_page_body.dart';
 const ReaderContentStyle _style = ReaderContentStyle(
   fontSize: 18,
   lineHeight: 1.6,
-  color: Color(0xFF000000),
   firstLineIndent: false,
   justify: false,
 );
@@ -63,6 +62,7 @@ class _Harness {
   String? restoreLocator;
   final EdgeInsets padding;
   int restoreToken = 0;
+  Color textColor = const Color(0xFF2A2318);
   final ReaderContentController controller = ReaderContentController();
 
   final List<ReaderContentPosition> positions = <ReaderContentPosition>[];
@@ -86,22 +86,25 @@ class _Harness {
 
   Widget build() => MaterialApp(
     home: Scaffold(
-      body: ReaderContentView(
-        chapter: chapter,
-        previous: previous,
-        next: next,
-        paged: paged,
-        padding: padding,
-        restoreLocator: restoreLocator,
-        restoreProgression: 0,
-        restoreToken: restoreToken,
-        onPosition: positions.add,
-        onTapCenter: () => centerTaps++,
-        onChapterChanged: chapters.add,
-        onBoundary: boundaries.add,
-        onFootnote: (_, _) {},
-        onReady: () => ready++,
-        controller: controller,
+      body: DefaultTextStyle.merge(
+        style: TextStyle(color: textColor),
+        child: ReaderContentView(
+          chapter: chapter,
+          previous: previous,
+          next: next,
+          paged: paged,
+          padding: padding,
+          restoreLocator: restoreLocator,
+          restoreProgression: 0,
+          restoreToken: restoreToken,
+          onPosition: positions.add,
+          onTapCenter: () => centerTaps++,
+          onChapterChanged: chapters.add,
+          onBoundary: boundaries.add,
+          onFootnote: (_, _) {},
+          onReady: () => ready++,
+          controller: controller,
+        ),
       ),
     ),
   );
@@ -130,7 +133,6 @@ Future<_Harness> _pump(
 const ReaderContentStyle _justifiedIndentedStyle = ReaderContentStyle(
   fontSize: 18,
   lineHeight: 1.6,
-  color: Color(0xFF000000),
   firstLineIndent: true,
   justify: true,
 );
@@ -151,7 +153,6 @@ void main() {
         fontSize: 20,
         lineHeight: 1.5,
         paragraphSpacing: paragraphSpacing,
-        color: Colors.black,
         firstLineIndent: false,
         justify: false,
       );
@@ -225,6 +226,39 @@ void main() {
     expect(harness.last.page, 2);
     expect(harness.last.locator, isNot(harness.blocks.first.locator));
     expect(harness.last.progression, greaterThan(0));
+  });
+
+  /// 正文里第一处显式颜色，取自 span 树。
+  Color? pageTextColor(WidgetTester tester, String text) {
+    Color? found;
+    void walk(InlineSpan span) {
+      found ??= span.style?.color;
+      if (found != null) return;
+      span.visitChildren((child) {
+        walk(child);
+        return found == null;
+      });
+    }
+
+    walk(tester.widgetList<RichText>(_pageText(text)).first.text);
+    return found;
+  }
+
+  testWidgets('换正文色只重画文字，不重建正文块也不重新分页', (tester) async {
+    final harness = await _pump(tester);
+    final pages = harness.last.pages;
+    final reports = harness.positions.length;
+    expect(pageTextColor(tester, '第0段'), const Color(0xFF2A2318));
+
+    harness.textColor = const Color(0xFFE2E5E6);
+    await tester.pumpWidget(harness.build());
+    await tester.pump();
+
+    // 一帧就换色：颜色不进 ReaderContentStyle，不触发整章重建与逐片重测。
+    expect(pageTextColor(tester, '第0段'), const Color(0xFFE2E5E6));
+    expect(harness.ready, 1);
+    expect(harness.last.pages, pages);
+    expect(harness.positions.length, reports);
   });
 
   testWidgets('外部控制器可触发前后翻页', (tester) async {
@@ -458,7 +492,6 @@ void main() {
       style: const ReaderContentStyle(
         fontSize: 26,
         lineHeight: 1.6,
-        color: Color(0xFF000000),
         firstLineIndent: false,
         justify: false,
       ),

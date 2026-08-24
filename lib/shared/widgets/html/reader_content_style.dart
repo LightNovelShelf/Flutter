@@ -8,7 +8,6 @@ class ReaderContentStyle {
   const ReaderContentStyle({
     required this.fontSize,
     required this.lineHeight,
-    required this.color,
     required this.firstLineIndent,
     required this.justify,
     this.paragraphSpacing = 0,
@@ -20,9 +19,6 @@ class ReaderContentStyle {
 
   /// 行高倍数。
   final double lineHeight;
-
-  /// 正文色。
-  final Color color;
 
   /// 普通正文段落之后的额外间距（逻辑像素）。
   final double paragraphSpacing;
@@ -36,12 +32,10 @@ class ReaderContentStyle {
   /// 章节混淆字体族名，null 用系统字体。
   final String? fontFamily;
 
-  TextStyle get textStyle => TextStyle(
-    fontSize: fontSize,
-    height: lineHeight,
-    color: color,
-    fontFamily: fontFamily,
-  );
+  /// 正文色不在这里：颜色只影响绘制，掺进来会让亮暗切换等于排版参数变更，整章
+  /// 重建并重新分页。颜色由外层 `DefaultTextStyle` 提供。
+  TextStyle get textStyle =>
+      TextStyle(fontSize: fontSize, height: lineHeight, fontFamily: fontFamily);
 
   /// `<font size="1..7">` 的历史换算表，与简介渲染器共用一套倍率。
   static const List<double> _fontTagSizes = <double>[
@@ -218,7 +212,6 @@ class ReaderContentStyle {
       other.fontSize == fontSize &&
       other.lineHeight == lineHeight &&
       other.paragraphSpacing == paragraphSpacing &&
-      other.color == color &&
       other.firstLineIndent == firstLineIndent &&
       other.justify == justify &&
       other.fontFamily == fontFamily;
@@ -228,7 +221,6 @@ class ReaderContentStyle {
     fontSize,
     lineHeight,
     paragraphSpacing,
-    color,
     firstLineIndent,
     justify,
     fontFamily,

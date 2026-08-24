@@ -35,6 +35,7 @@ import '../features/history/history_screen.dart';
 import '../features/reader/comic_reader_screen.dart';
 import '../features/reader/novel_reader_screen.dart';
 import '../features/reader/reader_open_position.dart';
+import '../features/reader/widgets/reader_theme.dart';
 import '../features/search/search_screen.dart';
 import '../features/settings/about_settings_screen.dart';
 import '../features/settings/appearance_settings_screen.dart';
@@ -251,14 +252,14 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
             'end' => ReaderOpenPosition.end,
             _ => ReaderOpenPosition.saved,
           };
-          if (state.uri.queryParameters['type'] == 'Comic') {
-            return ComicReaderScreen(bookId: bookId, sortNum: sortNum);
-          }
-          return NovelReaderScreen(
-            bookId: bookId,
-            sortNum: sortNum,
-            openPosition: position,
-          );
+          final Widget screen = state.uri.queryParameters['type'] == 'Comic'
+              ? ComicReaderScreen(bookId: bookId, sortNum: sortNum)
+              : NovelReaderScreen(
+                  bookId: bookId,
+                  sortNum: sortNum,
+                  openPosition: position,
+                );
+          return ReaderThemeScope(child: screen);
         },
       ),
       GoRoute(

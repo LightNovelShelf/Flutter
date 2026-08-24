@@ -20,7 +20,6 @@ const _style = ReaderContentStyle(
   fontSize: 16,
   lineHeight: 1.5,
   paragraphSpacing: 4,
-  color: Colors.black,
   firstLineIndent: false,
   justify: false,
 );

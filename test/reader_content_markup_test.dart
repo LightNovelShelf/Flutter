@@ -1,4 +1,3 @@
-import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightnovel/features/reader/reader_block_markup.dart';
 import 'package:lightnovel/features/reader/reader_html_blocks.dart';
@@ -8,7 +7,6 @@ import 'package:lightnovel/shared/widgets/html/reader_content_style.dart';
 ReaderContentStyle _style({bool indent = false}) => ReaderContentStyle(
   fontSize: 18,
   lineHeight: 1.6,
-  color: const Color(0xFF000000),
   firstLineIndent: indent,
   justify: false,
 );

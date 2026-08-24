@@ -23,6 +23,7 @@ import 'widgets/reader_footnote_sheet.dart';
 import 'widgets/reader_settings_sheet.dart';
 import 'widgets/reader_shell.dart';
 import 'widgets/reader_status_pills.dart';
+import 'widgets/reader_theme.dart';
 
 /// 小说阅读器。
 ///
@@ -214,30 +215,25 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
     return '章节加载失败，请稍后重试。';
   }
 
-  ReaderContentStyle _contentStyle(
-    AppSettings settings,
-    Color foreground,
-    String? fontFamily,
-  ) => ReaderContentStyle(
-    fontSize: settings.fontSize,
-    lineHeight: settings.readerLineHeight,
-    paragraphSpacing: settings.readerParagraphSpacing,
-    color: foreground,
-    firstLineIndent: settings.readerFirstLineIndent,
-    justify: settings.readerJustify,
-    fontFamily: fontFamily,
-  );
+  ReaderContentStyle _contentStyle(AppSettings settings, String? fontFamily) =>
+      ReaderContentStyle(
+        fontSize: settings.fontSize,
+        lineHeight: settings.readerLineHeight,
+        paragraphSpacing: settings.readerParagraphSpacing,
+        firstLineIndent: settings.readerFirstLineIndent,
+        justify: settings.readerJustify,
+        fontFamily: fontFamily,
+      );
 
   ReaderChapterContent? _chapterContent(
     ReaderPreparedChapter? prepared,
     AppSettings settings,
-    Color foreground,
   ) => prepared == null
       ? null
       : ReaderChapterContent(
-          sortNum: prepared.sortNum,
+          sortNum: prepared.chapter.sortNum,
           blocks: prepared.blocks,
-          style: _contentStyle(settings, foreground, prepared.fontFamily),
+          style: _contentStyle(settings, prepared.fontFamily),
         );
 
   /// 滚动模式的状态栏留白由外层给出，翻页模式需要计入每一页的内边距。
@@ -439,31 +435,32 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
               children: <Widget>[
                 Positioned.fill(
                   top: readerTopInset,
-                  child: ReaderContentView(
-                    chapter: _chapterContent(current, settings, foreground)!,
-                    previous: _chapterContent(
-                      _window.previous,
-                      settings,
-                      foreground,
+                  // 正文色走 DefaultTextStyle：亮暗切换只重画文字，不动排版参数，
+                  // 也就不会整章重建再分页。
+                  child: DefaultTextStyle.merge(
+                    style: TextStyle(color: foreground),
+                    child: ReaderContentView(
+                      chapter: _chapterContent(current, settings)!,
+                      previous: _chapterContent(_window.previous, settings),
+                      next: _chapterContent(_window.next, settings),
+                      paged: paged,
+                      padding: _contentPadding(settings),
+                      restoreLocator: _restoreLocator,
+                      restoreProgression: _restoreProgression,
+                      restoreToken: _restoreToken,
+                      onPosition: _onPositionReported,
+                      onTapCenter: () =>
+                          setState(() => _chromeVisible = !_chromeVisible),
+                      onChapterChanged: _onChapterChanged,
+                      onBoundary: (next) => unawaited(_openAdjacent(next)),
+                      onFootnote: _onFootnote,
+                      onReady: () {
+                        if (mounted && !_contentReady) {
+                          setState(() => _contentReady = true);
+                        }
+                      },
+                      controller: _contentController,
                     ),
-                    next: _chapterContent(_window.next, settings, foreground),
-                    paged: paged,
-                    padding: _contentPadding(settings),
-                    restoreLocator: _restoreLocator,
-                    restoreProgression: _restoreProgression,
-                    restoreToken: _restoreToken,
-                    onPosition: _onPositionReported,
-                    onTapCenter: () =>
-                        setState(() => _chromeVisible = !_chromeVisible),
-                    onChapterChanged: _onChapterChanged,
-                    onBoundary: (next) => unawaited(_openAdjacent(next)),
-                    onFootnote: _onFootnote,
-                    onReady: () {
-                      if (mounted && !_contentReady) {
-                        setState(() => _contentReady = true);
-                      }
-                    },
-                    controller: _contentController,
                   ),
                 ),
                 if (!_contentReady)
@@ -500,8 +497,13 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
         foregroundColor: foreground,
         currentChapter: _sortNum,
         totalChapters: _totalChapters,
+        chapterTitles: current?.chapter.chapterTitles ?? const <String>[],
         progress: _progression,
         onOpenChapters: () => unawaited(_openChapterSheet()),
+        nightMode: Theme.of(context).brightness == Brightness.dark,
+        onToggleNightMode: readerThemeLocked(settings)
+            ? null
+            : () => toggleReaderNightMode(context, ref),
         onOpenSettings: () => unawaited(showReaderSettingsSheet(context)),
         onDismiss: () => setState(() => _chromeVisible = false),
         onPreviousChapter: _sortNum > 1
@@ -510,6 +512,8 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
         onNextChapter: _sortNum < _totalChapters
             ? () => unawaited(_openAdjacent(true))
             : null,
+        onChapterSelected: (sortNum) =>
+            unawaited(_openChapter(sortNum, ReaderOpenPosition.start)),
       ),
     );
     return ReaderVolumeKeyListener(
