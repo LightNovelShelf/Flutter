@@ -72,9 +72,9 @@ void main() {
       isTrue,
     );
     expect(
-      AppSettings.decode(
-        const <String, dynamic>{'readerVolumeKeyPagingEnabled': 'true'},
-      ).readerVolumeKeyPagingEnabled,
+      AppSettings.decode(const <String, dynamic>{
+        'readerVolumeKeyPagingEnabled': 'true',
+      }).readerVolumeKeyPagingEnabled,
       isFalse,
     );
   });

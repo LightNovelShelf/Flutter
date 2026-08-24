@@ -20,6 +20,9 @@ enum ReaderViewMode { paged, scroll }
 
 enum ReaderBackgroundMode { auto, paper, custom }
 
+/// 阅读页单独的亮暗，默认跟随全局主题。
+enum ReaderThemeSetting { followApp, light, dark }
+
 enum ComicPagedDirection { ltr, rtl }
 
 enum CleanChapterTitleScope { continueReading, readerTitle }
@@ -85,6 +88,7 @@ class AppSettings {
     this.comicPagedDirection = ComicPagedDirection.ltr,
     this.readerPrerenderAdjacent = true,
     this.readerSidePadding = 30,
+    this.readerTheme = ReaderThemeSetting.followApp,
     this.readerVolumeKeyPagingEnabled = false,
     this.readerViewMode = ReaderViewMode.paged,
     this.seedColorValue = '#B71C1C',
@@ -115,6 +119,7 @@ class AppSettings {
   final ComicPagedDirection comicPagedDirection;
   final bool readerPrerenderAdjacent;
   final double readerSidePadding;
+  final ReaderThemeSetting readerTheme;
   final bool readerVolumeKeyPagingEnabled;
   final ReaderViewMode readerViewMode;
   final String seedColorValue;
@@ -145,6 +150,7 @@ class AppSettings {
     ComicPagedDirection? comicPagedDirection,
     bool? readerPrerenderAdjacent,
     double? readerSidePadding,
+    ReaderThemeSetting? readerTheme,
     bool? readerVolumeKeyPagingEnabled,
     ReaderViewMode? readerViewMode,
     String? seedColorValue,
@@ -179,6 +185,7 @@ class AppSettings {
     readerPrerenderAdjacent:
         readerPrerenderAdjacent ?? this.readerPrerenderAdjacent,
     readerSidePadding: readerSidePadding ?? this.readerSidePadding,
+    readerTheme: readerTheme ?? this.readerTheme,
     readerVolumeKeyPagingEnabled:
         readerVolumeKeyPagingEnabled ?? this.readerVolumeKeyPagingEnabled,
     readerViewMode: readerViewMode ?? this.readerViewMode,
@@ -250,6 +257,11 @@ class AppSettings {
       ),
       readerPrerenderAdjacent: _bool(raw['readerPrerenderAdjacent'], true),
       readerSidePadding: _clampDouble(raw['readerSidePadding'], 12, 64, 30),
+      readerTheme: _enumFromName(
+        ReaderThemeSetting.values,
+        raw['readerTheme'],
+        ReaderThemeSetting.followApp,
+      ),
       readerVolumeKeyPagingEnabled: _bool(
         raw['readerVolumeKeyPagingEnabled'],
         false,
@@ -303,6 +315,7 @@ class AppSettings {
     'comicPagedDirection': comicPagedDirection.name,
     'readerPrerenderAdjacent': readerPrerenderAdjacent,
     'readerSidePadding': readerSidePadding,
+    'readerTheme': readerTheme.name,
     'readerVolumeKeyPagingEnabled': readerVolumeKeyPagingEnabled,
     'readerViewMode': readerViewMode.name,
     'seedColorValue': seedColorValue,
@@ -336,6 +349,7 @@ class AppSettings {
       other.comicPagedDirection == comicPagedDirection &&
       other.readerPrerenderAdjacent == readerPrerenderAdjacent &&
       other.readerSidePadding == readerSidePadding &&
+      other.readerTheme == readerTheme &&
       other.readerVolumeKeyPagingEnabled == readerVolumeKeyPagingEnabled &&
       other.readerViewMode == readerViewMode &&
       other.seedColorValue == seedColorValue &&
@@ -367,6 +381,7 @@ class AppSettings {
     comicPagedDirection,
     readerPrerenderAdjacent,
     readerSidePadding,
+    readerTheme,
     readerVolumeKeyPagingEnabled,
     readerViewMode,
     seedColorValue,

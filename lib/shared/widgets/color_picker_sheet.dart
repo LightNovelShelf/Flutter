@@ -36,9 +36,9 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
 
   /// 灰阶的色相无意义，HSVColor 会把它归到 0，拖色相滑块看不到变化；给个默认饱和度。
   void _setHue(double hue) => setState(
-    () => _hsv = _hsv.withHue(hue).withSaturation(
-      _hsv.saturation == 0 ? 0.1 : _hsv.saturation,
-    ),
+    () => _hsv = _hsv
+        .withHue(hue)
+        .withSaturation(_hsv.saturation == 0 ? 0.1 : _hsv.saturation),
   );
 
   @override
@@ -102,7 +102,8 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
             value: _hsv.saturation,
             max: 1,
             format: (value) => '${(value * 100).round()}%',
-            onChanged: (value) => setState(() => _hsv = _hsv.withSaturation(value)),
+            onChanged: (value) =>
+                setState(() => _hsv = _hsv.withSaturation(value)),
           ),
           _ChannelSlider(
             label: '明度',
@@ -199,9 +200,8 @@ class _ChannelSlider extends StatelessWidget {
               Text(label, style: Theme.of(context).textTheme.bodyMedium),
               Text(
                 format(value),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
+                style: Theme.of(context).textTheme.bodyMedium
+                    ?.copyWith(color: colors.onSurfaceVariant),
               ),
             ],
           ),

@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/theme/app_theme.dart';
 import '../../../data/settings/app_settings.dart';
-import '../../../shared/format.dart';
 
 /// 纸质背景的配色：底色取纸纹贴图的平均色，工具栏与贴图接缝处才不会露出色差。
 class ReaderPaperPalette {
@@ -82,7 +81,9 @@ class ReaderChrome extends StatelessWidget {
   final double? progress;
   final VoidCallback onOpenChapters;
   final bool nightMode;
-  final VoidCallback onToggleNightMode;
+
+  /// 为空表示当前不许切主题（自定义背景色下亮暗由底色定），按钮置灰。
+  final VoidCallback? onToggleNightMode;
   final VoidCallback onOpenSettings;
   final VoidCallback onDismiss;
   final VoidCallback? onPreviousChapter;
@@ -132,6 +133,7 @@ class ReaderChrome extends StatelessWidget {
               curve: Curves.easeOutCubic,
               offset: visible ? Offset.zero : const Offset(0, 1),
               child: _ReaderBottomBar(
+                visible: visible,
                 backgroundColor: backgroundColor,
                 foregroundColor: foregroundColor,
                 bottomInset: padding.bottom,
@@ -187,7 +189,7 @@ class _ReaderTopBar extends StatelessWidget {
       elevation: 3,
       shadowColor: foregroundColor.withValues(alpha: 0.18),
       child: Padding(
-        padding: EdgeInsets.only(top: topInset),
+        padding: EdgeInsets.only(top: topInset, right: 16),
         child: SizedBox(
           height: 64,
           child: Row(
@@ -233,7 +235,6 @@ class _ReaderTopBar extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
             ],
           ),
         ),
@@ -244,6 +245,7 @@ class _ReaderTopBar extends StatelessWidget {
 
 class _ReaderBottomBar extends StatefulWidget {
   const _ReaderBottomBar({
+    required this.visible,
     required this.backgroundColor,
     required this.foregroundColor,
     required this.bottomInset,
@@ -260,6 +262,7 @@ class _ReaderBottomBar extends StatefulWidget {
     required this.onChapterSelected,
   });
 
+  final bool visible;
   final Color backgroundColor;
   final Color foregroundColor;
   final double bottomInset;
@@ -269,7 +272,7 @@ class _ReaderBottomBar extends StatefulWidget {
   final double? progress;
   final bool nightMode;
   final VoidCallback onOpenChapters;
-  final VoidCallback onToggleNightMode;
+  final VoidCallback? onToggleNightMode;
   final VoidCallback onOpenSettings;
   final VoidCallback? onPreviousChapter;
   final VoidCallback? onNextChapter;
@@ -284,41 +287,36 @@ class _ReaderBottomBarState extends State<_ReaderBottomBar> {
   static const double _menuHeight = 64;
   static const double _previewGap = 16;
 
-  int? _previewChapter;
+  /// 拖动中的目标章节，滑杆位置与气泡共用一份。松手、工具栏收起、外部章节变化都要
+  /// 清空，否则选章失败后滑杆会停在没能打开的那一章。
+  final ValueNotifier<int?> _preview = ValueNotifier<int?>(null);
 
-  void _showPreview(int chapter) {
-    if (_previewChapter == chapter) return;
-    setState(() => _previewChapter = chapter);
+  @override
+  void didUpdateWidget(covariant _ReaderBottomBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.visible ||
+        oldWidget.currentChapter != widget.currentChapter ||
+        oldWidget.totalChapters != widget.totalChapters) {
+      _preview.value = null;
+    }
   }
 
-  void _hidePreview() {
-    if (_previewChapter == null) return;
-    setState(() => _previewChapter = null);
+  @override
+  void dispose() {
+    _preview.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor = widget.backgroundColor;
-    final foregroundColor = widget.foregroundColor;
-    final bottomInset = widget.bottomInset;
-    final currentChapter = widget.currentChapter;
-    final totalChapters = widget.totalChapters;
     final progress = widget.progress;
-    final nightMode = widget.nightMode;
-    final onOpenChapters = widget.onOpenChapters;
-    final onToggleNightMode = widget.onToggleNightMode;
-    final onOpenSettings = widget.onOpenSettings;
-    final onPreviousChapter = widget.onPreviousChapter;
-    final onNextChapter = widget.onNextChapter;
-    final onChapterSelected = widget.onChapterSelected;
-    final disabled = foregroundColor.withValues(alpha: 0.38);
+    final disabled = widget.foregroundColor.withValues(alpha: 0.38);
     final reduceMotion =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    final previewChapter = _previewChapter;
     return Material(
-      color: backgroundColor,
+      color: widget.backgroundColor,
       elevation: 8,
-      shadowColor: foregroundColor.withValues(alpha: 0.18),
+      shadowColor: widget.foregroundColor.withValues(alpha: 0.18),
       child: Stack(
         clipBehavior: Clip.none,
         children: <Widget>[
@@ -329,7 +327,9 @@ class _ReaderBottomBarState extends State<_ReaderBottomBar> {
                 LinearProgressIndicator(
                   value: progress.clamp(0.0, 1.0),
                   minHeight: 2,
-                  backgroundColor: foregroundColor.withValues(alpha: 0.12),
+                  backgroundColor: widget.foregroundColor.withValues(
+                    alpha: 0.12,
+                  ),
                 ),
               SizedBox(
                 height: _chapterNavigationHeight,
@@ -338,9 +338,9 @@ class _ReaderBottomBarState extends State<_ReaderBottomBar> {
                     Expanded(
                       flex: 3,
                       child: TextButton.icon(
-                        onPressed: onPreviousChapter,
+                        onPressed: widget.onPreviousChapter,
                         style: TextButton.styleFrom(
-                          foregroundColor: foregroundColor,
+                          foregroundColor: widget.foregroundColor,
                           disabledForegroundColor: disabled,
                           padding: EdgeInsets.zero,
                         ),
@@ -348,25 +348,24 @@ class _ReaderBottomBarState extends State<_ReaderBottomBar> {
                         label: const Text('上一章'),
                       ),
                     ),
-                    if (totalChapters > 0)
+                    if (widget.totalChapters > 1)
                       Expanded(
                         flex: 5,
                         child: _ReaderChapterSlider(
-                          currentChapter: currentChapter,
-                          totalChapters: totalChapters,
-                          backgroundColor: backgroundColor,
-                          foregroundColor: foregroundColor,
-                          onChapterPreviewChanged: _showPreview,
-                          onChapterPreviewEnded: _hidePreview,
-                          onChapterSelected: onChapterSelected,
+                          preview: _preview,
+                          currentChapter: widget.currentChapter,
+                          totalChapters: widget.totalChapters,
+                          backgroundColor: widget.backgroundColor,
+                          foregroundColor: widget.foregroundColor,
+                          onChapterSelected: widget.onChapterSelected,
                         ),
                       ),
                     Expanded(
                       flex: 3,
                       child: TextButton.icon(
-                        onPressed: onNextChapter,
+                        onPressed: widget.onNextChapter,
                         style: TextButton.styleFrom(
-                          foregroundColor: foregroundColor,
+                          foregroundColor: widget.foregroundColor,
                           disabledForegroundColor: disabled,
                           padding: EdgeInsets.zero,
                         ),
@@ -386,75 +385,78 @@ class _ReaderBottomBarState extends State<_ReaderBottomBar> {
                       child: _ReaderMenuButton(
                         icon: Icons.list_alt_rounded,
                         label: '目录',
-                        foregroundColor: foregroundColor,
-                        onPressed: onOpenChapters,
+                        foregroundColor: widget.foregroundColor,
+                        onPressed: widget.onOpenChapters,
                       ),
                     ),
                     Expanded(
                       child: _ReaderMenuButton(
-                        icon: nightMode
+                        icon: widget.nightMode
                             ? Icons.dark_mode_rounded
                             : Icons.dark_mode_outlined,
                         label: '夜间',
-                        foregroundColor: foregroundColor,
+                        foregroundColor: widget.foregroundColor,
                         semanticLabel: '夜间模式',
-                        toggled: nightMode,
-                        onPressed: onToggleNightMode,
+                        toggled: widget.nightMode,
+                        onPressed: widget.onToggleNightMode,
                       ),
                     ),
                     Expanded(
                       child: _ReaderMenuButton(
                         icon: Icons.tune_rounded,
                         label: '设置',
-                        foregroundColor: foregroundColor,
-                        onPressed: onOpenSettings,
+                        foregroundColor: widget.foregroundColor,
+                        onPressed: widget.onOpenSettings,
                       ),
                     ),
                   ],
                 ),
               ),
-              SizedBox(height: bottomInset),
+              SizedBox(height: widget.bottomInset),
             ],
           ),
           Positioned(
             left: 24,
             right: 24,
             bottom:
-                bottomInset +
+                widget.bottomInset +
                 _chapterNavigationHeight +
                 _menuHeight +
                 _previewGap,
             child: IgnorePointer(
-              child: AnimatedSwitcher(
-                duration: reduceMotion
-                    ? Duration.zero
-                    : const Duration(milliseconds: 140),
-                reverseDuration: reduceMotion
-                    ? Duration.zero
-                    : const Duration(milliseconds: 90),
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: ScaleTransition(
-                    scale: Tween<double>(begin: 0.96, end: 1).animate(
-                      CurvedAnimation(
-                        parent: animation,
-                        curve: Curves.easeOutCubic,
+              child: ValueListenableBuilder<int?>(
+                valueListenable: _preview,
+                builder: (context, previewChapter, _) => AnimatedSwitcher(
+                  duration: reduceMotion
+                      ? Duration.zero
+                      : const Duration(milliseconds: 140),
+                  reverseDuration: reduceMotion
+                      ? Duration.zero
+                      : const Duration(milliseconds: 90),
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(
+                      scale: Tween<double>(begin: 0.96, end: 1).animate(
+                        CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeOutCubic,
+                        ),
                       ),
+                      alignment: Alignment.bottomCenter,
+                      child: child,
                     ),
-                    alignment: Alignment.bottomCenter,
-                    child: child,
                   ),
+                  child: previewChapter == null
+                      ? const SizedBox.shrink(key: ValueKey<bool>(false))
+                      : _ReaderChapterPreview(
+                          key: const ValueKey<bool>(true),
+                          chapter: previewChapter,
+                          totalChapters: widget.totalChapters,
+                          chapterTitles: widget.chapterTitles,
+                          backgroundColor: widget.backgroundColor,
+                          foregroundColor: widget.foregroundColor,
+                        ),
                 ),
-                child: previewChapter == null
-                    ? const SizedBox.shrink(key: ValueKey<bool>(false))
-                    : _ReaderChapterPreview(
-                        key: const ValueKey<bool>(true),
-                        chapter: previewChapter,
-                        totalChapters: totalChapters,
-                        chapterTitles: widget.chapterTitles,
-                        backgroundColor: backgroundColor,
-                        foregroundColor: foregroundColor,
-                      ),
               ),
             ),
           ),
@@ -481,15 +483,9 @@ class _ReaderChapterPreview extends StatelessWidget {
   final Color foregroundColor;
 
   String get _title {
-    final chapterLabel = '第$chapter章';
-    if (chapter < 1 || chapter > chapterTitles.length) return chapterLabel;
-    final raw = chapterTitles[chapter - 1].trim();
-    if (raw.isEmpty) return chapterLabel;
-    final cleaned = cleanChapterTitle(raw)
-        .replaceFirst(RegExp(r'^[\s:：—-]+'), '')
-        .trim();
-    if (cleaned.isEmpty || cleaned == raw && raw.startsWith('第')) return raw;
-    return '$chapterLabel：$cleaned';
+    if (chapter < 1 || chapter > chapterTitles.length) return '第$chapter章';
+    final title = chapterTitles[chapter - 1].trim();
+    return title.isEmpty ? '第$chapter章' : title;
   }
 
   @override
@@ -554,148 +550,113 @@ class _ReaderMenuButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color foregroundColor;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final String? semanticLabel;
   final bool? toggled;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    toggled: toggled,
-    label: semanticLabel ?? label,
-    child: ExcludeSemantics(
-      child: TextButton(
-        onPressed: onPressed,
-        style: TextButton.styleFrom(
-          foregroundColor: foregroundColor,
-          padding: EdgeInsets.zero,
-          shape: const RoundedRectangleBorder(),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Icon(icon, size: 28),
-            const SizedBox(height: 4),
-            Text(label, style: const TextStyle(fontSize: 13, height: 16 / 13)),
-          ],
-        ),
+  Widget build(BuildContext context) => TextButton(
+    onPressed: onPressed,
+    style: TextButton.styleFrom(
+      foregroundColor: foregroundColor,
+      disabledForegroundColor: foregroundColor.withValues(alpha: 0.38),
+      padding: EdgeInsets.zero,
+      shape: const RoundedRectangleBorder(),
+    ),
+    // 语义只能放在按钮里面：包住 TextButton 会把点击动作一起排除，读屏就点不动了。
+    child: Semantics(
+      label: semanticLabel,
+      toggled: toggled,
+      excludeSemantics: semanticLabel != null,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Icon(icon, size: 28),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(fontSize: 13, height: 16 / 13)),
+        ],
       ),
     ),
   );
 }
 
-class _ReaderChapterSlider extends StatefulWidget {
+class _ReaderChapterSlider extends StatelessWidget {
   const _ReaderChapterSlider({
+    required this.preview,
     required this.currentChapter,
     required this.totalChapters,
     required this.backgroundColor,
     required this.foregroundColor,
-    required this.onChapterPreviewChanged,
-    required this.onChapterPreviewEnded,
     required this.onChapterSelected,
   });
 
+  final ValueNotifier<int?> preview;
   final int currentChapter;
   final int totalChapters;
   final Color backgroundColor;
   final Color foregroundColor;
-  final ValueChanged<int> onChapterPreviewChanged;
-  final VoidCallback onChapterPreviewEnded;
   final ValueChanged<int>? onChapterSelected;
 
-  @override
-  State<_ReaderChapterSlider> createState() => _ReaderChapterSliderState();
-}
-
-class _ReaderChapterSliderState extends State<_ReaderChapterSlider> {
-  int? _previewChapter;
-
-  @override
-  void didUpdateWidget(covariant _ReaderChapterSlider oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.currentChapter != widget.currentChapter ||
-        oldWidget.totalChapters != widget.totalChapters) {
-      _previewChapter = null;
-    }
-  }
+  int _chapterAt(double value) => value.round().clamp(1, totalChapters).toInt();
 
   @override
   Widget build(BuildContext context) {
-    final current = (_previewChapter ?? widget.currentChapter)
-        .clamp(1, widget.totalChapters)
-        .toInt();
-    final enabled =
-        widget.totalChapters > 1 && widget.onChapterSelected != null;
-    final activeTrack = widget.foregroundColor.withValues(alpha: 0.38);
-    final inactiveTrack = widget.foregroundColor.withValues(alpha: 0.14);
+    final onSelected = onChapterSelected;
+    final activeTrack = foregroundColor.withValues(alpha: 0.38);
+    final inactiveTrack = foregroundColor.withValues(alpha: 0.14);
     final thumb = Color.alphaBlend(
-      widget.foregroundColor.withValues(alpha: 0.12),
-      widget.backgroundColor,
+      foregroundColor.withValues(alpha: 0.12),
+      backgroundColor,
     );
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: <Widget>[
-        SizedBox(
-          height: 38,
-          child: SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 8,
-              activeTrackColor: activeTrack,
-              inactiveTrackColor: inactiveTrack,
-              disabledActiveTrackColor: activeTrack,
-              disabledInactiveTrackColor: inactiveTrack,
-              thumbColor: thumb,
-              disabledThumbColor: thumb,
-              overlayColor: widget.foregroundColor.withValues(alpha: 0.10),
-              thumbShape: const RoundSliderThumbShape(
-                enabledThumbRadius: 13,
-                disabledThumbRadius: 13,
-                elevation: 1,
-                pressedElevation: 2,
-              ),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 22),
+    return Center(
+      child: SizedBox(
+        height: 38,
+        child: SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 8,
+            activeTrackColor: activeTrack,
+            inactiveTrackColor: inactiveTrack,
+            disabledActiveTrackColor: activeTrack,
+            disabledInactiveTrackColor: inactiveTrack,
+            thumbColor: thumb,
+            disabledThumbColor: thumb,
+            overlayColor: foregroundColor.withValues(alpha: 0.10),
+            thumbShape: const RoundSliderThumbShape(
+              enabledThumbRadius: 13,
+              disabledThumbRadius: 13,
+              elevation: 1,
+              pressedElevation: 2,
             ),
-            child: Slider(
-              value: current.toDouble(),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 22),
+          ),
+          child: ValueListenableBuilder<int?>(
+            valueListenable: preview,
+            builder: (context, previewChapter, _) => Slider(
+              value: (previewChapter ?? currentChapter)
+                  .clamp(1, totalChapters)
+                  .toDouble(),
               min: 1,
-              max: widget.totalChapters.toDouble(),
-              label: '$current / ${widget.totalChapters}',
+              max: totalChapters.toDouble(),
               semanticFormatterCallback: (value) =>
-                  '第 ${value.round()} 章，共 ${widget.totalChapters} 章',
-              onChangeStart: enabled
-                  ? (value) => widget.onChapterPreviewChanged(
-                      value.round().clamp(1, widget.totalChapters).toInt(),
-                    )
-                  : null,
-              onChanged: enabled
-                  ? (value) {
-                      final chapter = value
-                          .round()
-                          .clamp(1, widget.totalChapters)
-                          .toInt();
-                      setState(() => _previewChapter = chapter);
-                      widget.onChapterPreviewChanged(chapter);
-                    }
-                  : null,
-              onChangeEnd: enabled
-                  ? (value) {
-                      final chapter = value
-                          .round()
-                          .clamp(1, widget.totalChapters)
-                          .toInt();
-                      widget.onChapterPreviewEnded();
-                      if (chapter == widget.currentChapter) {
-                        setState(() => _previewChapter = null);
-                        return;
-                      }
-                      widget.onChapterSelected!(chapter);
-                    }
-                  : null,
+                  '第 ${value.round()} 章，共 $totalChapters 章',
+              onChangeStart: onSelected == null
+                  ? null
+                  : (value) => preview.value = _chapterAt(value),
+              onChanged: onSelected == null
+                  ? null
+                  : (value) => preview.value = _chapterAt(value),
+              onChangeEnd: onSelected == null
+                  ? null
+                  : (value) {
+                      final chapter = _chapterAt(value);
+                      preview.value = null;
+                      if (chapter != currentChapter) onSelected(chapter);
+                    },
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

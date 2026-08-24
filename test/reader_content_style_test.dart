@@ -5,7 +5,6 @@ import 'package:lightnovel/shared/widgets/html/reader_content_style.dart';
 const _style = ReaderContentStyle(
   fontSize: 18,
   lineHeight: 1.6,
-  color: Color(0xFF222222),
   firstLineIndent: true,
   justify: false,
 );
@@ -22,19 +21,13 @@ void main() {
     const styled = ReaderContentStyle(
       fontSize: 20,
       lineHeight: 1.8,
-      color: Color(0xFF112233),
       firstLineIndent: false,
       justify: false,
       fontFamily: 'ln-obf-1',
     );
     expect(
       styled.textStyle,
-      const TextStyle(
-        fontSize: 20,
-        height: 1.8,
-        color: Color(0xFF112233),
-        fontFamily: 'ln-obf-1',
-      ),
+      const TextStyle(fontSize: 20, height: 1.8, fontFamily: 'ln-obf-1'),
     );
   });
 
@@ -43,7 +36,6 @@ void main() {
       fontSize: 16,
       lineHeight: 1.5,
       paragraphSpacing: 4,
-      color: Color(0xFF222222),
       firstLineIndent: false,
       justify: false,
     );
@@ -55,7 +47,6 @@ void main() {
     const noIndent = ReaderContentStyle(
       fontSize: 18,
       lineHeight: 1.6,
-      color: Color(0xFF222222),
       firstLineIndent: false,
       justify: false,
     );
@@ -152,7 +143,6 @@ void main() {
         style: const ReaderContentStyle(
           fontSize: 24,
           lineHeight: 1.6,
-          color: Color(0xFF222222),
           firstLineIndent: true,
           justify: false,
         ),
@@ -167,7 +157,6 @@ void main() {
     const justified = ReaderContentStyle(
       fontSize: 18,
       lineHeight: 1.6,
-      color: Color(0xFF222222),
       firstLineIndent: true,
       justify: true,
     );

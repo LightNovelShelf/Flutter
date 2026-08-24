@@ -77,6 +77,30 @@ class AppPalette {
   int get hashCode => Object.hash(useSystemColor, seedColorValue, oledBlack);
 }
 
+/// 把 `DynamicColorBuilder` 的取色结果往下传。阅读页要单独构建一套亮/暗主题，
+/// 拿不到它就会丢掉动态取色。
+class AppDynamicSchemes extends InheritedWidget {
+  const AppDynamicSchemes({
+    super.key,
+    required this.light,
+    required this.dark,
+    required super.child,
+  });
+
+  final ColorScheme? light;
+  final ColorScheme? dark;
+
+  static AppDynamicSchemes? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<AppDynamicSchemes>();
+
+  ColorScheme? forBrightness(Brightness brightness) =>
+      brightness == Brightness.dark ? dark : light;
+
+  @override
+  bool updateShouldNotify(AppDynamicSchemes oldWidget) =>
+      light != oldWidget.light || dark != oldWidget.dark;
+}
+
 /// 按输入缓存主题实例。新建 `ThemeData` 会让 `AnimatedTheme` 判定主题变更，标脏所有
 /// `Theme.of` 依赖者（含 indexedStack 里的离屏 tab），实测一次导航多 30~43ms。
 typedef _ThemeKey = (Brightness, AppPalette, ColorScheme?);

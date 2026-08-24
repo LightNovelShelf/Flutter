@@ -57,39 +57,43 @@ class LightNovelShelfApp extends ConsumerWidget {
 
     return DynamicColorBuilder(
       builder: (lightDynamic, darkDynamic) {
-        return MaterialApp.router(
-          title: '轻书架',
-          debugShowCheckedModeBanner: false,
-          routerConfig: router,
-          theme: buildAppThemeFor(
-            brightness: Brightness.light,
-            palette: palette,
-            dynamicScheme: lightDynamic,
+        return AppDynamicSchemes(
+          light: lightDynamic,
+          dark: darkDynamic,
+          child: MaterialApp.router(
+            title: '轻书架',
+            debugShowCheckedModeBanner: false,
+            routerConfig: router,
+            theme: buildAppThemeFor(
+              brightness: Brightness.light,
+              palette: palette,
+              dynamicScheme: lightDynamic,
+            ),
+            darkTheme: buildAppThemeFor(
+              brightness: Brightness.dark,
+              palette: palette,
+              dynamicScheme: darkDynamic,
+            ),
+            themeMode: switch (theme) {
+              ThemeSetting.light => ThemeMode.light,
+              ThemeSetting.dark => ThemeMode.dark,
+              ThemeSetting.system => ThemeMode.system,
+            },
+            locale: switch (language) {
+              LanguageSetting.zhCN => const Locale('zh', 'CN'),
+              LanguageSetting.zhTW => const Locale('zh', 'TW'),
+              LanguageSetting.system => null,
+            },
+            supportedLocales: const <Locale>[
+              Locale('zh', 'CN'),
+              Locale('zh', 'TW'),
+            ],
+            localizationsDelegates: const <LocalizationsDelegate<Object?>>[
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
           ),
-          darkTheme: buildAppThemeFor(
-            brightness: Brightness.dark,
-            palette: palette,
-            dynamicScheme: darkDynamic,
-          ),
-          themeMode: switch (theme) {
-            ThemeSetting.light => ThemeMode.light,
-            ThemeSetting.dark => ThemeMode.dark,
-            ThemeSetting.system => ThemeMode.system,
-          },
-          locale: switch (language) {
-            LanguageSetting.zhCN => const Locale('zh', 'CN'),
-            LanguageSetting.zhTW => const Locale('zh', 'TW'),
-            LanguageSetting.system => null,
-          },
-          supportedLocales: const <Locale>[
-            Locale('zh', 'CN'),
-            Locale('zh', 'TW'),
-          ],
-          localizationsDelegates: const <LocalizationsDelegate<Object?>>[
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
         );
       },
     );

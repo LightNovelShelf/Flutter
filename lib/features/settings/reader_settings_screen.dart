@@ -88,6 +88,35 @@ class ReaderSettingsContent extends ConsumerWidget {
                     color: parseSeedColor(settings.readerBackgroundColorValue),
                   ),
                 ),
+              if (settings.readerBackgroundMode == ReaderBackgroundMode.custom)
+                SettingsValueRow(
+                  title: '阅读主题',
+                  description: '自定义背景色的亮暗由底色决定',
+                  icon: Icons.brightness_4_outlined,
+                  value:
+                      ThemeData.estimateBrightnessForColor(
+                            parseSeedColor(settings.readerBackgroundColorValue),
+                          ) ==
+                          Brightness.dark
+                      ? '深色'
+                      : '浅色',
+                  enabled: false,
+                )
+              else
+                SettingsPickerRow<ReaderThemeSetting>(
+                  title: '阅读主题',
+                  description: '阅读页单独的主题',
+                  icon: Icons.brightness_4_outlined,
+                  value: settings.readerTheme,
+                  options: const <(ReaderThemeSetting, String)>[
+                    (ReaderThemeSetting.followApp, '跟随应用'),
+                    (ReaderThemeSetting.light, '浅色'),
+                    (ReaderThemeSetting.dark, '深色'),
+                  ],
+                  onChanged: (value) => controller.update(
+                    (settings) => settings.copyWith(readerTheme: value),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 20),
@@ -227,9 +256,8 @@ class ReaderSettingsContent extends ConsumerWidget {
                   icon: Icons.volume_up_outlined,
                   value: settings.readerVolumeKeyPagingEnabled,
                   onChanged: (value) => controller.update(
-                    (settings) => settings.copyWith(
-                      readerVolumeKeyPagingEnabled: value,
-                    ),
+                    (settings) =>
+                        settings.copyWith(readerVolumeKeyPagingEnabled: value),
                   ),
                 ),
               SettingsToggleRow(
