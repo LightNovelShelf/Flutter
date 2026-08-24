@@ -32,6 +32,7 @@ Future<void> main() async {
 
   runApp(
     ProviderScope(
+      retry: apiRetry,
       overrides: <Override>[appRuntimeProvider.overrideWithValue(runtime)],
       child: const LightNovelShelfApp(),
     ),
