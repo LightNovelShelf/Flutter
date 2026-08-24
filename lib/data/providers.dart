@@ -14,7 +14,7 @@ import 'settings/app_settings.dart';
 /// 一般重试三次就够了，不然要等好久...
 Duration? apiRetry(int retryCount, Object error) {
   if (isCancellation(error)) return null;
-  if (error is ApiError && error.category != ApiErrorCategory.network) {
+  if (error is! ApiError || error.category != ApiErrorCategory.network) {
     return null;
   }
   return ProviderContainer.defaultRetry(retryCount, error, maxRetries: 3);
