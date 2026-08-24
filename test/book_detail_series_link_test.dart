@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:lightnovel/core/network/api_error.dart';
 import 'package:lightnovel/core/network/request_scheduler.dart';
 import 'package:lightnovel/core/platform/stores.dart';
 import 'package:lightnovel/core/network/signalr_connection.dart';
@@ -18,6 +19,9 @@ import 'package:lightnovel/features/discover/novel_series_books_screen.dart';
 /// 详情页标题进入系列列表，系列键与服务端 `SeriesTitle` 一致（中文名优先）。
 const int _bookId = 42;
 const String _bookTitle = '某本小说 第一卷';
+
+/// 服务端对无权访问的书籍返回业务错误，`ApiClient` 抛成 [ApiError]。
+const String _forbiddenMessage = '您没有权限访问这本书';
 
 Map<String, dynamic> _detailResponse() => <String, dynamic>{
   'Book': <String, dynamic>{
@@ -47,7 +51,7 @@ Map<String, dynamic> _detailResponse() => <String, dynamic>{
 };
 
 class _FakeApi extends ApiClient {
-  _FakeApi()
+  _FakeApi({this.forbidBookInfo = false})
     : super(
         signalR: SignalRConnection(
           endpoint: 'http://localhost/hub',
@@ -56,6 +60,9 @@ class _FakeApi extends ApiClient {
         scheduler: RateLimitRequestScheduler(),
         headers: () async => const <String, String>{},
       );
+
+  /// 详情接口是否返回无权访问。
+  final bool forbidBookInfo;
 
   final List<(String, Map<String, Object?>)> calls =
       <(String, Map<String, Object?>)>[];
@@ -72,6 +79,9 @@ class _FakeApi extends ApiClient {
     calls.add((methodName, args));
     switch (methodName) {
       case 'GetBookInfo':
+        if (forbidBookInfo) {
+          throw const ApiError(_forbiddenMessage, ApiErrorCategory.server);
+        }
         return decode(_detailResponse());
       case 'GetBooksBySeries':
         return decode(<String, dynamic>{
@@ -109,8 +119,9 @@ class _MemoryStore implements KeyValueStore {
 Future<({_FakeApi api, GoRouter router})> _open(
   WidgetTester tester, {
   String initialLocation = '/book/$_bookId',
+  bool forbidBookInfo = false,
 }) async {
-  final api = _FakeApi();
+  final api = _FakeApi(forbidBookInfo: forbidBookInfo);
   final router = GoRouter(
     initialLocation: initialLocation,
     routes: <RouteBase>[
@@ -136,6 +147,8 @@ Future<({_FakeApi api, GoRouter router})> _open(
   );
   await tester.pumpWidget(
     ProviderScope(
+      // 与 main 保持一致，否则测到的是 Riverpod 默认的十次退避重试。
+      retry: apiRetry,
       overrides: <Override>[
         apiClientProvider.overrideWithValue(api),
         settingsControllerProvider.overrideWith(
@@ -200,5 +213,54 @@ void main() {
     expect(find.byType(NovelSeriesBooksScreen), findsOneWidget);
     // 没有重复压入同名系列页。
     expect(opened.router.canPop(), isFalse);
+  });
+
+  /// 详情页正常态的返回按钮挂在 `_body` 的 `SliverAppBar` 上，取不到数据时那条
+  /// AppBar 不渲染。桌面端没有手势返回，只剩 `Scaffold.appBar` 这一条路径。
+  testWidgets('无权访问的书籍仍挂出 AppBar，桌面端能退回上一页', (tester) async {
+    await _open(
+      tester,
+      initialLocation:
+          '/books/series?name=%E4%B8%AD%E6%96%87%E7%B3%BB%E5%88%97&order=latest',
+      forbidBookInfo: true,
+    );
+
+    await tester.tap(find.text('同系列的另一本'));
+    await tester.pumpAndSettle();
+    expect(find.byType(BookDetailScreen), findsOneWidget);
+
+    // 系列页自己也有 AppBar，限定在详情页子树内找。
+    final back = find.descendant(
+      of: find.byType(BookDetailScreen),
+      matching: find.byType(BackButton),
+    );
+    expect(back, findsOneWidget);
+
+    await tester.tap(back);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BookDetailScreen), findsNothing);
+    expect(find.byType(NovelSeriesBooksScreen), findsOneWidget);
+  });
+
+  /// 业务错误重试多少次都是同一个结果，[apiRetry] 让它一次都不退避，
+  /// 页面立刻给出原因而不是先在骨架屏上干等。
+  testWidgets('无权访问不重试，详情页直接给出服务端文案', (tester) async {
+    final opened = await _open(
+      tester,
+      initialLocation:
+          '/books/series?name=%E4%B8%AD%E6%96%87%E7%B3%BB%E5%88%97&order=latest',
+      forbidBookInfo: true,
+    );
+
+    await tester.tap(find.text('同系列的另一本'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('无法加载这本书'), findsOneWidget);
+    expect(find.text(_forbiddenMessage), findsOneWidget);
+    expect(
+      opened.api.calls.where((call) => call.$1 == 'GetBookInfo').length,
+      1,
+    );
   });
 }
