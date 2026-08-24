@@ -599,8 +599,20 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     foregroundColor: foreground,
     currentChapter: _chapterIndex + 1,
     totalChapters: _chapters.length,
+    chapterTitles: <String>[for (final chapter in _chapters) chapter.title],
     progress: _slots.isEmpty ? null : (page + 1) / _slots.length,
     onOpenChapters: () => unawaited(_openChapterSheet()),
+    nightMode: Theme.of(context).brightness == Brightness.dark,
+    onToggleNightMode: () {
+      final nightMode = Theme.of(context).brightness == Brightness.dark;
+      ref
+          .read(settingsControllerProvider)
+          .update(
+            (settings) => settings.copyWith(
+              theme: nightMode ? ThemeSetting.light : ThemeSetting.dark,
+            ),
+          );
+    },
     onOpenSettings: () => unawaited(showReaderSettingsSheet(context)),
     onDismiss: () => _chromeVisible.value = false,
     onPreviousChapter: _chapterIndex > 0
@@ -609,6 +621,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     onNextChapter: _chapterIndex < _chapters.length - 1
         ? () => unawaited(_openChapterIndex(_chapterIndex + 1))
         : null,
+    onChapterSelected: (chapter) => unawaited(_openChapterIndex(chapter - 1)),
   );
 
   @override

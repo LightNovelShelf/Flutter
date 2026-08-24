@@ -500,8 +500,20 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
         foregroundColor: foreground,
         currentChapter: _sortNum,
         totalChapters: _totalChapters,
+        chapterTitles: current?.chapter.chapterTitles ?? const <String>[],
         progress: _progression,
         onOpenChapters: () => unawaited(_openChapterSheet()),
+        nightMode: Theme.of(context).brightness == Brightness.dark,
+        onToggleNightMode: () {
+          final nightMode = Theme.of(context).brightness == Brightness.dark;
+          ref
+              .read(settingsControllerProvider)
+              .update(
+                (settings) => settings.copyWith(
+                  theme: nightMode ? ThemeSetting.light : ThemeSetting.dark,
+                ),
+              );
+        },
         onOpenSettings: () => unawaited(showReaderSettingsSheet(context)),
         onDismiss: () => setState(() => _chromeVisible = false),
         onPreviousChapter: _sortNum > 1
@@ -510,6 +522,8 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
         onNextChapter: _sortNum < _totalChapters
             ? () => unawaited(_openAdjacent(true))
             : null,
+        onChapterSelected: (sortNum) =>
+            unawaited(_openChapter(sortNum, ReaderOpenPosition.start)),
       ),
     );
     return ReaderVolumeKeyListener(
