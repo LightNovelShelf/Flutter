@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../shared/widgets/state_views.dart';
 import 'reader_paper_texture.dart';
@@ -40,8 +41,11 @@ class ReaderShell extends StatelessWidget {
     final message = error;
     final Widget content;
     if (message != null) {
-      content = Center(
-        child: ErrorStateView(message: message, onRetry: onRetry),
+      // 出错时正文不在，工具栏只能靠点正文唤出，返回按钮是唯一的退出入口。
+      content = ErrorStateView(
+        message: message,
+        onRetry: onRetry,
+        onBack: context.canPop() ? context.pop : null,
       );
     } else if (loading) {
       content = const Center(child: CircularProgressIndicator());

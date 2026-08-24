@@ -122,16 +122,14 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
       settings: settings,
       child: Builder(
         builder: (themedContext) => Scaffold(
-          // 桌面端设备没有手势返回，AppBar 需要显示返回按钮。
-          appBar: async.hasError ? AppBar() : null,
           body: async.when(
             loading: () => const BookDetailSkeleton(),
-            error: (error, _) => Center(
-              child: ErrorStateView(
-                title: '无法加载这本书',
-                message: error is ApiError ? error.message : '请稍后再试。',
-                onRetry: () => ref.invalidate(bookDetailProvider(_request)),
-              ),
+            error: (error, _) => ErrorStateView(
+              title: '无法加载这本书',
+              message: error is ApiError ? error.message : '请稍后再试。',
+              onRetry: () => ref.invalidate(bookDetailProvider(_request)),
+              // 出错时正常态的 SliverAppBar 不渲染，这是页面上唯一的返回入口。
+              onBack: context.canPop() ? context.pop : null,
             ),
             data: (value) => _body(themedContext, value),
           ),

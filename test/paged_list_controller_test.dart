@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -159,14 +160,26 @@ void main() {
       );
     });
 
-    test('normalize 把任意异常按网络错误处理', () {
+    test('normalize 只把传输层故障按网络错误处理', () {
       expect(
         describeApiError(
-          const SocketFailure(),
+          const SocketException('connection refused'),
           network: '断网了',
           normalize: true,
         ),
         '断网了',
+      );
+    });
+
+    test('认不出来的异常不算网络错误，原样透出而不是套网络文案', () {
+      expect(
+        describeApiError(
+          const SocketFailure(),
+          network: '断网了',
+          fallback: '兜底',
+          normalize: true,
+        ),
+        'SocketFailure',
       );
       expect(describeApiError(const SocketFailure(), fallback: '兜底'), '兜底');
     });

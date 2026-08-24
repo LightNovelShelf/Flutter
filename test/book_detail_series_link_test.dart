@@ -11,6 +11,7 @@ import 'package:lightnovel/core/network/signalr_connection.dart';
 import 'package:lightnovel/data/api/api_client.dart';
 import 'package:lightnovel/data/api/models.dart';
 import 'package:lightnovel/data/providers.dart';
+import 'package:lightnovel/data/retry_policy.dart';
 import 'package:lightnovel/data/settings/app_settings.dart';
 import 'package:lightnovel/features/book/book_detail_screen.dart';
 import 'package:lightnovel/features/book/book_providers.dart';
@@ -216,12 +217,11 @@ void main() {
   });
 
   /// 详情页正常态的返回按钮挂在 `_body` 的 `SliverAppBar` 上，取不到数据时那条
-  /// AppBar 不渲染。桌面端没有手势返回，只剩 `Scaffold.appBar` 这一条路径。
-  testWidgets('无权访问的书籍仍挂出 AppBar，桌面端能退回上一页', (tester) async {
+  /// AppBar 不渲染。桌面端没有手势返回，错误页上的返回按钮是唯一的退出入口。
+  testWidgets('无权访问的书籍在错误页上留返回入口，桌面端能退回上一页', (tester) async {
     await _open(
       tester,
-      initialLocation:
-          '/books/series?name=%E4%B8%AD%E6%96%87%E7%B3%BB%E5%88%97&order=latest',
+      initialLocation: '/books/series?name=%E4%B8%AD%E6%96%87%E7%B3%BB%E5%88%97&order=latest',
       forbidBookInfo: true,
     );
 
@@ -229,11 +229,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(BookDetailScreen), findsOneWidget);
 
-    // 系列页自己也有 AppBar，限定在详情页子树内找。
-    final back = find.descendant(
-      of: find.byType(BookDetailScreen),
-      matching: find.byType(BackButton),
-    );
+    final back = find.widgetWithText(TextButton, '返回');
     expect(back, findsOneWidget);
 
     await tester.tap(back);
@@ -248,8 +244,7 @@ void main() {
   testWidgets('无权访问不重试，详情页直接给出服务端文案', (tester) async {
     final opened = await _open(
       tester,
-      initialLocation:
-          '/books/series?name=%E4%B8%AD%E6%96%87%E7%B3%BB%E5%88%97&order=latest',
+      initialLocation: '/books/series?name=%E4%B8%AD%E6%96%87%E7%B3%BB%E5%88%97&order=latest',
       forbidBookInfo: true,
     );
 

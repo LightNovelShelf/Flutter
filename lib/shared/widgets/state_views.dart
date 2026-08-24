@@ -8,6 +8,8 @@ class EmptyStateView extends StatelessWidget {
     this.description,
     this.actionLabel,
     this.onAction,
+    this.secondaryActionLabel,
+    this.onSecondaryAction,
   });
 
   final IconData icon;
@@ -16,10 +18,23 @@ class EmptyStateView extends StatelessWidget {
   final String? actionLabel;
   final VoidCallback? onAction;
 
+  /// 次要动作，排在主动作左侧。
+  final String? secondaryActionLabel;
+  final VoidCallback? onSecondaryAction;
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
+    final actions = <Widget>[
+      if (secondaryActionLabel != null && onSecondaryAction != null)
+        TextButton(
+          onPressed: onSecondaryAction,
+          child: Text(secondaryActionLabel!),
+        ),
+      if (actionLabel != null && onAction != null)
+        FilledButton.tonal(onPressed: onAction, child: Text(actionLabel!)),
+    ];
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
@@ -43,11 +58,12 @@ class EmptyStateView extends StatelessWidget {
                 ),
               ),
             ],
-            if (actionLabel != null && onAction != null) ...<Widget>[
+            if (actions.isNotEmpty) ...<Widget>[
               const SizedBox(height: 16),
-              FilledButton.tonal(
-                onPressed: onAction,
-                child: Text(actionLabel!),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 8,
+                children: actions,
               ),
             ],
           ],
@@ -62,12 +78,16 @@ class ErrorStateView extends StatelessWidget {
     super.key,
     required this.message,
     this.onRetry,
+    this.onBack,
     this.title = '加载失败',
   });
 
   final String message;
   final String title;
   final VoidCallback? onRetry;
+
+  /// 整页错误态传入。此时页面上没有别的退出入口，桌面端也没有手势返回。
+  final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context) => EmptyStateView(
@@ -76,6 +96,8 @@ class ErrorStateView extends StatelessWidget {
     description: message,
     actionLabel: onRetry == null ? null : '重试',
     onAction: onRetry,
+    secondaryActionLabel: onBack == null ? null : '返回',
+    onSecondaryAction: onBack,
   );
 }
 

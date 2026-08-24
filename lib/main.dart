@@ -11,6 +11,7 @@ import 'app/router.dart';
 import 'app/theme/app_theme.dart';
 import 'data/app_runtime.dart';
 import 'data/providers.dart';
+import 'data/retry_policy.dart';
 import 'data/session/auth_controller.dart';
 import 'data/settings/app_settings.dart';
 
