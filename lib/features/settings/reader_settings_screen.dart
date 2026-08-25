@@ -237,6 +237,16 @@ class ReaderSettingsContent extends ConsumerWidget {
                 ),
               ),
               SettingsToggleRow(
+                title: '页码胶囊',
+                description: '阅读时在角落常驻显示章节与页码',
+                icon: Icons.pin_outlined,
+                value: settings.readerStatusPillsEnabled,
+                onChanged: (value) => controller.update(
+                  (settings) =>
+                      settings.copyWith(readerStatusPillsEnabled: value),
+                ),
+              ),
+              SettingsToggleRow(
                 title: '双页模式',
                 description: '横屏时显示两页内容',
                 icon: Icons.auto_stories,

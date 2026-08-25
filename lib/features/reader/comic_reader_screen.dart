@@ -761,6 +761,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       :volumeKeyPagingEnabled,
       :immersiveEnabled,
       :dualPageEnabled,
+      :statusPillsEnabled,
     ) = ref.watch(
       appSettingsProvider.select(
         (settings) => (
@@ -772,6 +773,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
           volumeKeyPagingEnabled: settings.readerVolumeKeyPagingEnabled,
           immersiveEnabled: settings.readerImmersiveEnabled,
           dualPageEnabled: settings.readerDualPageEnabled,
+          statusPillsEnabled: settings.readerStatusPillsEnabled,
         ),
       ),
     );
@@ -808,7 +810,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       error: loadError,
       onRetry: () => unawaited(_loadChapter()),
       body: body,
-      overlay: _slots.isEmpty
+      overlay: _slots.isEmpty || !statusPillsEnabled
           ? null
           : Positioned(
               bottom: MediaQuery.paddingOf(context).bottom + 12,

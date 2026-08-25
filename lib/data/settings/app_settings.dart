@@ -90,6 +90,7 @@ class AppSettings {
     this.comicPagedDirection = ComicPagedDirection.ltr,
     this.readerPrerenderAdjacent = true,
     this.readerSidePadding = 30,
+    this.readerStatusPillsEnabled = true,
     this.readerTheme = ReaderThemeSetting.followApp,
     this.readerVolumeKeyPagingEnabled = false,
     this.readerViewMode = ReaderViewMode.paged,
@@ -123,6 +124,7 @@ class AppSettings {
   final ComicPagedDirection comicPagedDirection;
   final bool readerPrerenderAdjacent;
   final double readerSidePadding;
+  final bool readerStatusPillsEnabled;
   final ReaderThemeSetting readerTheme;
   final bool readerVolumeKeyPagingEnabled;
   final ReaderViewMode readerViewMode;
@@ -156,6 +158,7 @@ class AppSettings {
     ComicPagedDirection? comicPagedDirection,
     bool? readerPrerenderAdjacent,
     double? readerSidePadding,
+    bool? readerStatusPillsEnabled,
     ReaderThemeSetting? readerTheme,
     bool? readerVolumeKeyPagingEnabled,
     ReaderViewMode? readerViewMode,
@@ -194,6 +197,8 @@ class AppSettings {
     readerPrerenderAdjacent:
         readerPrerenderAdjacent ?? this.readerPrerenderAdjacent,
     readerSidePadding: readerSidePadding ?? this.readerSidePadding,
+    readerStatusPillsEnabled:
+        readerStatusPillsEnabled ?? this.readerStatusPillsEnabled,
     readerTheme: readerTheme ?? this.readerTheme,
     readerVolumeKeyPagingEnabled:
         readerVolumeKeyPagingEnabled ?? this.readerVolumeKeyPagingEnabled,
@@ -268,6 +273,7 @@ class AppSettings {
       ),
       readerPrerenderAdjacent: _bool(raw['readerPrerenderAdjacent'], true),
       readerSidePadding: _clampDouble(raw['readerSidePadding'], 12, 64, 30),
+      readerStatusPillsEnabled: _bool(raw['readerStatusPillsEnabled'], true),
       readerTheme: _enumFromName(
         ReaderThemeSetting.values,
         raw['readerTheme'],
@@ -328,6 +334,7 @@ class AppSettings {
     'comicPagedDirection': comicPagedDirection.name,
     'readerPrerenderAdjacent': readerPrerenderAdjacent,
     'readerSidePadding': readerSidePadding,
+    'readerStatusPillsEnabled': readerStatusPillsEnabled,
     'readerTheme': readerTheme.name,
     'readerVolumeKeyPagingEnabled': readerVolumeKeyPagingEnabled,
     'readerViewMode': readerViewMode.name,
@@ -364,6 +371,7 @@ class AppSettings {
       other.comicPagedDirection == comicPagedDirection &&
       other.readerPrerenderAdjacent == readerPrerenderAdjacent &&
       other.readerSidePadding == readerSidePadding &&
+      other.readerStatusPillsEnabled == readerStatusPillsEnabled &&
       other.readerTheme == readerTheme &&
       other.readerVolumeKeyPagingEnabled == readerVolumeKeyPagingEnabled &&
       other.readerViewMode == readerViewMode &&
@@ -398,6 +406,7 @@ class AppSettings {
     comicPagedDirection,
     readerPrerenderAdjacent,
     readerSidePadding,
+    readerStatusPillsEnabled,
     readerTheme,
     readerVolumeKeyPagingEnabled,
     readerViewMode,

@@ -54,6 +54,29 @@ void main() {
     );
   });
 
+  test('页码胶囊默认显示，并可关掉与持久化', () {
+    expect(
+      AppSettings.decode(const <String, dynamic>{}).readerStatusPillsEnabled,
+      isTrue,
+    );
+
+    final hidden = const AppSettings().copyWith(
+      readerStatusPillsEnabled: false,
+    );
+    expect(hidden.encode()['readerStatusPillsEnabled'], isFalse);
+    expect(
+      AppSettings.decode(hidden.encode()).readerStatusPillsEnabled,
+      isFalse,
+    );
+
+    expect(
+      AppSettings.decode(const <String, dynamic>{
+        'readerStatusPillsEnabled': 'false',
+      }).readerStatusPillsEnabled,
+      isTrue,
+    );
+  });
+
   test('双页模式默认关闭，并可开启与持久化', () {
     expect(
       AppSettings.decode(const <String, dynamic>{}).readerDualPageEnabled,

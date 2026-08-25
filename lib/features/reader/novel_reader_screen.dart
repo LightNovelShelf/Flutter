@@ -241,11 +241,13 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
   EdgeInsets _contentPadding(AppSettings settings) {
     final padding = MediaQuery.paddingOf(context);
     final paged = settings.readerViewMode == ReaderViewMode.paged;
+    // 页底那块留白是给页码胶囊的，胶囊关掉就还给正文。
+    final pills = paged && settings.readerStatusPillsEnabled;
     return EdgeInsets.fromLTRB(
       settings.readerSidePadding,
       (paged ? padding.top : 0) + 12,
       settings.readerSidePadding,
-      padding.bottom + (paged ? 56 : 12),
+      padding.bottom + (pills ? 56 : 12),
     );
   }
 
@@ -471,7 +473,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
                   ),
               ],
             ),
-      overlay: paged && _contentReady
+      overlay: paged && _contentReady && settings.readerStatusPillsEnabled
           ? Positioned(
               right: 16,
               bottom: MediaQuery.paddingOf(context).bottom + 16,

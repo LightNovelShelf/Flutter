@@ -8,8 +8,11 @@ import 'package:lightnovel/core/network/signalr_connection.dart';
 import 'package:lightnovel/core/platform/stores.dart';
 import 'package:lightnovel/data/api/api_client.dart';
 import 'package:lightnovel/data/providers.dart';
+import 'package:lightnovel/data/repositories/read_position_cache.dart';
 import 'package:lightnovel/data/settings/app_settings.dart';
 import 'package:lightnovel/features/reader/novel_reader_screen.dart';
+import 'package:lightnovel/features/reader/widgets/reader_content_view.dart';
+import 'package:lightnovel/features/reader/widgets/reader_page_body.dart';
 
 /// 预渲染窗口：阅读器常驻当前章与前后各一章，跨章翻页复用预渲染结果。
 const int _bookId = 7;
@@ -128,12 +131,16 @@ Future<_FakeApi> _open(
   WidgetTester tester, {
   int sortNum = 2,
   bool prerender = true,
+  bool statusPills = true,
   Duration latency = Duration.zero,
 }) async {
   final api = _FakeApi(latency: latency);
   final settings = SettingsController(
     _MemoryStore(),
-    AppSettings(readerPrerenderAdjacent: prerender),
+    AppSettings(
+      readerPrerenderAdjacent: prerender,
+      readerStatusPillsEnabled: statusPills,
+    ),
   );
   await tester.pumpWidget(
     ProviderScope(
@@ -151,6 +158,9 @@ Future<_FakeApi> _open(
 }
 
 void main() {
+  // 进度缓存是进程级的，上一个用例读到第几页会带进下一个用例。
+  setUp(ReadPositionCache.clear);
+
   testWidgets('打开一章后前后各一章跟着预渲染', (tester) async {
     final api = await _open(tester);
 
@@ -243,5 +253,29 @@ void main() {
     expect(seen.sublist(1), isNotEmpty);
     expect(seen.sublist(1).toSet(), hasLength(1));
     expect(seen.last, startsWith('reader-page-2-'));
+  });
+
+  testWidgets('关掉页码胶囊后页底留白还给正文', (tester) async {
+    Future<(double padding, double height)> layout({
+      required bool statusPills,
+    }) async {
+      await _open(tester, statusPills: statusPills);
+      final view = tester.widget<ReaderContentView>(
+        find.byType(ReaderContentView),
+      );
+      final page = tester.getRect(find.byKey(readerPageBodyKey(2, 0)));
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      return (view.padding.bottom, page.height);
+    }
+
+    final (pillPadding, pillHeight) = await layout(statusPills: true);
+    final (barePadding, bareHeight) = await layout(statusPills: false);
+
+    // 页底给胶囊留的 56 点缩回普通间距 12 点。
+    expect(pillPadding, 56);
+    expect(barePadding, 12);
+    // 多出来的高度落到正文上，页尾能多排一行。
+    expect(bareHeight, greaterThan(pillHeight));
   });
 }

@@ -10,6 +10,7 @@ import 'package:lightnovel/data/providers.dart';
 import 'package:lightnovel/data/repositories/read_position_cache.dart';
 import 'package:lightnovel/data/settings/app_settings.dart';
 import 'package:lightnovel/features/reader/comic_reader_screen.dart';
+import 'package:lightnovel/features/reader/widgets/reader_status_pills.dart';
 import 'package:lightnovel/shared/widgets/image_preview.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 
@@ -116,6 +117,7 @@ class _MemoryStore implements KeyValueStore {
 Future<void> _open(
   WidgetTester tester, {
   bool dualPage = true,
+  bool statusPills = true,
   ComicPagedDirection direction = ComicPagedDirection.ltr,
   Size size = const Size(1400, 800),
 }) async {
@@ -127,6 +129,7 @@ Future<void> _open(
     _MemoryStore(),
     AppSettings(
       readerDualPageEnabled: dualPage,
+      readerStatusPillsEnabled: statusPills,
       comicPagedDirection: direction,
     ),
   );
@@ -202,6 +205,18 @@ void main() {
     await _swipeForward(tester);
     expect(_page(4), findsOneWidget);
     expect(_page(5), findsOneWidget);
+  });
+
+  testWidgets('默认在角落摆页码胶囊', (tester) async {
+    await _open(tester);
+
+    expect(find.byType(ReaderStatusPills), findsOneWidget);
+  });
+
+  testWidgets('关掉页码胶囊后画面上不再叠这一层', (tester) async {
+    await _open(tester, statusPills: false);
+
+    expect(find.byType(ReaderStatusPills), findsNothing);
   });
 
   testWidgets('关掉双页时一屏只摆一页', (tester) async {
