@@ -60,6 +60,17 @@ void main() {
       expect(on[1], isNot(contains(readerIndentElement)));
       expect(on[2], isNot(contains(readerIndentElement)));
     });
+
+    test('根标签正则忽略属性值里的大于号', () {
+      final block = _blocks('<p title="1 > 0" class="body emphasized">正文</p>')
+          .single;
+
+      expect(
+        ReaderBlockMarkupBuilder(_style(indent: true)).next(block),
+        '<p title="1 > 0" class="body emphasized">'
+        '<$readerIndentElement></$readerIndentElement>正文</p>',
+      );
+    });
   });
 
   test('通用 HTML 分块清理非正文节点，但不执行小说标记加工', () {
@@ -75,6 +86,15 @@ void main() {
     expect(splitContentHtmlBlocks(html), <String>[
       '<p data-reader-footnote-id="keep">甲</p>',
       '<div class="community">乙</div>',
+    ]);
+  });
+
+  test('DOM 分块忽略注释里的伪标签并修复未闭合段落', () {
+    const html = '<div><p>甲<!-- <p>伪段落</p> --><p>乙</div>';
+
+    expect(splitContentHtmlBlocks(html), <String>[
+      '<p>甲<!-- <p>伪段落</p> --></p>',
+      '<p>乙</p>',
     ]);
   });
 }

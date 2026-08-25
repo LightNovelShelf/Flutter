@@ -31,6 +31,12 @@ void main() {
       expect(findReaderBlockIndex(blocks, '//*/div[2]/p[3]'), index);
     });
 
+    test('旧版 block 前缀定位不需要存进分块模型', () {
+      final blocks = _blocks('<p>甲</p><p>乙</p>');
+
+      expect(findReaderBlockIndex(blocks, 'block://*/p[2]'), 1);
+    });
+
     test('摘掉脚注注文不会给同级段落重新编号', () {
       final before = _blocks(_html);
       final after = _blocks(processNovelFootnotes(_html).html);
@@ -104,6 +110,18 @@ void main() {
         '//*/div[1]/p[1]',
         '//*/div[1]/ol[1]/li[1]',
       ]);
+    });
+
+    test('属性值里的大于号不会截断脚注标记', () {
+      const html =
+          '<p>甲<a class="duokan-footnote" href="#n>1">'
+          '<img src="note.png"></a></p><ol><li id="n>1">注文</li></ol>';
+
+      final result = processNovelFootnotes(html);
+
+      expect(result.notesById, <String, String>{'n>1': '注文'});
+      expect(result.html, contains('data-reader-footnote-id="n>1"'));
+      expect(result.html, isNot(contains('<ol')));
     });
 
     test('路径失配时逐级回退到父级块', () {

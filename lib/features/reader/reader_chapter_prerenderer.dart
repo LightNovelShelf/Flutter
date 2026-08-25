@@ -6,6 +6,7 @@ import '../../data/api/api_client.dart';
 import '../../data/api/models.dart';
 import '../../data/repositories/reader_font_repository.dart';
 import 'reader_footnotes.dart';
+import 'reader_html_document.dart';
 import 'reader_html_blocks.dart';
 
 /// 小说章节预渲染：取数、分块、脚注抽取、字体注册一次完成，供章节窗口取用。
@@ -189,17 +190,18 @@ class _ChapterMarkup {
 /// 短于此长度的正文直接在当前 isolate 算：spawn 与入参拷贝比这点扫描还贵。
 const int _isolateMarkupThreshold = 4096;
 
-/// 全章正则扫描加建树，放在 UI isolate 上会在阅读途中掉帧，两步合并进一次 spawn。
+/// 全章 DOM 解析与分块放到后台 isolate，避免在阅读途中阻塞 UI。
 Future<_ChapterMarkup> _buildChapterMarkup(String html) =>
     html.length < _isolateMarkupThreshold
     ? Future<_ChapterMarkup>.value(_chapterMarkup(html))
     : Isolate.run(() => _chapterMarkup(html));
 
 _ChapterMarkup _chapterMarkup(String html) {
-  final footnotes = processNovelFootnotes(html);
+  final document = ReaderHtmlDocument.parse(html);
+  final footnotes = processNovelFootnotesDocument(document);
   // 分块文本与渲染出来的正文必须逐字一致，否则保存的定位会漂。
   return _ChapterMarkup(
-    blocks: normalizeNovelBlocks(footnotes.html),
+    blocks: normalizeNovelDocument(document),
     notes: footnotes.notesById,
   );
 }

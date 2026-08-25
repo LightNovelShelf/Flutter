@@ -101,7 +101,7 @@ String cleanReaderLocator(String locator) => locator
 int findReaderBlockIndex(List<NovelReaderBlock> blocks, String? locator) {
   if (locator == null || locator.isEmpty) return 0;
   final exact = blocks.indexWhere(
-    (block) => block.locator == locator || block.id == locator,
+    (block) => block.locator == locator || 'block:${block.locator}' == locator,
   );
   if (exact >= 0) return exact;
 
