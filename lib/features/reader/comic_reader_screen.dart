@@ -137,13 +137,11 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
 
   /// 按设置与屏幕尺寸决定分不分屏，变了就重建分屏表并返回 true。
   bool _syncDual(bool enabled) {
-    final dual =
-        readerColumnCount(
-          dualPage: enabled,
-          width: _screenSize.width,
-          height: _screenSize.height,
-        ) >
-        1;
+    final dual = readerFixedLayoutSpread(
+      dualPage: enabled,
+      width: _screenSize.width,
+      height: _screenSize.height,
+    );
     if (dual == _dual) return false;
     _dual = dual;
     _rebuildSpreads();
@@ -157,6 +155,14 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
   /// 第 [page] 页在第几屏；不分屏时就是页码本身。
   int _spreadIndexOf(int page) =>
       page >= 0 && page < _spreadOfPage.length ? _spreadOfPage[page] : page;
+
+  /// 第 [page] 页所在屏的屏首。当前页一律按屏首记，页码才跟翻页条上的位置对得上。
+  int _spreadHeadOf(int page) {
+    final spread = _spreadIndexOf(page);
+    return spread >= 0 && spread < _spreads.length
+        ? _spreads[spread].first
+        : page;
+  }
 
   void _rebuildSpreads() {
     if (!_dual || _slots.isEmpty) {
@@ -254,9 +260,12 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
         _direction = 1;
         loading = false;
       });
-      _resetControllers(page);
-      _stage(page);
-      await _progress.commit(chapter.id, '${page + 1}');
+      // 分屏表随 _setSlots 建好，落位的页要退回所在屏的屏首。
+      final aligned = _dualPaged ? _spreadHeadOf(page) : page;
+      _pageNotifier.value = aligned;
+      _resetControllers(aligned);
+      _stage(aligned);
+      await _progress.commit(chapter.id, '${aligned + 1}');
       _schedulePrefetch();
     } catch (failure) {
       if (isStale(version)) return;
@@ -305,6 +314,8 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     if (!mounted) return;
     final pageController = _pageController;
     if (pageController != null && pageController.hasClients) {
+      // 配对变了会把当前页挪到别人那一屏的中间，先退回屏首再对准。
+      if (_dualPaged) _onPageChanged(_spreadHeadOf(_page));
       pageController.jumpToPage(_dualPaged ? _spreadIndexOf(_page) : _page);
       return;
     }
@@ -336,6 +347,9 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     final version = requestVersion;
     _loadingBatches.add(skip);
     _failedBatches.remove(skip);
+    // 声明成 final 而不是 `double?`：只有 try 正常走完才会落到下面的对位，
+    // 哪天 catch 少写一个 return，这里会直接编译不过而不是悄悄传个 null。
+    final double anchor;
     try {
       final content = await _api.getComicContent(
         chapterId: chapter.id,
@@ -345,7 +359,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       );
       if (isStale(version)) return;
       // 新一批图带来真实比例，之前按未知比例占位的页高会变，先记下当前页起点再补回偏移。
-      final anchor = _offsetForPage(_page);
+      anchor = _offsetForPage(_page);
       setState(() {
         _setSlots(
           mergeComicPageBatch(
@@ -355,15 +369,18 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
           ),
         );
       });
-      _restoreAnchor(anchor);
-      // 配对可能被新到的宽图错开一位，当前页所在的那一屏要重新对准。
-      if (_dualPaged) _syncToPage();
     } catch (_) {
       if (isStale(version)) return;
       setState(() => _failedBatches.add(skip));
+      return;
     } finally {
       _loadingBatches.remove(skip);
     }
+    // 重新对位放在 try 之外：这里抛的是布局/下标问题，不该被记成这一批图加载失败，
+    // 那会给无关的页画上重试块并锁住重新取图。
+    _restoreAnchor(anchor);
+    // 配对可能被新到的宽图错开一位，当前页所在的那一屏要重新对准。
+    if (_dualPaged) _syncToPage();
   }
 
   /// 换页节流：快速滚动会连着跨很多页，只对停住的位置排预取，避免成串解码任务抢 UI/raster。
@@ -656,9 +673,16 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       itemCount: spreads?.length ?? _slots.length,
       pageController: _pageController,
       reverse: reversed,
+      // 当前页按屏首算，与小说阅读器一致：翻页条上的位置就是这一屏最前面那一页。
+      // 读实时的 _spreads：jumpToPage 会同步派发滚动通知，而这一跳往往就发生在新一批
+      // 图刚改过配对、PhotoViewGallery 还没重建的时候，捕获的旧表会错位甚至越界。
       onPageChanged: spreads == null
           ? _onPageChanged
-          : (index) => _onPageChanged(spreads[index].first),
+          : (index) => _onPageChanged(
+              index >= 0 && index < _spreads.length
+                  ? _spreads[index].first
+                  : index,
+            ),
       backgroundDecoration: const BoxDecoration(color: Colors.transparent),
       builder: (context, index) {
         if (spreads == null) {
@@ -784,6 +808,8 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       oledBlack: oledBlack,
     );
     // 阅读模式与分屏都会换掉翻页条的页序，落定后要把当前页重新对准。
+    // 用 `|` 不用 `||`：`_syncDual` 要在这一帧就把分屏表建好，供下面的 body 取用，
+    // 短路掉就会拿旧表画一帧。
     final relaid = _syncDual(dualPageEnabled) | (_mode != viewMode);
     _mode = viewMode;
     if (relaid && !loading) {

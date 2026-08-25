@@ -246,15 +246,6 @@ class ReaderSettingsContent extends ConsumerWidget {
                       settings.copyWith(readerStatusPillsEnabled: value),
                 ),
               ),
-              SettingsToggleRow(
-                title: '双页模式',
-                description: '横屏时显示两页内容',
-                icon: Icons.auto_stories,
-                value: settings.readerDualPageEnabled,
-                onChanged: (value) => controller.update(
-                  (settings) => settings.copyWith(readerDualPageEnabled: value),
-                ),
-              ),
               SettingsPickerRow<ReaderViewMode>(
                 title: '阅读模式',
                 description: '选择滚动或逐页阅读',
@@ -266,6 +257,17 @@ class ReaderSettingsContent extends ConsumerWidget {
                 ],
                 onChanged: (value) => controller.update(
                   (settings) => settings.copyWith(readerViewMode: value),
+                ),
+              ),
+              // 分栏只在翻页模式下作数：滚动模式没有页的概念，开关点了也没效果。
+              SettingsToggleRow(
+                title: '双页模式',
+                description: '横屏且屏幕够宽时并排显示两栏，仅翻页模式生效',
+                icon: Icons.auto_stories,
+                value: settings.readerDualPageEnabled,
+                enabled: settings.readerViewMode == ReaderViewMode.paged,
+                onChanged: (value) => controller.update(
+                  (settings) => settings.copyWith(readerDualPageEnabled: value),
                 ),
               ),
               // 沉浸式阅读靠 Android 的 immersiveSticky，其它平台不展示。

@@ -27,17 +27,23 @@ class ReaderChapterContent {
 }
 
 /// 正文位置上报。`page`/`pages` 从 1 开始，滚动模式恒为 0。
-/// 上报发生在上层切章之前，因此自带 [sortNum]。
+/// 位置一律记在屏首那一栏上，所以自带该栏所属的 [sortNum]。
 class ReaderContentPosition {
   const ReaderContentPosition({
     required this.sortNum,
+    required this.tailSortNum,
     required this.locator,
     required this.progression,
     required this.page,
     required this.pages,
   });
 
+  /// 屏首那一栏所属的章。
   final int sortNum;
+
+  /// 屏尾那一栏所属的章；一屏只有一栏或没跨章时与 [sortNum] 相同。
+  final int tailSortNum;
+
   final String locator;
   final double progression;
   final int page;
@@ -65,14 +71,17 @@ class ReaderContentController {
 /// 读出每个块的纵向区间与每行行顶，再按视口高度切页；翻页模式的每一页只摆落在该页区间的块
 /// 并裁掉溢出。排版、视口、图片尺寸变化会重新测量，并把阅读位置定回当前 locator。
 ///
-/// [previous]/[next] 各有自己的测量层，测完后接在当前章两端组成翻页条，跨章翻页即走到条上的
-/// 下一页，落定后由 [onChapterChanged] 通知上层平移窗口。相邻章未备好时越界翻页走 [onBoundary]。
+/// [chapters] 里的每一章各有自己的测量层，测完后首尾相接组成翻页条，跨章翻页即走到条上的
+/// 下一栏，落定后由 [onChapterChanged] 通知上层挪动当前章。
+///
+/// 翻页条两端之外若还有章，各补一段加载栏：栏上转圈，并通过 [onNeedChapter] 请求上层把
+/// 那一章接进来。请求只在加载栏真的露在当前屏上时发出，所以关掉预加载时，单页要翻到章尾
+/// 之后才请求，双页则在右栏空出来的那一刻就请求。
 class ReaderContentView extends StatefulWidget {
   const ReaderContentView({
     super.key,
-    required this.chapter,
-    required this.previous,
-    required this.next,
+    required this.chapters,
+    required this.sortNum,
     required this.paged,
     required this.dualPage,
     required this.padding,
@@ -83,18 +92,30 @@ class ReaderContentView extends StatefulWidget {
     required this.onTapCenter,
     required this.onChapterChanged,
     required this.onBoundary,
+    required this.onNeedChapter,
     required this.onFootnote,
     required this.onReady,
+    this.totalChapters = 0,
+    this.failedChapters = const <int>{},
     this.controller,
   });
 
   final ReaderContentController? controller;
 
-  final ReaderChapterContent chapter;
+  /// 已备好的连续章节，按章号升序，必须含 [sortNum] 那一章。
+  final List<ReaderChapterContent> chapters;
 
-  /// 已预渲染的相邻章，为空表示未备好，跨章翻页退回加载流程。
-  final ReaderChapterContent? previous;
-  final ReaderChapterContent? next;
+  /// 当前章章号。
+  final int sortNum;
+
+  ReaderChapterContent get chapter =>
+      chapters.firstWhere((chapter) => chapter.sortNum == sortNum);
+
+  /// 全书章数，0 表示未知。用来判断翻页条两端之外还有没有章可接。
+  final int totalChapters;
+
+  /// 取失败的章号，加载栏改摆重试块。
+  final Set<int> failedChapters;
 
   final bool paged;
 
@@ -114,11 +135,15 @@ class ReaderContentView extends StatefulWidget {
   final ValueChanged<ReaderContentPosition> onPosition;
   final VoidCallback onTapCenter;
 
-  /// 翻页条进入了相邻章，上层据此平移窗口，正文不重排。
+  /// 翻页条进入了另一章，上层据此挪动当前章，正文不重排。
   final ValueChanged<int> onChapterChanged;
 
-  /// 相邻章未备好时的越界翻页，交给上层翻章。
+  /// 滚动模式读到头还要继续翻，交给上层换章。
   final ValueChanged<bool> onBoundary;
+
+  /// 当前屏上露出了加载栏：请求 [fromSortNum] 往 [next] 方向的下一章。
+  /// 同一章只请求一次，除非它进了 [failedChapters] 且用户点了重试。
+  final void Function(bool next, int fromSortNum) onNeedChapter;
 
   /// 脚注锚点所在的章与脚注 id。
   final void Function(int sortNum, String id) onFootnote;
@@ -171,11 +196,8 @@ class _ChapterSlot {
 
   ReaderGeometry? geometry;
 
-  /// 每一栏的页顶；双页模式下一屏摆两栏，翻页条按屏走。
+  /// 每一栏的页顶。翻页条按栏走，一屏摆几栏由视口决定，与章节无关。
   List<double> pageTops = const <double>[0];
-
-  /// 这批几何是按几栏测的。重排期间新旧两批交替，栏数得跟着几何一起换。
-  int columns = 1;
 
   /// 分片测量的累积器。测完整章后留着，供图片回填时改写单块。null 表示要从头测。
   ReaderGeometryBuilder? builder;
@@ -188,11 +210,8 @@ class _ChapterSlot {
 
   int get sortNum => content.sortNum;
 
-  /// 翻页条上的页数，也就是屏数。
-  int get pageCount => (pageTops.length + columns - 1) ~/ columns;
-
-  /// 第 [page] 屏最左那一栏的下标。
-  int firstColumnOf(int page) => page * columns;
+  /// 这一章占翻页条上的栏数。
+  int get columnCount => pageTops.length;
 
   int get blockCount => pendingMeasure.length;
 
@@ -258,6 +277,16 @@ class _ReaderContentViewState extends State<ReaderContentView> {
   int _reportedAt = 0;
   Timer? _trailingReport;
 
+  /// 停在翻页条之外的加载栏上：-1 在条前，1 在条后，0 表示位置落在真正的栏上。
+  int _pendingSide = 0;
+
+  /// 进加载栏时条端上的那一章，等它的邻章接进条里就落到那一章上。
+  _ChapterSlot? _pendingEdge;
+
+  /// 已经请求过的相邻章，同一章不重复通知上层。
+  final Set<int> _requested = <int>{};
+  bool _requestScheduled = false;
+
   @override
   void initState() {
     super.initState();
@@ -272,16 +301,20 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       oldWidget.controller?._detach(this);
       widget.controller?._attach(this);
     }
-    if (widget.chapter.sortNum != oldWidget.chapter.sortNum) {
+    if (widget.sortNum != oldWidget.sortNum) {
       _notifiedChapter = null;
     }
-    final known = _slotFor(widget.chapter.sortNum);
+    final known = _slotFor(widget.sortNum);
     if (known == null ||
         !identical(known.content.blocks, widget.chapter.blocks)) {
       // 跳到窗口外的章节，正文全换，测量结果与位置作废。
       _resetSlots();
       return;
     }
+    // 接进来的章不必再请求；被丢出窗口的章回头还能再请求一次。
+    _requested.removeWhere(
+      (sortNum) => widget.chapters.any((chapter) => chapter.sortNum == sortNum),
+    );
     _syncSlots();
     if (oldWidget.paged != widget.paged ||
         oldWidget.padding != widget.padding) {
@@ -320,18 +353,16 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     _ready = false;
     _active = null;
     _notifiedChapter = null;
+    _pendingSide = 0;
+    _pendingEdge = null;
+    _requested.clear();
     _syncSlots();
   }
 
   /// 按上层给的窗口重建槽位，同一章且正文未换的槽位连同测量结果留用。
   void _syncSlots() {
-    final incoming = <ReaderChapterContent>[
-      if (widget.previous != null) widget.previous!,
-      widget.chapter,
-      if (widget.next != null) widget.next!,
-    ];
     final slots = <_ChapterSlot>[];
-    for (final content in incoming) {
+    for (final content in widget.chapters) {
       final slot = _slotFor(content.sortNum);
       if (slot == null) {
         final created = _ChapterSlot(content);
@@ -349,14 +380,19 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       }
       slots.add(slot);
     }
-    // 优先保留正在看的那一章，跨章翻页落定前上层还没切章。
+    // 优先保留正在看的那一章，跨章翻页落定前上层还没挪当前章。
     final active = _active;
     _slots
       ..clear()
       ..addAll(slots);
     _active =
         (active == null ? null : _slotFor(active.sortNum)) ??
-        _slotFor(widget.chapter.sortNum);
+        _slotFor(widget.sortNum);
+    final edge = _pendingEdge;
+    if (edge != null && !_slots.contains(edge)) {
+      _pendingSide = 0;
+      _pendingEdge = null;
+    }
   }
 
   /// 丢掉当前 locator，按新的恢复点重新定位当前章。
@@ -364,7 +400,9 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     _locator = '';
     _progression = widget.restoreProgression;
     _pageIndex = 0;
-    _active = _slotFor(widget.chapter.sortNum) ?? _active;
+    _pendingSide = 0;
+    _pendingEdge = null;
+    _active = _slotFor(widget.sortNum) ?? _active;
     final slot = _active;
     final geometry = slot?.geometry;
     if (geometry == null) return;
@@ -453,9 +491,18 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     _slice = (_sliceBudgetMs / perBlock).round().clamp(_minSlice, _maxSlice);
   }
 
+  /// 用户正在加载栏上等的那一章：条端那一章的邻章。测量先排它，
+  /// 免得先去排另一侧的章，让加载栏多转一会儿。
+  _ChapterSlot? get _awaited {
+    final edge = _pendingEdge;
+    if (edge == null) return null;
+    final index = _slots.indexOf(edge) + _pendingSide;
+    return index < 0 || index >= _slots.length ? null : _slots[index];
+  }
+
   _MeasureWindow? _pickMeasureWindow() {
     final active = _active;
-    for (final slot in <_ChapterSlot?>[active, ..._slots]) {
+    for (final slot in <_ChapterSlot?>[active, _awaited, ..._slots]) {
       if (slot == null || !slot.needsMeasure || !_measurable(slot)) continue;
       final total = slot.blockCount;
       final _MeasureWindow window;
@@ -519,7 +566,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       }
     });
 
-    _report(force: true);
+    _syncPosition();
     if (_ready || active?.geometry == null) return;
     _ready = true;
     widget.onReady();
@@ -544,7 +591,6 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     }
     slot.publish(slot.builder!.build());
     final geometry = slot.geometry!;
-    slot.columns = widget.paged ? _columns : 1;
     slot.pageTops = widget.paged
         ? paginateReaderContent(
             contentHeight: geometry.height,
@@ -594,11 +640,54 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     }
     _strip = ReaderPageStrip<_ChapterSlot>.of(
       _slots.sublist(first, last + 1),
-      (slot) => slot.pageCount,
+      (slot) => slot.columnCount,
     );
   }
 
-  /// 翻页条变化（相邻章测好、或窗口平移）后重排页序，并把控制器移到同一页上。
+  /// 锚点栏在翻页条上的下标。
+  int _anchorColumn() {
+    final slot = _active;
+    return slot == null ? 0 : _strip.globalPageOf(slot, _pageIndex);
+  }
+
+  /// 锚点栏在整条（含条前的加载栏）上的下标。
+  int _globalColumn() => _leadingPending + _anchorColumn();
+
+  /// 翻页条最前面那一章之前还有没有章。
+  bool get _hasChapterBefore =>
+      !_strip.isEmpty && _strip.chapters.first.sortNum > 1;
+
+  /// 翻页条最后那一章之后还有没有章；[ReaderContentView.totalChapters] 为 0 表示总数未知。
+  bool get _hasChapterAfter =>
+      !_strip.isEmpty &&
+      (widget.totalChapters == 0 ||
+          _strip.chapters.last.sortNum < widget.totalChapters);
+
+  /// 条前补几栏加载栏：补到让锚点栏正好落在屏首。
+  ///
+  /// 章节进出窗口会让翻页条整体前后挪，补齐这几栏，屏上那两栏才不会跟着重新配对、
+  /// 画面跳一下。书首之前没有章可等，也就不补。
+  int get _leadingPending =>
+      _hasChapterBefore ? (-_anchorColumn() - 1) % _columns + 1 : 0;
+
+  /// 条后只补一栏：接进来的章从这一栏起摆，接不满的那半屏留白。
+  int get _trailingPending => _hasChapterAfter ? 1 : 0;
+
+  /// 一屏摆 [_columns] 栏，栏在条上首尾相接，所以屏的划分与章节边界无关：
+  /// 只剩一栏的章节（整页插图）右边不再空着，接的是下一章的第一栏。
+  int get _screenCount =>
+      (_leadingPending + _strip.pages + _trailingPending + _columns - 1) ~/
+      _columns;
+
+  int _screenIndex() {
+    if (_pendingSide < 0) return 0;
+    if (_pendingSide > 0) {
+      return (_leadingPending + _strip.pages) ~/ _columns;
+    }
+    return _globalColumn() ~/ _columns;
+  }
+
+  /// 翻页条变化（相邻章测好、或窗口挪动）后重排页序，并把控制器移到同一页上。
   /// 拖动期间只记脏，落定后再改，避免手指下的页码原地平移。
   void _refreshStrip() {
     if (_scrolling) {
@@ -607,12 +696,42 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     }
     _stripDirty = false;
     _syncStrip();
-    if (widget.paged) _installPageController();
+    _resolvePending();
+    if (widget.paged) {
+      _installPageController();
+      _anchorToScreenHead();
+    }
   }
 
-  int _globalPage() {
-    final slot = _active;
-    return slot == null ? 0 : _strip.globalPageOf(slot, _pageIndex);
+  /// 等的那一章接进翻页条后，把位置从加载栏落到它上面：往后落在章首，往前落在章末。
+  void _resolvePending() {
+    final side = _pendingSide;
+    final target = _awaited;
+    if (side == 0 || target == null || target.geometry == null) return;
+    if (!_strip.chapters.contains(target)) return;
+    _pendingSide = 0;
+    _pendingEdge = null;
+    _active = target;
+    _pageIndex = side < 0 ? target.columnCount - 1 : 0;
+  }
+
+  /// 把位置钉到当前屏最左那一栏：页码与进度一律按屏首那一章算，
+  /// 所以双页时最后一屏的进度到不了 100%。
+  void _anchorToScreenHead() {
+    if (_pendingSide != 0) return;
+    final column = _screenIndex() * _columns - _leadingPending;
+    final located = column < 0 ? null : _strip.locate(column);
+    if (located == null) return;
+    final (slot, page) = located;
+    _active = slot;
+    _pageIndex = page;
+  }
+
+  /// 上报当前位置；屏首换了一章就先通知上层挪当前章，否则上层会把这次上报当成
+  /// 别的章的丢掉，页码胶囊停在旧章上。调用点都在 setState 之外。
+  void _syncPosition() {
+    _notifyChapter();
+    _report(force: true);
   }
 
   void _installControllers(double offset) {
@@ -623,9 +742,9 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       final slot = _active;
       _pageIndex = slot == null
           ? 0
-          : readerPageIndexForOffset(slot.pageTops, _installedOffset) ~/
-                slot.columns;
+          : readerPageIndexForOffset(slot.pageTops, _installedOffset);
       _installPageController();
+      _anchorToScreenHead();
       return;
     }
     _pageController?.dispose();
@@ -639,7 +758,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
   /// （见 [_pagedContent] 的 key）：`Scrollable` 认领新控制器时会沿用旧 position 的像素，
   /// `initialPage` 不生效，前一章接入翻页条后画面会停在错位的那一页上。
   void _installPageController() {
-    final target = _globalPage();
+    final target = _screenIndex();
     final controller = _pageController;
     if (controller != null &&
         controller.hasClients &&
@@ -663,24 +782,49 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     return false;
   }
 
-  /// 翻页落定，补上挂起的翻页条改动，进入相邻章时通知上层平移窗口。
+  /// 翻页落定，补上挂起的翻页条改动，并把位置同步给上层。
   void _settle() {
     if (_stripDirty) setState(_refreshStrip);
+    _syncPosition();
+  }
+
+  void _notifyChapter() {
     final slot = _active;
-    if (slot == null || slot.sortNum == widget.chapter.sortNum) return;
+    if (slot == null || slot.sortNum == widget.sortNum) return;
     if (_notifiedChapter == slot.sortNum) return;
     _notifiedChapter = slot.sortNum;
     widget.onChapterChanged(slot.sortNum);
   }
 
-  void _applyPage(int page) {
-    final located = _strip.locate(page);
-    if (located == null) return;
+  /// 落定到第 [screen] 屏：位置记在这一屏最左那一栏上，落在加载栏上时仍记在条端那一章。
+  void _applyPage(int screen) {
+    final column = screen * _columns - _leadingPending;
+    final located = column < 0 ? null : _strip.locate(column);
+    if (located == null) {
+      final side = column < 0 ? -1 : 1;
+      if (_pendingSide != side && !_strip.isEmpty) {
+        setState(() {
+          _pendingSide = side;
+          _pendingEdge = side < 0
+              ? _strip.chapters.first
+              : _strip.chapters.last;
+        });
+      }
+      _scheduleRequest();
+      return;
+    }
+    if (_pendingSide != 0) {
+      setState(() {
+        _pendingSide = 0;
+        _pendingEdge = null;
+      });
+    }
+    _scheduleRequest();
     final (slot, local) = located;
     if (identical(slot, _active) && local == _pageIndex) return;
     _active = slot;
     _pageIndex = local;
-    _report(force: true);
+    _syncPosition();
   }
 
   /// 250ms 节流上报，末尾补一次，避免漏报停下来的位置。
@@ -703,9 +847,9 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       _locator = slot.content.blocks[index].locator;
     }
     if (widget.paged) {
-      _progression = slot.pageCount <= 1
+      _progression = slot.columnCount <= 1
           ? 0
-          : _pageIndex / (slot.pageCount - 1);
+          : _pageIndex / (slot.columnCount - 1);
     } else {
       final maxOffset = math.max(0, geometry.height - _viewport.height);
       _progression = maxOffset <= 0 ? 0 : (offset / maxOffset).clamp(0.0, 1.0);
@@ -726,18 +870,27 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     widget.onPosition(
       ReaderContentPosition(
         sortNum: slot.sortNum,
+        tailSortNum: _tailSlot()?.sortNum ?? slot.sortNum,
         locator: _locator,
         progression: _progression,
         page: widget.paged ? _pageIndex + 1 : 0,
-        pages: widget.paged ? slot.pageCount : 0,
+        pages: widget.paged ? slot.columnCount : 0,
       ),
     );
   }
 
+  /// 当前屏最后一栏落在的那一章。屏尾是加载栏或留白时取翻页条上最后那一章，
+  /// 上层照它决定往后再备哪一章。
+  _ChapterSlot? _tailSlot() {
+    if (!widget.paged || _strip.isEmpty) return null;
+    final first = _screenIndex() * _columns - _leadingPending;
+    final column = math.min(first + _columns - 1, _strip.pages - 1);
+    return column < 0 ? null : _strip.locate(column)?.$1;
+  }
+
   double _contentOffset(_ChapterSlot slot) {
     if (widget.paged) {
-      final column = slot.firstColumnOf(_pageIndex);
-      return column < slot.pageTops.length ? slot.pageTops[column] : 0;
+      return _pageIndex < slot.pageTops.length ? slot.pageTops[_pageIndex] : 0;
     }
     final controller = _scrollController;
     // 控制器挂载前（重排后紧跟的那次上报）只有刚定下的偏移可用，读 0 会把定位打回章首。
@@ -776,9 +929,9 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       return;
     }
     final controller = _pageController;
-    final target = _globalPage() + (next ? 1 : -1);
-    if (controller == null || target < 0 || target >= _strip.pages) {
-      // 相邻章未接入翻页条，交给上层走加载流程。
+    final target = _screenIndex() + (next ? 1 : -1);
+    if (controller == null || target < 0 || target >= _screenCount) {
+      // 条外没有栏可翻了：滚动模式交给上层换章，翻页模式此处已是全书两端。
       widget.onBoundary(next);
       return;
     }
@@ -800,6 +953,28 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     if (_ready) _turn(next);
   }
 
+  /// 当前屏上露出加载栏时请求那一章。相邻章的按需请求只有这一个入口：
+  /// 翻到加载栏、以及双页时右栏空出来，都走它。
+  void _scheduleRequest() {
+    if (_requestScheduled) return;
+    _requestScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestScheduled = false;
+      if (mounted) _requestVisiblePending();
+    });
+  }
+
+  void _requestVisiblePending() {
+    if (!widget.paged || _strip.isEmpty || !_ready) return;
+    final first = _screenIndex() * _columns - _leadingPending;
+    final next = first + _columns - 1 >= _strip.pages && _hasChapterAfter;
+    final previous = first < 0 && _hasChapterBefore;
+    if (!next && !previous) return;
+    final edge = next ? _strip.chapters.last : _strip.chapters.first;
+    if (!_requested.add(edge.sortNum + (next ? 1 : -1))) return;
+    widget.onNeedChapter(next, edge.sortNum);
+  }
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
@@ -812,6 +987,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
               dualPage: widget.dualPage,
               width: viewport.width,
               height: viewport.height,
+              fontSize: widget.chapter.style.fontSize,
             )
           : 1;
       if (_viewport != viewport || _columns != columns) {
@@ -829,6 +1005,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
           ..start();
         _scheduleMeasure(viewport);
       }
+      _scheduleRequest();
       final active = _active;
       final content = Stack(
         children: <Widget>[
@@ -925,27 +1102,19 @@ class _ReaderContentViewState extends State<ReaderContentView> {
         child: PageView.builder(
           key: ObjectKey(_pageController),
           controller: _pageController,
-          itemCount: _strip.pages,
+          itemCount: _screenCount,
           onPageChanged: _applyPage,
-          itemBuilder: (context, index) {
-            final located = _strip.locate(index);
-            if (located == null) return const SizedBox.shrink();
-            final (slot, page) = located;
-            // 栏数跟着几何走：重排到一半时新旧两批交替，页顶与栏数必须同出一批。
-            final columns = slot.columns;
-            if (columns <= 1) {
-              return _pageColumn(slot, page, viewport, 0, columns);
-            }
+          itemBuilder: (context, screen) {
+            if (_columns <= 1) return _pageColumn(screen, viewport, 0, 1);
             return Row(
               children: <Widget>[
-                for (var column = 0; column < columns; column++)
+                for (var column = 0; column < _columns; column++)
                   Expanded(
                     child: _pageColumn(
-                      slot,
-                      slot.firstColumnOf(page) + column,
+                      screen * _columns + column,
                       viewport,
                       column,
-                      columns,
+                      _columns,
                     ),
                   ),
               ],
@@ -954,21 +1123,48 @@ class _ReaderContentViewState extends State<ReaderContentView> {
         ),
       );
 
-  /// 一屏里的一栏。末屏的右栏可能没有内容，[ReaderPageBody] 自己摆空。
-  Widget _pageColumn(
-    _ChapterSlot slot,
-    int page,
-    Size viewport,
-    int column,
-    int columns,
-  ) => ReaderPageBody(
-    sortNum: slot.sortNum,
-    geometry: slot.geometry,
-    pageTops: slot.pageTops,
-    blocks: slot.rendered,
-    renderable: slot.renderable,
-    index: page,
-    viewport: viewport,
-    padding: _columnPadding(column, columns),
+  /// 整条上第 [globalColumn] 栏：落在翻页条上的摆正文，落在条外的摆加载栏。
+  Widget _pageColumn(int globalColumn, Size viewport, int column, int columns) {
+    final padding = _columnPadding(column, columns);
+    final index = globalColumn - _leadingPending;
+    final located = index < 0 ? null : _strip.locate(index);
+    if (located == null) {
+      // 加载栏只在紧挨着翻页条、且那个方向确实还有章时才转圈：同一屏里更远的那些留白，
+      // 全书末章后面半屏空着也留白，没有下一章可等。
+      final before = index < 0;
+      final spinner = before
+          ? index == -1 && _hasChapterBefore
+          : index == _strip.pages && _hasChapterAfter;
+      if (!spinner) return const SizedBox.shrink();
+      final edge = before ? _strip.chapters.first : _strip.chapters.last;
+      return _pendingColumn(edge.sortNum + (before ? -1 : 1), padding);
+    }
+    final (slot, page) = located;
+    return ReaderPageBody(
+      sortNum: slot.sortNum,
+      geometry: slot.geometry,
+      pageTops: slot.pageTops,
+      blocks: slot.rendered,
+      renderable: slot.renderable,
+      index: page,
+      viewport: viewport,
+      padding: padding,
+    );
+  }
+
+  /// 还没备好的那一章占的栏：转圈等着，取失败了改成点一下重试。
+  Widget _pendingColumn(int sortNum, EdgeInsets padding) => Padding(
+    padding: padding,
+    child: Center(
+      child: widget.failedChapters.contains(sortNum)
+          ? TextButton(
+              onPressed: () {
+                setState(() => _requested.remove(sortNum));
+                _scheduleRequest();
+              },
+              child: const Text('加载失败，点击重试'),
+            )
+          : const CircularProgressIndicator(),
+    ),
   );
 }

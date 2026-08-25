@@ -6,19 +6,42 @@ const double _tolerance = 0.5;
 /// 双页模式下两栏之间的空白，单位逻辑像素。
 const double readerColumnGutter = 32;
 
-/// 单栏放不下这么宽就不分栏
-const double readerMinColumnWidth = 320;
+/// 一栏至少要放得下的汉字数。中文排版常见的行长下限在 25 字上下，
+/// WCAG 1.4.8 给 CJK 的上限是 40 字。按字号算，字号越大越不该分栏。
+const int readerMinColumnChars = 25;
+
+/// 一栏的最小高度。再矮的栏一屏只剩十来行，翻页比读得还勤。
+/// 取 Material 的 height-compact 上界，横放的手机（约 360dp 高）落在它下面。
+const double readerMinColumnHeight = 480;
+
+/// 分栏要求的最小宽高比。竖持的平板宽度够也不分栏。
+const double readerMinSpreadAspect = 1.2;
 
 /// 翻页模式下正文分几栏。[width]/[height] 是去掉留白后的正文区尺寸。
-
+///
+/// 正文可重排，所以下限是「一栏还剩多少行长」而不是绝对宽度：比的是单栏宽度，
+/// 且随字号走。市面上的可重排阅读器都是这么定的（Readium CSS 的 `20em`、
+/// calibre 的 `35rem`、crengine 的 `fontSize * 20`）。
 int readerColumnCount({
   required bool dualPage,
   required double width,
   required double height,
+  required double fontSize,
 }) {
-  if (!dualPage || width <= height) return 1;
-  return width >= readerMinColumnWidth * 2 + readerColumnGutter ? 2 : 1;
+  if (!dualPage) return 1;
+  if (height < readerMinColumnHeight) return 1;
+  if (width < height * readerMinSpreadAspect) return 1;
+  final minColumnWidth = fontSize * readerMinColumnChars;
+  return width >= minColumnWidth * 2 + readerColumnGutter ? 2 : 1;
 }
+
+/// 固定版式（漫画）分不分屏。页宽由图片决定，没有行长可言，
+/// 所以只看方向与屏幕比例——这也是 Readium 对 fixed-layout `spread-auto` 的做法。
+bool readerFixedLayoutSpread({
+  required bool dualPage,
+  required double width,
+  required double height,
+}) => dualPage && width >= height * readerMinSpreadAspect;
 
 /// 翻页模式的页顶偏移表；`breaks` 升序去重，元素落在 (0, contentHeight] 区间。
 List<double> paginateReaderContent({

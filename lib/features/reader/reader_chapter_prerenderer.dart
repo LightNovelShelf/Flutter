@@ -39,7 +39,9 @@ class _PrerenderEntry {
   bool failed = false;
 }
 
-/// 章节预渲染：当前章与前后各一章常驻，取数、分块、脚注、字体一次备齐。
+/// 章节预渲染：取数、分块、脚注、字体一次备齐。
+///
+/// 取回来的章一直留在缓存里，同一次阅读中不会重复请求，直到 [dispose]。
 class ReaderChapterPrerenderer {
   ReaderChapterPrerenderer({
     required ApiClient api,
@@ -76,19 +78,21 @@ class ReaderChapterPrerenderer {
     ).future;
   }
 
-  /// 后台备好某一章并等待就绪。失败、错位或期间被 [retain] 丢弃时返回 null。
+  /// 后台备好某一章并等待就绪。失败或服务端错位时返回 null。
+  /// [priority] 用来区分空闲预取与用户正等着的那一章。
   Future<ReaderPreparedChapter?> prerender({
     required int sortNum,
     required String? convert,
     required bool fontCacheEnabled,
     required int fontCacheLimit,
+    RequestPriority priority = RequestPriority.preload,
   }) async {
     final key = (sortNum, convert);
     final entry =
         _entries[key] ??
         _start(
           key,
-          priority: RequestPriority.preload,
+          priority: priority,
           fontCacheEnabled: fontCacheEnabled,
           fontCacheLimit: fontCacheLimit,
         );
@@ -100,13 +104,10 @@ class ReaderChapterPrerenderer {
     return identical(_entries[key], entry) ? entry.value : null;
   }
 
-  /// 只保留这些章，其余连同在途请求一起丢弃。
-  void retain(Iterable<int> sortNums, String? convert) {
-    final keep = <(int, String?)>{
-      for (final sortNum in sortNums) (sortNum, convert),
-    };
+  /// 丢掉别的繁简版本，连同在途请求一起。切换繁简后旧版本的正文不会再用到。
+  void discardExcept(String? convert) {
     for (final key in _entries.keys.toList(growable: false)) {
-      if (!keep.contains(key)) _discard(key);
+      if (key.$2 != convert) _discard(key);
     }
   }
 

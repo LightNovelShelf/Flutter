@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/api_error.dart';
+import '../../core/network/request_scheduler.dart';
 import '../../core/platform/reader_immersive_mode.dart';
 import '../../core/platform/reader_volume_keys.dart';
 import '../../data/api/api_client.dart';
@@ -26,13 +27,18 @@ import 'widgets/reader_shell.dart';
 import 'widgets/reader_status_pills.dart';
 import 'widgets/reader_theme.dart';
 
+/// 窗口保留当前章两侧各几章。双页时一屏最多跨两章，翻过去之前还要备好再往后一章，
+/// 留两章足够；更远的章移出窗口，正文块与几何随之释放。
+const int _windowRadius = 2;
+
 /// 小说阅读器。
 ///
 /// 正文字形被服务端混淆，必须配合章节自带字体渲染：WOFF2 经 libwoff2 转成 TTF 后
 /// 注册进 Flutter 引擎，正文由 [ReaderContentView] 渲染。
 ///
-/// 当前章与前后各一章由 [ReaderChapterPrerenderer] 预渲染，三章一起交给正文视图组
-/// 成连续的翻页条，跨章翻页把窗口平移一格。
+/// 取回来的章由 [ReaderChapterPrerenderer] 一直缓存到退出阅读器，不会重复请求。
+/// 当前章两侧的连续几章组成 [ReaderChapterWindow]，一起交给正文视图接成翻页条；
+/// 正文视图翻到条外时按需要一章一章往两端接。
 class NovelReaderScreen extends ConsumerStatefulWidget {
   const NovelReaderScreen({
     super.key,
@@ -63,8 +69,11 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
   bool _contentReady = false;
   bool _chromeVisible = false;
 
-  /// 当前章与前后各一章，跨章翻页把窗口平移一格。
+  /// 当前章与两侧已备好的连续章节，翻页条按它接页。
   ReaderChapterWindow _window = const ReaderChapterWindow.empty();
+
+  /// 取失败的章号，正文视图据此把加载栏换成重试块。
+  final Set<int> _failedChapters = <int>{};
 
   int _totalChapters = 0;
 
@@ -73,6 +82,8 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
     (0, 0),
   );
 
+  /// 最近一次正文上报，预加载照它取屏首屏尾那两章。
+  ReaderContentPosition? _lastPosition;
   String? _restoreLocator;
   double _restoreProgression = 0;
   int _restoreToken = 0;
@@ -115,6 +126,8 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
 
     final settings = ref.read(appSettingsProvider);
     final convert = readerConvertParam(settings.convertType);
+    // 繁简换过之后旧版本的正文不会再用到，别占着缓存。
+    _prerenderer.discardExcept(convert);
     try {
       final prepared = await _prerenderer.open(
         sortNum: _sortNum,
@@ -131,6 +144,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
         // 服务端可能返回别的章节，以实际返回的章号为准。
         _sortNum = prepared.sortNum;
         _window = ReaderChapterWindow.only(prepared);
+        _failedChapters.clear();
         _totalChapters = prepared.chapter.chapterTitles.length;
         _restoreLocator = restore.$1;
         _restoreProgression = restore.$2;
@@ -172,25 +186,36 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
     }
   }
 
-  /// 让预渲染窗口跟上当前章，只保留 [_sortNum] 及其前后各一章。
+  /// 让窗口跟上当前章：太远的章移出窗口。
   void _syncWindow() {
     if (_window.isEmpty) return;
+    final trimmed = _window.retainAround(_windowRadius);
+    if (trimmed != _window) setState(() => _window = trimmed);
+    _preload();
+  }
+
+  /// 提前备好屏首那一章的上一章、屏尾那一章的下一章。
+  ///
+  /// 一屏最多跨两章，按屏两端各外扩一章备着，翻一屏之后落在屏首的那一章就一定备好了；
+  /// 只有更外面的右栏才可能是加载栏。照当前章两侧备则不够：双页时屏尾常常已经是下一章。
+  void _preload() {
+    final position = _lastPosition;
+    if (position == null || _window.isEmpty) return;
     final settings = ref.read(appSettingsProvider);
+    if (!settings.readerPrerenderAdjacent) return;
     final convert = readerConvertParam(settings.convertType);
-    if (!settings.readerPrerenderAdjacent) {
-      _prerenderer.retain(<int>[_sortNum], convert);
-      final alone = _window.alone;
-      if (alone != _window) setState(() => _window = alone);
-      return;
-    }
-    final neighbors = _window.neighborSortNums(_totalChapters);
-    _prerenderer.retain(<int>[_sortNum, ...neighbors], convert);
-    for (final sortNum in neighbors) {
+    for (final sortNum in <int>[
+      position.sortNum - 1,
+      position.tailSortNum + 1,
+    ]) {
+      if (sortNum < 1) continue;
+      if (_totalChapters > 0 && sortNum > _totalChapters) continue;
+      if (_window.at(sortNum) != null) continue;
       unawaited(_adopt(sortNum, convert, settings));
     }
   }
 
-  /// 预渲染完成后把相邻章接进窗口，期间窗口移动、繁简变更或关闭预渲染则丢弃结果。
+  /// 预渲染完成后把相邻章接进窗口，期间窗口挪走、繁简变更或关闭预加载则丢弃结果。
   Future<void> _adopt(
     int sortNum,
     String? convert,
@@ -206,6 +231,42 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
     final current = ref.read(appSettingsProvider);
     if (!current.readerPrerenderAdjacent) return;
     if (readerConvertParam(current.convertType) != convert) return;
+    _join(prepared);
+  }
+
+  /// 正文视图翻到了翻页条之外：把那一章接进窗口，正文视图在加载栏上等着。
+  /// 关掉预加载时这是唯一的取章入口，所以不看 readerPrerenderAdjacent。
+  Future<void> _needChapter(bool next, int fromSortNum) async {
+    final target = getAdjacentChapterSortNum(
+      sortNum: fromSortNum,
+      totalChapters: _totalChapters,
+      next: next,
+    );
+    if (target == null || _window.at(target) != null) return;
+    final settings = ref.read(appSettingsProvider);
+    final convert = readerConvertParam(settings.convertType);
+    if (_failedChapters.remove(target)) setState(() {});
+    final prepared = await _prerenderer.prerender(
+      sortNum: target,
+      convert: convert,
+      fontCacheEnabled: settings.fontCacheEnabled,
+      fontCacheLimit: settings.fontCacheLimit,
+      // 用户正盯着加载栏，插到空闲预取前面。
+      priority: RequestPriority.interactive,
+    );
+    if (!mounted) return;
+    if (prepared == null) {
+      setState(() => _failedChapters.add(target));
+      return;
+    }
+    if (readerConvertParam(ref.read(appSettingsProvider).convertType) !=
+        convert) {
+      return;
+    }
+    _join(prepared);
+  }
+
+  void _join(ReaderPreparedChapter prepared) {
     final joined = _window.withNeighbor(prepared);
     if (joined != _window) setState(() => _window = joined);
   }
@@ -270,16 +331,18 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
     }
     // 相邻章在切章落定前不是当前章，页码与进度等切换后再更新。
     if (position.sortNum != _sortNum) return;
+    _lastPosition = position;
     _progression = position.progression;
     _pages.value = (position.page, position.pages);
     // 工具栏可见时进度条也要跟着走，这时才需要重建整屏。
     if (_chromeVisible) setState(() {});
+    _preload();
     final chapter = _window.current?.chapter;
     if (chapter == null || position.locator.isEmpty) return;
     _progress.stage(chapter.id, position.locator);
   }
 
-  /// 翻页条进入相邻章时把窗口平移一格。
+  /// 翻页条走进了另一章：当前章跟着挪过去，窗口按新的当前章收拢。
   void _onChapterChanged(int sortNum) {
     final target = _window.at(sortNum);
     if (target == null || sortNum == _sortNum) return;
@@ -443,9 +506,13 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
                   child: DefaultTextStyle.merge(
                     style: TextStyle(color: foreground),
                     child: ReaderContentView(
-                      chapter: _chapterContent(current, settings)!,
-                      previous: _chapterContent(_window.previous, settings),
-                      next: _chapterContent(_window.next, settings),
+                      chapters: <ReaderChapterContent>[
+                        for (final prepared in _window.chapters)
+                          _chapterContent(prepared, settings)!,
+                      ],
+                      sortNum: _sortNum,
+                      totalChapters: _totalChapters,
+                      failedChapters: _failedChapters,
                       paged: paged,
                       dualPage: settings.readerDualPageEnabled,
                       padding: _contentPadding(settings),
@@ -457,6 +524,8 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
                           setState(() => _chromeVisible = !_chromeVisible),
                       onChapterChanged: _onChapterChanged,
                       onBoundary: (next) => unawaited(_openAdjacent(next)),
+                      onNeedChapter: (next, from) =>
+                          unawaited(_needChapter(next, from)),
                       onFootnote: _onFootnote,
                       onReady: () {
                         if (mounted && !_contentReady) {

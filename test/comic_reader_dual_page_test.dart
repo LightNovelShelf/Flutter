@@ -6,6 +6,7 @@ import 'package:lightnovel/core/network/request_scheduler.dart';
 import 'package:lightnovel/core/network/signalr_connection.dart';
 import 'package:lightnovel/core/platform/stores.dart';
 import 'package:lightnovel/data/api/api_client.dart';
+import 'package:lightnovel/data/api/models.dart';
 import 'package:lightnovel/data/providers.dart';
 import 'package:lightnovel/data/repositories/read_position_cache.dart';
 import 'package:lightnovel/data/settings/app_settings.dart';
@@ -161,6 +162,11 @@ Finder _page(int index) => find.byWidgetPredicate(
   (widget) => widget is ContentImage && widget.url.contains('/page$index.webp'),
 );
 
+/// 页码胶囊上显示的当前页。
+int _currentPage(WidgetTester tester) => tester
+    .widget<ReaderStatusPills>(find.byType(ReaderStatusPills))
+    .currentPage;
+
 void main() {
   // 进度缓存是进程级的，上一个用例读到第几页会带进下一个用例。
   setUp(ReadPositionCache.clear);
@@ -205,6 +211,32 @@ void main() {
     await _swipeForward(tester);
     expect(_page(4), findsOneWidget);
     expect(_page(5), findsOneWidget);
+  });
+
+  testWidgets('页码按屏首算：一屏两页时报前面那一页', (tester) async {
+    await _open(tester);
+
+    // 屏依次是 [0,1]、[2]、[3]、[4,5]，页码走屏首。
+    expect(_currentPage(tester), 1);
+    await _swipeForward(tester);
+    expect(_currentPage(tester), 3);
+    await _swipeForward(tester);
+    expect(_currentPage(tester), 4);
+    await _swipeForward(tester);
+    expect(_currentPage(tester), 5);
+  });
+
+  testWidgets('进度落在屏中间时退回屏首', (tester) async {
+    // 上次单栏读到第 2 页；它与第 1 页同屏，页码该报 1 而不是 2。
+    ReadPositionCache.stage(
+      _bookId,
+      const BookReadPosition(chapterId: _chapterId, position: '2'),
+    );
+    await _open(tester);
+
+    expect(_currentPage(tester), 1);
+    expect(_page(0), findsOneWidget);
+    expect(_page(1), findsOneWidget);
   });
 
   testWidgets('默认在角落摆页码胶囊', (tester) async {

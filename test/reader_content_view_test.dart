@@ -13,6 +13,8 @@ import 'package:lightnovel/features/reader/widgets/reader_content_view.dart';
 import 'package:lightnovel/features/reader/widgets/reader_measure_box.dart';
 import 'package:lightnovel/features/reader/widgets/reader_page_body.dart';
 
+import 'support/reader_screen.dart';
+
 const ReaderContentStyle _style = ReaderContentStyle(
   fontSize: 18,
   lineHeight: 1.6,
@@ -38,26 +40,64 @@ ReaderChapterContent _chapter(int sortNum, {int count = 12}) =>
       style: _style,
     );
 
+/// 整页插图正好占满一栏，用它按栏数造章：栏数完全可控，不受字体度量影响。
+List<NovelReaderBlock> _pageBlocks(int columns) => normalizeNovelBlocks(
+  List<String>.generate(
+    columns,
+    (index) =>
+        '<div class="illus duokan-image-single">'
+        '<img src="https://img.example/p$index.webp?size=1000x2000"/></div>',
+  ).join(),
+);
+
+/// 占 [columns] 栏的一章。
+ReaderChapterContent _paged(int sortNum, int columns) => ReaderChapterContent(
+  sortNum: sortNum,
+  blocks: _pageBlocks(columns),
+  style: _style,
+);
+
 class _Harness {
   _Harness({
     required List<NovelReaderBlock> blocks,
     required this.paged,
     this.dualPage = false,
-    this.previous,
-    this.next,
+    ReaderChapterContent? previous,
+    ReaderChapterContent? next,
     this.restoreLocator,
     this.padding = const EdgeInsets.fromLTRB(24, 12, 24, 24),
     ReaderContentStyle style = _style,
-    int sortNum = 2,
-  }) : chapter = ReaderChapterContent(
-         sortNum: sortNum,
-         blocks: blocks,
-         style: style,
-       );
+    this.sortNum = 2,
+    this.totalChapters = 0,
+    this.autoServe,
+  }) : chapters = <ReaderChapterContent>[
+         ?previous,
+         ReaderChapterContent(sortNum: sortNum, blocks: blocks, style: style),
+         ?next,
+       ];
 
-  ReaderChapterContent chapter;
-  ReaderChapterContent? previous;
-  ReaderChapterContent? next;
+  /// 直接给定整段连续章节，用来摆各种栏数组合。
+  _Harness.of({
+    required this.chapters,
+    required this.sortNum,
+    required this.totalChapters,
+    this.dualPage = true,
+  }) : paged = true,
+       padding = const EdgeInsets.fromLTRB(24, 12, 24, 24),
+       autoServe = null;
+
+  /// 模拟上层把离当前章太远的那些移出窗口。
+  void retainAround(int radius) => chapters.removeWhere(
+    (chapter) => (chapter.sortNum - sortNum).abs() > radius,
+  );
+
+  /// 已备好的连续章节，按章号升序。
+  final List<ReaderChapterContent> chapters;
+  int sortNum;
+  final int totalChapters;
+
+  /// 上层在 [ReaderContentView.onNeedChapter] 后送来的那一章，null 表示不响应。
+  final ReaderChapterContent Function(int sortNum)? autoServe;
 
   final bool paged;
   final bool dualPage;
@@ -66,24 +106,41 @@ class _Harness {
   int restoreToken = 0;
   Color textColor = const Color(0xFF2A2318);
   final ReaderContentController controller = ReaderContentController();
+  final Set<int> failedChapters = <int>{};
 
   final List<ReaderContentPosition> positions = <ReaderContentPosition>[];
   final List<bool> boundaries = <bool>[];
-  final List<int> chapters = <int>[];
+  final List<int> needed = <int>[];
+  final List<int> chapterChanges = <int>[];
   int centerTaps = 0;
   int ready = 0;
 
+  ReaderChapterContent get chapter =>
+      chapters.firstWhere((chapter) => chapter.sortNum == sortNum);
   List<NovelReaderBlock> get blocks => chapter.blocks;
   ReaderContentPosition get last => positions.last;
 
-  /// 模拟上层在 [ReaderContentView.onChapterChanged] 之后把章节窗口平移一格。
-  void shiftTo(int sortNum) {
-    final target = sortNum == next?.sortNum ? next! : previous!;
-    final forward = sortNum > chapter.sortNum;
-    final leaving = chapter;
-    chapter = target;
-    previous = forward ? leaving : null;
-    next = forward ? null : leaving;
+  set chapter(ReaderChapterContent value) =>
+      chapters[chapters.indexWhere((c) => c.sortNum == value.sortNum)] = value;
+
+  /// 模拟上层在 [ReaderContentView.onChapterChanged] 之后把当前章挪过去。
+  void shiftTo(int sortNum) => this.sortNum = sortNum;
+
+  /// 模拟上层把请求到的一章接进窗口两端。
+  void join(ReaderChapterContent content) {
+    if (chapters.any((c) => c.sortNum == content.sortNum)) return;
+    if (content.sortNum == chapters.first.sortNum - 1) {
+      chapters.insert(0, content);
+    } else if (content.sortNum == chapters.last.sortNum + 1) {
+      chapters.add(content);
+    }
+  }
+
+  void _onNeedChapter(bool next, int fromSortNum) {
+    final target = fromSortNum + (next ? 1 : -1);
+    needed.add(target);
+    final serve = autoServe;
+    if (serve != null) join(serve(target));
   }
 
   Widget build() => MaterialApp(
@@ -91,9 +148,10 @@ class _Harness {
       body: DefaultTextStyle.merge(
         style: TextStyle(color: textColor),
         child: ReaderContentView(
-          chapter: chapter,
-          previous: previous,
-          next: next,
+          chapters: chapters,
+          sortNum: sortNum,
+          totalChapters: totalChapters,
+          failedChapters: failedChapters,
           paged: paged,
           dualPage: dualPage,
           padding: padding,
@@ -102,8 +160,9 @@ class _Harness {
           restoreToken: restoreToken,
           onPosition: positions.add,
           onTapCenter: () => centerTaps++,
-          onChapterChanged: chapters.add,
+          onChapterChanged: chapterChanges.add,
           onBoundary: boundaries.add,
+          onNeedChapter: _onNeedChapter,
           onFootnote: (_, _) {},
           onReady: () => ready++,
           controller: controller,
@@ -119,8 +178,10 @@ Future<_Harness> _pump(
   bool dualPage = false,
   String? restoreLocator,
   int count = 40,
+  int totalChapters = 0,
   ReaderChapterContent? previous,
   ReaderChapterContent? next,
+  ReaderChapterContent Function(int sortNum)? autoServe,
 }) async {
   final harness = _Harness(
     blocks: _blocks(count),
@@ -129,6 +190,8 @@ Future<_Harness> _pump(
     previous: previous,
     next: next,
     restoreLocator: restoreLocator,
+    totalChapters: totalChapters,
+    autoServe: autoServe,
   );
   await tester.pumpWidget(harness.build());
   await tester.pumpAndSettle();
@@ -149,6 +212,38 @@ Finder _pageText(String text) => find.descendant(
     (widget) => widget is RichText && widget.text.toPlainText().contains(text),
   ),
 );
+
+/// 屏首那一栏：视口内最靠左的正文栏，返回 (章号, 栏下标)。
+/// `PageView` 会预建左右邻屏，视口外的那些不算。
+(int, int)? _headColumn(WidgetTester tester) {
+  final width = tester.view.physicalSize.width / tester.view.devicePixelRatio;
+  (int, int)? head;
+  double? headLeft;
+  for (final element
+      in find
+          .byWidgetPredicate(
+            (widget) =>
+                widget.key is ValueKey<String> &&
+                (widget.key! as ValueKey<String>).value.startsWith(
+                  'reader-page-',
+                ),
+          )
+          .evaluate()) {
+    final box = element.renderObject;
+    if (box is! RenderBox || !box.hasSize) continue;
+    final left = box.localToGlobal(Offset.zero).dx;
+    if (left < 0 || left >= width) continue;
+    if (headLeft != null && left >= headLeft) continue;
+    headLeft = left;
+    final parts = (element.widget.key! as ValueKey<String>).value.split('-');
+    head = (int.parse(parts[2]), int.parse(parts[3]));
+  }
+  return head;
+}
+
+/// 当前屏从左到右每一栏上摆着什么，见 `support/reader_screen.dart`。
+List<String> _screenSlots(WidgetTester tester, {int columns = 1}) =>
+    readerScreenSlots(tester, columns: columns);
 
 void main() {
   testWidgets('段间距动态更新后实际增加相邻段落距离', (tester) async {
@@ -408,20 +503,42 @@ void main() {
     expect(resized.last.page, 2);
   });
 
-  testWidgets('首页再往前翻交给上层翻章，中间点击只切工具栏', (tester) async {
+  /// 加载栏一直在转圈，`pumpAndSettle` 会等不到静止，只能推固定帧数。
+  Future<void> spin(WidgetTester tester, [int frames = 20]) async {
+    for (var frame = 0; frame < frames; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+  }
+
+  testWidgets('单页不预加载：首页再往前翻先转圈请求上一章，中间点击只切工具栏', (tester) async {
     final harness = await _pump(tester);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
 
     await tester.tapAt(const Offset(100, 300));
+    await spin(tester);
+
+    // 上一章还没备好：这一屏摆加载栏，并请求第 1 章。
+    expect(harness.needed, <int>[1]);
+    expect(harness.boundaries, isEmpty);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(_pageText('第0段'), findsNothing);
+
+    // 章节接进来后落在上一章末栏。
+    harness.join(_chapter(1, count: 12));
+    await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
-    expect(harness.boundaries, <bool>[false]);
-    expect(harness.last.page, 1);
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(harness.last.sortNum, 1);
+    expect(harness.last.page, harness.last.pages);
+    expect(harness.chapterChanges, <int>[1]);
 
     await tester.tapAt(const Offset(400, 300));
     await tester.pumpAndSettle();
     expect(harness.centerTaps, 1);
   });
 
-  testWidgets('末页再往后翻同样交给上层翻章', (tester) async {
+  testWidgets('单页不预加载：末页再往后翻先转圈请求下一章，到位后显示章首', (tester) async {
     final harness = await _pump(tester, count: 12);
 
     expect(harness.last.pages, greaterThan(1));
@@ -432,10 +549,138 @@ void main() {
       expect(harness.last.page, page + 1);
     }
     expect(harness.last.progression, 1);
+    // 读到末页为止都不该去取下一章。
+    expect(harness.needed, isEmpty);
+
+    await tester.tapAt(const Offset(700, 300));
+    await spin(tester);
+
+    expect(harness.needed, <int>[3]);
+    expect(harness.boundaries, isEmpty);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    harness.join(_chapter(3, count: 12));
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(_pageText('第3章第0段'), findsWidgets);
+    expect(harness.last.sortNum, 3);
+    expect(harness.last.page, 1);
+    expect(harness.chapterChanges, <int>[3]);
+  });
+
+  testWidgets('全书末章之后不再摆加载栏，也不请求', (tester) async {
+    final harness = await _pump(tester, count: 12, totalChapters: 2);
+
+    while (harness.last.page < harness.last.pages) {
+      await tester.tapAt(const Offset(700, 300));
+      await tester.pumpAndSettle();
+    }
+    await tester.tapAt(const Offset(700, 300));
+    await tester.pumpAndSettle();
+
+    expect(harness.needed, isEmpty);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    // 条外没有栏可翻，仍交给上层，上层会发现没有下一章。
+    expect(harness.boundaries, <bool>[true]);
+  });
+
+  testWidgets('单页不预加载：逐栏翻到章尾，再翻才转圈，取回来接着往下读', (tester) async {
+    // 第 2 章两栏，全书 3 章。屏应当是 <2上>、<2下>、<转圈>、<3>。
+    final harness = _Harness.of(
+      chapters: <ReaderChapterContent>[_paged(2, 2)],
+      sortNum: 2,
+      totalChapters: 3,
+      dualPage: false,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    expect(_screenSlots(tester), <String>['2-0']);
+    expect((harness.last.sortNum, harness.last.page), (2, 1));
+    expect(harness.needed, isEmpty);
 
     await tester.tapAt(const Offset(700, 300));
     await tester.pumpAndSettle();
-    expect(harness.boundaries, <bool>[true]);
+    expect(_screenSlots(tester), <String>['2-1']);
+    expect((harness.last.sortNum, harness.last.page), (2, 2));
+    expect(harness.needed, isEmpty);
+
+    await tester.tapAt(const Offset(700, 300));
+    await spin(tester);
+    expect(_screenSlots(tester), <String>['…']);
+    expect(harness.needed, <int>[3]);
+    // 位置仍记在章尾那一栏上，等章节到位再挪。
+    expect((harness.last.sortNum, harness.last.page), (2, 2));
+
+    harness.join(_paged(3, 2));
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    expect(_screenSlots(tester), <String>['3-0']);
+    expect((harness.last.sortNum, harness.last.page), (3, 1));
+    expect(harness.chapterChanges, <int>[3]);
+  });
+
+  testWidgets('单页预加载：下一章已备好，跨章那一下不出加载栏', (tester) async {
+    final harness = _Harness.of(
+      chapters: <ReaderChapterContent>[_paged(2, 1), _paged(3, 2)],
+      sortNum: 2,
+      totalChapters: 3,
+      dualPage: false,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    expect(_screenSlots(tester), <String>['2-0']);
+
+    await tester.tapAt(const Offset(700, 300));
+    await tester.pumpAndSettle();
+
+    expect(_screenSlots(tester), <String>['3-0']);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect((harness.last.sortNum, harness.last.page), (3, 1));
+    expect(harness.chapterChanges, <int>[3]);
+  });
+
+  testWidgets('全书首章往前翻：不转圈也不请求', (tester) async {
+    final harness = _Harness.of(
+      chapters: <ReaderChapterContent>[_paged(1, 2)],
+      sortNum: 1,
+      totalChapters: 3,
+      dualPage: false,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    await tester.tapAt(const Offset(100, 300));
+    await tester.pumpAndSettle();
+
+    expect(_screenSlots(tester), <String>['1-0']);
+    expect(harness.needed, isEmpty);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(harness.boundaries, <bool>[false]);
+  });
+
+  testWidgets('取章失败后加载栏改成重试块，点一下重新请求', (tester) async {
+    final harness = await _pump(tester, count: 12);
+
+    while (harness.last.page < harness.last.pages) {
+      await tester.tapAt(const Offset(700, 300));
+      await tester.pumpAndSettle();
+    }
+    await tester.tapAt(const Offset(700, 300));
+    await spin(tester);
+    expect(harness.needed, <int>[3]);
+
+    harness.failedChapters.add(3);
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    await tester.tap(find.text('加载失败，点击重试'));
+    await tester.pumpAndSettle();
+
+    expect(harness.needed, <int>[3, 3]);
   });
 
   testWidgets('按页顶 locator 恢复：回到同一页同一位置', (tester) async {
@@ -662,7 +907,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(harness.boundaries, isEmpty);
-    expect(harness.chapters, <int>[3]);
+    expect(harness.chapterChanges, <int>[3]);
     expect(harness.last.sortNum, 3);
     expect(harness.last.page, 1);
     expect(_pageText('第3章第0段'), findsWidgets);
@@ -689,7 +934,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(harness.boundaries, isEmpty);
-    expect(harness.chapters, <int>[3]);
+    expect(harness.chapterChanges, <int>[3]);
     expect(harness.last.sortNum, 3);
     expect(harness.last.page, 1);
   });
@@ -702,7 +947,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(harness.boundaries, isEmpty);
-    expect(harness.chapters, <int>[1]);
+    expect(harness.chapterChanges, <int>[1]);
     expect(harness.last.sortNum, 1);
     expect(harness.last.page, harness.last.pages);
     expect(harness.last.progression, 1);
@@ -716,7 +961,7 @@ void main() {
     final locator = harness.last.locator;
     expect(page, 2);
 
-    harness.previous = _chapter(1);
+    harness.join(_chapter(1));
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
 
@@ -732,7 +977,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(harness.boundaries, isEmpty);
-    expect(harness.chapters, <int>[1]);
+    expect(harness.chapterChanges, <int>[1]);
     expect(harness.last.sortNum, 1);
   });
 
@@ -761,12 +1006,22 @@ void main() {
     expect(image.center.dx, closeTo(page.center.dx, 0.5));
   });
 
+  /// 10 寸安卓平板横屏：1280x800 逻辑像素。双页只在这个量级的屏幕上才开。
+  void useTabletLandscape(WidgetTester tester) {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+  }
+
   testWidgets('双页模式：两栏并排半屏，一屏摆连续的两栏', (tester) async {
-    // 单栏跑一遍同样宽度的正文，拿到栏数，双页的屏数应当是它的一半（向上取整）。
+    useTabletLandscape(tester);
+
+    // 单栏跑一遍同样栏宽的正文（左右留白 340 => 正文 600），拿到栏数。
+    // 翻页条按栏走，双页只改一屏摆几栏，栏数应当一致。
     final narrow = _Harness(
       blocks: _blocks(40),
       paged: true,
-      padding: const EdgeInsets.fromLTRB(220, 12, 220, 24),
+      padding: const EdgeInsets.fromLTRB(340, 12, 340, 24),
     );
     await tester.pumpWidget(narrow.build());
     await tester.pumpAndSettle();
@@ -775,27 +1030,430 @@ void main() {
 
     final harness = await _pump(tester, count: 40, dualPage: true);
 
-    expect(harness.last.pages, (columns + 1) ~/ 2);
+    // 上报的仍是栏（页），不是屏：换成单栏读同一处时页码对得上。
+    expect(harness.last.pages, columns);
     expect(harness.last.page, 1);
 
     // 左右两栏各占半屏：外侧照旧留白，内侧各让出一半栏间距。
     final left = tester.getRect(find.byKey(readerPageBodyKey(2, 0)));
     final right = tester.getRect(find.byKey(readerPageBodyKey(2, 1)));
     expect(left.left, closeTo(24, 0.01));
-    expect(left.width, closeTo(360, 0.01));
-    expect(right.left, closeTo(416, 0.01));
-    expect(right.width, closeTo(360, 0.01));
+    expect(left.width, closeTo(600, 0.01));
+    expect(right.left, closeTo(656, 0.01));
+    expect(right.width, closeTo(600, 0.01));
     expect(find.byKey(readerPageBodyKey(2, 2)), findsNothing);
 
     // 翻一屏走两栏。
-    await tester.tapAt(const Offset(700, 300));
+    await tester.tapAt(const Offset(1100, 400));
     await tester.pumpAndSettle();
 
-    expect(harness.last.page, 2);
+    expect(harness.last.page, 3);
     expect(
       tester.getRect(find.byKey(readerPageBodyKey(2, 2))).left,
       closeTo(24, 0.01),
     );
+    expect(find.byKey(readerPageBodyKey(2, 1)), findsNothing);
+  });
+
+  testWidgets('双页模式：只有一栏的章节，右栏接下一章而不是留空', (tester) async {
+    useTabletLandscape(tester);
+
+    // 整页插图的章节只占一栏。屏按栏切，右栏该接上已预渲染的下一章。
+    final harness = _Harness(
+      blocks: normalizeNovelBlocks(
+        '<div class="illus duokan-image-single">'
+        '<img src="https://img.example/only.webp?size=1000x2000"/></div>',
+      ),
+      paged: true,
+      dualPage: true,
+      next: _chapter(3, count: 12),
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    // 本章只有一栏，位置仍记在本章第一栏上。
+    expect(harness.last.sortNum, 2);
+    expect(harness.last.pages, 1);
+    expect(harness.last.page, 1);
+
+    // 左栏是插图所在的本章唯一一栏，右栏是下一章的第一栏。
+    final left = find.byKey(readerPageBodyKey(2, 0));
+    final right = find.byKey(readerPageBodyKey(3, 0));
+    expect(left, findsOneWidget);
+    expect(right, findsOneWidget);
+    expect(tester.getRect(left).left, closeTo(24, 0.01));
+    expect(tester.getRect(right).left, closeTo(656, 0.01));
+    expect(
+      find.descendant(of: left, matching: find.byType(BookImage)),
+      findsOneWidget,
+    );
+    expect(_pageText('第3章第0段'), findsWidgets);
+  });
+
+  /// 只占一栏的整页插图章。
+  List<NovelReaderBlock> illustration() => normalizeNovelBlocks(
+    '<div class="illus duokan-image-single">'
+    '<img src="https://img.example/only.webp?size=1000x2000"/></div>',
+  );
+
+  ReaderChapterContent illustrated(int sortNum) => ReaderChapterContent(
+    sortNum: sortNum,
+    blocks: illustration(),
+    style: _style,
+  );
+
+  /// 转圈那一栏的中心横坐标。
+  double spinnerX(WidgetTester tester) =>
+      tester.getRect(find.byType(CircularProgressIndicator)).center.dx;
+
+  /// 上报的位置必须就是屏首那一栏。
+  void expectHeadReported(WidgetTester tester, _Harness harness) {
+    expect(_headColumn(tester), (harness.last.sortNum, harness.last.page - 1));
+  }
+
+  testWidgets('双页不预加载：右栏空着就转圈请求下一章，到位后右栏摆下一章', (tester) async {
+    useTabletLandscape(tester);
+
+    final harness = _Harness(
+      blocks: illustration(),
+      paged: true,
+      dualPage: true,
+    );
+    await tester.pumpWidget(harness.build());
+    await spin(tester);
+
+    // 本章只有一栏，右栏没内容：右栏转圈并请求下一章，位置仍记在本章唯一那一栏上。
+    expect(harness.last.sortNum, 2);
+    expect(harness.last.page, 1);
+    expect(harness.needed, <int>[3]);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(spinnerX(tester), greaterThan(640));
+
+    // 同一章不重复请求。
+    await spin(tester, 40);
+    expect(harness.needed, <int>[3]);
+
+    harness.join(_chapter(3, count: 12));
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byKey(readerPageBodyKey(2, 0)), findsOneWidget);
+    expect(find.byKey(readerPageBodyKey(3, 0)), findsOneWidget);
+    expect(_pageText('第3章第0段'), findsWidgets);
+    // 右栏是下一章，页码与进度按屏首那一栏算，所以当前章没变。
+    expect(harness.last.sortNum, 2);
+    expect(harness.chapterChanges, isEmpty);
+    expectHeadReported(tester, harness);
+  });
+
+  testWidgets('双页乐观翻页：整屏空白左栏转圈，接进来的章只有一栏就换右栏接着转', (tester) async {
+    useTabletLandscape(tester);
+
+    // 两章各只有一栏，一屏正好摆满，再往后翻整屏都是空的。
+    final harness = _Harness(
+      blocks: illustration(),
+      paged: true,
+      dualPage: true,
+      next: illustrated(3),
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    // 下一章还没排完时右栏也会摆加载栏并请求，上层发现已在窗口里即无事发生。
+    expect(harness.needed, <int>[3]);
+    harness.needed.clear();
+
+    await tester.tapAt(const Offset(1100, 400));
+    await spin(tester);
+
+    // 两栏都空：左栏转圈，请求第 4 章。
+    expect(harness.needed, <int>[4]);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(spinnerX(tester), lessThan(640));
+
+    harness.join(illustrated(4));
+    await tester.pumpWidget(harness.build());
+    await spin(tester);
+
+    // 第 4 章只有一栏，落在左栏；右栏还是空的，改成右栏转圈并请求第 5 章。
+    expect(harness.last.sortNum, 4);
+    expect(harness.chapterChanges, <int>[4]);
+    expect(find.byKey(readerPageBodyKey(4, 0)), findsOneWidget);
+    expectHeadReported(tester, harness);
+    expect(harness.needed, <int>[4, 5]);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(spinnerX(tester), greaterThan(640));
+  });
+
+  testWidgets('双页往前翻：整屏加载栏时右栏转圈，接进来后落在上一章末栏', (tester) async {
+    useTabletLandscape(tester);
+
+    final harness = _Harness(blocks: _blocks(40), paged: true, dualPage: true);
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    expect(harness.needed, isEmpty);
+
+    await tester.tapAt(const Offset(100, 400));
+    await spin(tester);
+
+    // 条前的加载栏补满一屏，转圈的是紧挨着正文的右栏。
+    expect(harness.needed, <int>[1]);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(spinnerX(tester), greaterThan(640));
+
+    harness.join(_chapter(1, count: 12));
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(harness.last.sortNum, 1);
+    // 落在上一章末尾那一屏：屏首可能是倒数第二栏，进度到不了 100%。
+    expect(harness.last.page, greaterThanOrEqualTo(harness.last.pages - 1));
+    expect(harness.chapterChanges, <int>[1]);
+    expectHeadReported(tester, harness);
+  });
+
+  testWidgets('双页：上一章半路接进来，屏上那两栏不重新配对', (tester) async {
+    useTabletLandscape(tester);
+
+    // 第 3 章只占一栏，右栏先是加载栏。
+    final harness = _Harness(
+      blocks: illustration(),
+      paged: true,
+      dualPage: true,
+      sortNum: 3,
+    );
+    await tester.pumpWidget(harness.build());
+    await spin(tester);
+    expect(_screenSlots(tester, columns: 2), <String>['3-0', '…']);
+
+    // 前后两章一起接进来：条整体前移，但屏首仍是第 3 章那一栏，右栏换成第 4 章。
+    harness
+      ..join(illustrated(2))
+      ..join(_paged(4, 2));
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    expect(_screenSlots(tester, columns: 2), <String>['3-0', '4-0']);
+    expect(harness.last.sortNum, 3);
+    expect(harness.last.page, 1);
+    expect(harness.chapterChanges, isEmpty);
+    expectHeadReported(tester, harness);
+  });
+
+  testWidgets('双页翻页顺序：栏首尾相接，一屏摆连续两栏，末章之后留白', (tester) async {
+    useTabletLandscape(tester);
+
+    // 全书 4 章，栏数 1、1、1、2：屏应当是 <1,2>、<3,4上>、<4下,空>。
+    final harness = _Harness.of(
+      chapters: <ReaderChapterContent>[
+        _paged(1, 1),
+        _paged(2, 1),
+        _paged(3, 1),
+        _paged(4, 2),
+      ],
+      sortNum: 1,
+      totalChapters: 4,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    expect(_screenSlots(tester, columns: 2), <String>['1-0', '2-0']);
+    expect((harness.last.sortNum, harness.last.page), (1, 1));
+    // 第 2 章还没排完版那几帧右栏是加载栏，会请求一次；上层发现已在窗口里即无事发生。
+    expect(harness.needed, <int>[2]);
+    harness.needed.clear();
+
+    await tester.tapAt(const Offset(1100, 400));
+    await tester.pumpAndSettle();
+    expect(_screenSlots(tester, columns: 2), <String>['3-0', '4-0']);
+    expect((harness.last.sortNum, harness.last.page), (3, 1));
+
+    await tester.tapAt(const Offset(1100, 400));
+    await tester.pumpAndSettle();
+    expect(_screenSlots(tester, columns: 2), <String>['4-1', '']);
+    expect((harness.last.sortNum, harness.last.page), (4, 2));
+    // 全书到头，末章之后不再请求。
+    expect(harness.needed, isEmpty);
+
+    // 原路翻回去，每一屏都还是原来那两栏。
+    await tester.tapAt(const Offset(100, 400));
+    await tester.pumpAndSettle();
+    expect(_screenSlots(tester, columns: 2), <String>['3-0', '4-0']);
+
+    await tester.tapAt(const Offset(100, 400));
+    await tester.pumpAndSettle();
+    expect(_screenSlots(tester, columns: 2), <String>['1-0', '2-0']);
+    expect((harness.last.sortNum, harness.last.page), (1, 1));
+  });
+
+  testWidgets('双页：读到的章被移出窗口，当前屏那两栏一动不动', (tester) async {
+    useTabletLandscape(tester);
+
+    final harness = _Harness.of(
+      chapters: <ReaderChapterContent>[
+        _paged(1, 1),
+        _paged(2, 1),
+        _paged(3, 1),
+        _paged(4, 2),
+      ],
+      sortNum: 1,
+      totalChapters: 6,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    await tester.tapAt(const Offset(1100, 400));
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(1100, 400));
+    await spin(tester);
+    expect(_screenSlots(tester, columns: 2), <String>['4-1', '…']);
+    harness.shiftTo(4);
+
+    // 上层按当前章收拢窗口丢掉第 1 章，同时把预备好的第 5 章接进来：
+    // 条的两端一起变，屏上那两栏不许跟着重新配对。
+    harness
+      ..retainAround(2)
+      ..join(_paged(5, 1));
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    expect(harness.chapters.map((chapter) => chapter.sortNum), <int>[
+      2,
+      3,
+      4,
+      5,
+    ]);
+    expect(_screenSlots(tester, columns: 2), <String>['4-1', '5-0']);
+    expect((harness.last.sortNum, harness.last.page), (4, 2));
+    expectHeadReported(tester, harness);
+  });
+
+  testWidgets('双页翻页顺序：多栏章夹着单栏章，屏按栏切不按章切', (tester) async {
+    useTabletLandscape(tester);
+
+    // 栏数 2、1、2：屏应当是 <1上,1下>、<2,3上>、<3下,空>。
+    final harness = _Harness.of(
+      chapters: <ReaderChapterContent>[
+        _paged(1, 2),
+        _paged(2, 1),
+        _paged(3, 2),
+      ],
+      sortNum: 1,
+      totalChapters: 3,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    expect(_screenSlots(tester, columns: 2), <String>['1-0', '1-1']);
+    expect((harness.last.sortNum, harness.last.page), (1, 1));
+
+    await tester.tapAt(const Offset(1100, 400));
+    await tester.pumpAndSettle();
+    expect(_screenSlots(tester, columns: 2), <String>['2-0', '3-0']);
+    expect((harness.last.sortNum, harness.last.page), (2, 1));
+    expect(harness.chapterChanges, <int>[2]);
+
+    await tester.tapAt(const Offset(1100, 400));
+    await tester.pumpAndSettle();
+    expect(_screenSlots(tester, columns: 2), <String>['3-1', '']);
+    expect((harness.last.sortNum, harness.last.page), (3, 2));
+    expect(harness.chapterChanges, <int>[2, 3]);
+    expect(harness.needed, isEmpty);
+  });
+
+  testWidgets('双页往前翻到条外：右栏转圈，左栏留白', (tester) async {
+    useTabletLandscape(tester);
+
+    final harness = _Harness.of(
+      chapters: <ReaderChapterContent>[_paged(2, 2)],
+      sortNum: 2,
+      totalChapters: 4,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    expect(_screenSlots(tester, columns: 2), <String>['2-0', '2-1']);
+
+    await tester.tapAt(const Offset(100, 400));
+    await spin(tester);
+
+    // 加载栏只在紧挨着翻页条的右栏上转，左栏留白。
+    expect(_screenSlots(tester, columns: 2), <String>['', '…']);
+    expect(harness.needed, <int>[1]);
+
+    harness.join(_paged(1, 2));
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    // 落到上一章末尾那一屏：这里是全书首章，它的两栏正好凑成一屏，
+    // 位置按屏首算，记在第 0 栏上。
+    expect(_screenSlots(tester, columns: 2), <String>['1-0', '1-1']);
+    expect((harness.last.sortNum, harness.last.page), (1, 1));
+    expect(harness.chapterChanges, <int>[1]);
+  });
+
+  testWidgets('双页转单页：位置留在原来那一栏上', (tester) async {
+    useTabletLandscape(tester);
+
+    final harness = _Harness.of(
+      chapters: <ReaderChapterContent>[
+        _paged(1, 2),
+        _paged(2, 1),
+        _paged(3, 2),
+      ],
+      sortNum: 1,
+      totalChapters: 3,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(1100, 400));
+    await tester.pumpAndSettle();
+    expect(_screenSlots(tester, columns: 2), <String>['2-0', '3-0']);
+
+    // 转成竖屏手机：不再分栏，屏上只剩原来的屏首那一栏。
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3;
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    expect(_screenSlots(tester), <String>['2-0']);
+    expect(harness.last.sortNum, 2);
+    expect(harness.last.page, 1);
+  });
+
+  testWidgets('双页读全书末章：右栏空着也不转圈，后面没有章可等', (tester) async {
+    useTabletLandscape(tester);
+
+    // 全书 4 章，末章只占一栏：右半屏空着，但已经没有下一章了。
+    final harness = _Harness(
+      blocks: illustration(),
+      paged: true,
+      dualPage: true,
+      sortNum: 4,
+      totalChapters: 4,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(readerPageBodyKey(4, 0)), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(harness.needed, isEmpty);
+
+    // 往前翻仍要转圈：上一章是有的。
+    await tester.tapAt(const Offset(100, 400));
+    await spin(tester);
+    expect(harness.needed, <int>[3]);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('横放的手机不分栏：栏太矮', (tester) async {
+    // Pixel 8 横屏：800x360 逻辑像素，宽度够但高度落在 height-compact 里。
+    tester.view.physicalSize = const Size(2400, 1080);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+
+    await _pump(tester, count: 20, dualPage: true);
+
+    expect(find.byKey(readerPageBodyKey(2, 0)), findsOneWidget);
     expect(find.byKey(readerPageBodyKey(2, 1)), findsNothing);
   });
 

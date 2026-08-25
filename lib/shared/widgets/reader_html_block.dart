@@ -134,20 +134,35 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
     return false;
   }
 
+  /// `_paragraphBlock` 的匹配结果，按 [_markup] 的实例缓存。
+  /// 测量层与正文层各解析一遍，跨页块还会再来，正则每帧重跑不值当。
+  String? _spacingSource;
+  bool _hasParagraphBlock = false;
+
+  bool get _paragraphBlockPresent {
+    final markup = _markup;
+    if (!identical(_spacingSource, markup)) {
+      _spacingSource = markup;
+      _hasParagraphBlock = _paragraphBlock.hasMatch(markup);
+    }
+    return _hasParagraphBlock;
+  }
+
   /// 整块下方的段间距，`<p>` 之外的块（插图 `<div>`）没有。
   double get _blockBottomSpacing =>
       widget.applyParagraphSpacing &&
           widget.style.paragraphSpacing > 0 &&
-          _paragraphBlock.hasMatch(_markup)
+          _paragraphBlockPresent
       ? widget.style.paragraphSpacing
       : 0;
 
   @override
   Widget build(BuildContext context) {
     final content = _html();
-    if (_blockBottomSpacing <= 0) return content;
+    final spacing = _blockBottomSpacing;
+    if (spacing <= 0) return content;
     return Padding(
-      padding: EdgeInsets.only(bottom: _blockBottomSpacing),
+      padding: EdgeInsets.only(bottom: spacing),
       child: content,
     );
   }

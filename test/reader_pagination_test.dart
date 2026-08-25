@@ -8,24 +8,62 @@ List<double> _lineBreaks(double step, int count) => <double>[
 
 void main() {
   group('双页分栏', () {
-    int columns(bool dualPage, double width, double height) =>
-        readerColumnCount(dualPage: dualPage, width: width, height: height);
-
-    /// 刚好放得下两栏的正文宽度。
-    const double fits = readerMinColumnWidth * 2 + readerColumnGutter;
+    int columns(double width, double height, {double fontSize = 18}) =>
+        readerColumnCount(
+          dualPage: true,
+          width: width,
+          height: height,
+          fontSize: fontSize,
+        );
 
     test('关掉时无论多宽都是单栏', () {
-      expect(columns(false, 2000, 600), 1);
+      expect(
+        readerColumnCount(
+          dualPage: false,
+          width: 2000,
+          height: 1400,
+          fontSize: 18,
+        ),
+        1,
+      );
     });
 
-    test('横向更宽且放得下才分两栏', () {
-      expect(columns(true, fits, fits - 1), 2);
-      // 竖着拿的平板：宽度够，但高比宽大，仍是单栏。
-      expect(columns(true, fits, fits + 1), 1);
+    test('横放的手机不分栏：栏太矮，一屏只剩十来行', () {
+      // Pixel 8 横屏的正文区。宽度够，但高度落在 height-compact 里。
+      expect(columns(752, 324), 1);
     });
 
-    test('栏宽不够时退回单栏', () {
-      expect(columns(true, fits - 1, 100), 1);
+    test('竖持不分栏', () {
+      expect(columns(312, 764), 1); // 手机竖屏
+      expect(columns(772, 1120), 1); // 平板竖屏：宽度够，宽高比不够
+    });
+
+    test('平板横屏分两栏', () {
+      expect(columns(1232, 740), 2); // 10 寸平板
+      expect(columns(1132, 760), 2); // 11 寸 iPad
+    });
+
+    test('字号调大到一栏放不下 25 字就退回单栏', () {
+      expect(columns(1132, 760, fontSize: 18), 2);
+      expect(columns(1132, 760, fontSize: 26), 1);
+    });
+  });
+
+  group('固定版式分屏', () {
+    bool spread(double width, double height) =>
+        readerFixedLayoutSpread(dualPage: true, width: width, height: height);
+
+    test('漫画只看方向：横屏就分屏，跟字号与高度无关', () {
+      expect(spread(800, 360), isTrue); // 横放的手机也分
+      expect(spread(1280, 800), isTrue);
+      expect(spread(360, 800), isFalse); // 竖屏不分
+    });
+
+    test('关掉时不分屏', () {
+      expect(
+        readerFixedLayoutSpread(dualPage: false, width: 1280, height: 800),
+        isFalse,
+      );
     });
   });
 

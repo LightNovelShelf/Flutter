@@ -184,6 +184,7 @@ class SettingsToggleRow extends StatelessWidget {
     this.icon,
     required this.value,
     required this.onChanged,
+    this.enabled = true,
   });
 
   final String title;
@@ -191,14 +192,16 @@ class SettingsToggleRow extends StatelessWidget {
   final IconData? icon;
   final bool value;
   final ValueChanged<bool> onChanged;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) => SettingsRow(
     title: title,
     description: description,
     icon: icon,
-    onTap: () => onChanged(!value),
-    trailing: Switch(value: value, onChanged: onChanged),
+    enabled: enabled,
+    onTap: enabled ? () => onChanged(!value) : null,
+    trailing: Switch(value: value, onChanged: enabled ? onChanged : null),
   );
 }
 
