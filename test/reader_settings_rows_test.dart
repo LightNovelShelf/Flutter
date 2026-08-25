@@ -56,7 +56,7 @@ Switch _switchFor(WidgetTester tester, String title) {
 }
 
 void main() {
-  testWidgets('小说滚动模式下只禁用小说双页设置', (tester) async {
+  testWidgets('小说滚动模式下禁用页码胶囊和双页设置', (tester) async {
     final controller = await _pumpSettings(
       tester,
       const AppSettings(
@@ -65,12 +65,14 @@ void main() {
       ),
     );
 
+    expect(_switchFor(tester, '页码胶囊').onChanged, isNull);
     expect(_switchFor(tester, '双页模式').onChanged, isNull);
     await tester.ensureVisible(find.text('双页模式'));
     await tester.tap(find.text('双页模式'));
     await tester.pump();
     expect(controller.settings.novelReader.dualPageEnabled, isFalse);
     expect(controller.settings.comicReader.dualPageEnabled, isTrue);
+    expect(controller.settings.novelReader.statusPillsEnabled, isTrue);
   });
 
   testWidgets('小说设置只显示小说选项', (tester) async {
@@ -99,6 +101,18 @@ void main() {
     await tester.pump();
     expect(controller.settings.comicReader.dualPageEnabled, isTrue);
     expect(controller.settings.novelReader.dualPageEnabled, isFalse);
+  });
+
+  testWidgets('漫画滚动模式仍可设置页码胶囊', (tester) async {
+    await _pumpSettings(
+      tester,
+      const AppSettings(
+        comicReader: ReaderPreferences(viewMode: ReaderViewMode.scroll),
+      ),
+      type: BookType.comic,
+    );
+
+    expect(_switchFor(tester, '页码胶囊').onChanged, isNotNull);
   });
   testWidgets('软件设置把阅读单列并提供小说漫画入口', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: SettingsScreen()));

@@ -172,9 +172,9 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
     final blocks = prepared.blocks;
     switch (position) {
       case ReaderOpenPosition.start:
-        return (blocks.isEmpty ? null : blocks.first.locator, 0.0);
+        return (null, 0.0);
       case ReaderOpenPosition.end:
-        return (blocks.isEmpty ? null : blocks.last.locator, 1.0);
+        return (null, 1.0);
       case ReaderOpenPosition.saved:
         final restore = resolveReaderRestore(
           bookId: widget.bookId,

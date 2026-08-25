@@ -270,6 +270,7 @@ class ReaderSettingsContent extends ConsumerWidget {
                 description: '阅读时在角落常驻显示章节与页码',
                 icon: Icons.pin_outlined,
                 value: reader.statusPillsEnabled,
+                enabled: comic || reader.viewMode == ReaderViewMode.paged,
                 onChanged: (value) => updateReader(
                   (reader) => reader.copyWith(statusPillsEnabled: value),
                 ),

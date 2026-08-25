@@ -1071,6 +1071,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
   Widget _scrollingContent(_ChapterSlot slot) {
     final geometry = slot.geometry!;
     return ListView.builder(
+      key: ObjectKey(_scrollController),
       controller: _scrollController,
       padding: widget.padding,
       itemCount: slot.rendered.length,
