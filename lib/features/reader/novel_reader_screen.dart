@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/api_error.dart';
+import '../../core/platform/reader_immersive_mode.dart';
 import '../../core/platform/reader_volume_keys.dart';
 import '../../data/api/api_client.dart';
 import '../../data/providers.dart';
@@ -516,11 +517,14 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
             unawaited(_openChapter(sortNum, ReaderOpenPosition.start)),
       ),
     );
-    return ReaderVolumeKeyListener(
-      enabled: settings.readerVolumeKeyPagingEnabled && !_chromeVisible,
-      onPrevious: _contentController.previousPage,
-      onNext: _contentController.nextPage,
-      child: shell,
+    return ReaderImmersiveMode(
+      enabled: settings.readerImmersiveEnabled,
+      child: ReaderVolumeKeyListener(
+        enabled: settings.readerVolumeKeyPagingEnabled && !_chromeVisible,
+        onPrevious: _contentController.previousPage,
+        onNext: _contentController.nextPage,
+        child: shell,
+      ),
     );
   }
 }

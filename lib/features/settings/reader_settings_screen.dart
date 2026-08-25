@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme/app_theme.dart';
+import '../../core/platform/reader_immersive_mode.dart';
 import '../../data/providers.dart';
 import '../../data/settings/app_settings.dart';
 import '../../shared/widgets/color_picker_sheet.dart';
@@ -248,6 +249,18 @@ class ReaderSettingsContent extends ConsumerWidget {
                   (settings) => settings.copyWith(readerViewMode: value),
                 ),
               ),
+              // 沉浸式阅读靠 Android 的 immersiveSticky，其它平台不展示。
+              if (readerImmersiveSupported)
+                SettingsToggleRow(
+                  title: '沉浸式阅读',
+                  description: '阅读书籍时隐藏状态栏和导航栏',
+                  icon: Icons.fullscreen,
+                  value: settings.readerImmersiveEnabled,
+                  onChanged: (value) => controller.update(
+                    (settings) =>
+                        settings.copyWith(readerImmersiveEnabled: value),
+                  ),
+                ),
               // 音量键翻页只有 Android 侧的实现，其它平台不展示。
               if (defaultTargetPlatform == TargetPlatform.android)
                 SettingsToggleRow(

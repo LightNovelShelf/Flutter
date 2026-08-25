@@ -82,6 +82,7 @@ class AppSettings {
     this.readerBackgroundMode = ReaderBackgroundMode.auto,
     this.readerBackgroundColorValue = '#F7F1E3',
     this.readerFirstLineIndent = true,
+    this.readerImmersiveEnabled = false,
     this.readerJustify = false,
     this.readerLineHeight = 1.6,
     this.readerParagraphSpacing = 0,
@@ -113,6 +114,7 @@ class AppSettings {
   final ReaderBackgroundMode readerBackgroundMode;
   final String readerBackgroundColorValue;
   final bool readerFirstLineIndent;
+  final bool readerImmersiveEnabled;
   final bool readerJustify;
   final double readerLineHeight;
   final double readerParagraphSpacing;
@@ -144,6 +146,7 @@ class AppSettings {
     ReaderBackgroundMode? readerBackgroundMode,
     String? readerBackgroundColorValue,
     bool? readerFirstLineIndent,
+    bool? readerImmersiveEnabled,
     bool? readerJustify,
     double? readerLineHeight,
     double? readerParagraphSpacing,
@@ -177,6 +180,8 @@ class AppSettings {
     readerBackgroundColorValue:
         readerBackgroundColorValue ?? this.readerBackgroundColorValue,
     readerFirstLineIndent: readerFirstLineIndent ?? this.readerFirstLineIndent,
+    readerImmersiveEnabled:
+        readerImmersiveEnabled ?? this.readerImmersiveEnabled,
     readerJustify: readerJustify ?? this.readerJustify,
     readerLineHeight: readerLineHeight ?? this.readerLineHeight,
     readerParagraphSpacing:
@@ -242,6 +247,7 @@ class AppSettings {
         '#F7F1E3',
       ),
       readerFirstLineIndent: _bool(raw['readerFirstLineIndent'], true),
+      readerImmersiveEnabled: _bool(raw['readerImmersiveEnabled'], false),
       readerJustify: _bool(raw['readerJustify'], false),
       readerLineHeight: _clampDouble(raw['readerLineHeight'], 1, 2.5, 1.6),
       readerParagraphSpacing: _clampDouble(
@@ -309,6 +315,7 @@ class AppSettings {
     'readerBackgroundMode': readerBackgroundMode.name,
     'readerBackgroundColorValue': readerBackgroundColorValue,
     'readerFirstLineIndent': readerFirstLineIndent,
+    'readerImmersiveEnabled': readerImmersiveEnabled,
     'readerJustify': readerJustify,
     'readerLineHeight': readerLineHeight,
     'readerParagraphSpacing': readerParagraphSpacing,
@@ -343,6 +350,7 @@ class AppSettings {
       other.readerBackgroundMode == readerBackgroundMode &&
       other.readerBackgroundColorValue == readerBackgroundColorValue &&
       other.readerFirstLineIndent == readerFirstLineIndent &&
+      other.readerImmersiveEnabled == readerImmersiveEnabled &&
       other.readerJustify == readerJustify &&
       other.readerLineHeight == readerLineHeight &&
       other.readerParagraphSpacing == readerParagraphSpacing &&
@@ -375,6 +383,7 @@ class AppSettings {
     readerBackgroundMode,
     readerBackgroundColorValue,
     readerFirstLineIndent,
+    readerImmersiveEnabled,
     readerJustify,
     readerLineHeight,
     readerParagraphSpacing,

@@ -54,6 +54,24 @@ void main() {
     );
   });
 
+  test('沉浸式阅读默认关闭，并可开启与持久化', () {
+    expect(
+      AppSettings.decode(const <String, dynamic>{}).readerImmersiveEnabled,
+      isFalse,
+    );
+
+    final enabled = const AppSettings().copyWith(readerImmersiveEnabled: true);
+    expect(enabled.encode()['readerImmersiveEnabled'], isTrue);
+    expect(AppSettings.decode(enabled.encode()).readerImmersiveEnabled, isTrue);
+
+    expect(
+      AppSettings.decode(const <String, dynamic>{
+        'readerImmersiveEnabled': 'true',
+      }).readerImmersiveEnabled,
+      isFalse,
+    );
+  });
+
   test('音量键翻页默认关闭，并可开启与持久化', () {
     expect(
       AppSettings.decode(const <String, dynamic>{})
