@@ -22,6 +22,7 @@ import '../../shared/widgets/image_preview.dart';
 import '../../shared/widgets/state_views.dart';
 import 'reader_comic_paging.dart';
 import 'reader_open_position.dart';
+import 'reader_pagination.dart';
 import 'reader_position.dart';
 import 'reader_progress_controller.dart';
 import 'reader_providers.dart';
@@ -73,6 +74,13 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
   /// 前 i 页高宽比之和，乘上页宽就是第 i 页的顶部偏移。页宽变了不用重算，只有 `_slots` 变才重建。
   List<double> _aspectPrefix = const <double>[0];
 
+  /// 双页模式下的分屏表：每一屏一到两页。关掉或屏幕放不下时为空。
+  List<List<int>> _spreads = const <List<int>>[];
+
+  /// 每页落在第几屏，与 [_spreads] 同批重建。
+  List<int> _spreadOfPage = const <int>[];
+  bool _dual = false;
+
   /// 当前页只驱动页码指示器和工具栏，连续模式下滚动换页不重建整屏。
   final ValueNotifier<int> _pageNotifier = ValueNotifier<int>(0);
   int get _page => _pageNotifier.value;
@@ -113,12 +121,53 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     super.didChangeDependencies();
     _devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     final size = MediaQuery.sizeOf(context);
-    if (size == _screenSize) return;
-    _screenSize = size;
-    _continuousPageWidth = getContinuousComicContentWidth(
-      size.width,
-      size.height,
-    );
+    if (size != _screenSize) {
+      _screenSize = size;
+      _continuousPageWidth = getContinuousComicContentWidth(
+        size.width,
+        size.height,
+      );
+    }
+    // 旋转屏幕会让分屏在开合之间切换，当前页所在的那一屏要重新对准。
+    if (_syncDual(ref.read(appSettingsProvider).readerDualPageEnabled) &&
+        !loading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _syncToPage());
+    }
+  }
+
+  /// 按设置与屏幕尺寸决定分不分屏，变了就重建分屏表并返回 true。
+  bool _syncDual(bool enabled) {
+    final dual =
+        readerColumnCount(
+          dualPage: enabled,
+          width: _screenSize.width,
+          height: _screenSize.height,
+        ) >
+        1;
+    if (dual == _dual) return false;
+    _dual = dual;
+    _rebuildSpreads();
+    return true;
+  }
+
+  /// 分屏只在翻页模式下作数，连续模式仍是一页接一页。
+  bool get _dualPaged =>
+      _dual && _mode == ReaderViewMode.paged && _spreads.isNotEmpty;
+
+  /// 第 [page] 页在第几屏；不分屏时就是页码本身。
+  int _spreadIndexOf(int page) =>
+      page >= 0 && page < _spreadOfPage.length ? _spreadOfPage[page] : page;
+
+  void _rebuildSpreads() {
+    if (!_dual || _slots.isEmpty) {
+      _spreads = const <List<int>>[];
+      _spreadOfPage = const <int>[];
+      return;
+    }
+    _spreads = createComicSpreads(<double>[
+      for (var index = 0; index < _slots.length; index++) _aspect(index),
+    ]);
+    _spreadOfPage = createComicSpreadIndex(_spreads, _slots.length);
   }
 
   @override
@@ -239,7 +288,9 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
   void _resetControllers(int page) {
     final previousPage = _pageController;
     final previousScroll = _scrollController?..removeListener(_onScroll);
-    _pageController = PageController(initialPage: page);
+    _pageController = PageController(
+      initialPage: _dualPaged ? _spreadIndexOf(page) : page,
+    );
     _scrollController = ScrollController(
       initialScrollOffset: _offsetForPage(page),
     )..addListener(_onScroll);
@@ -254,7 +305,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     if (!mounted) return;
     final pageController = _pageController;
     if (pageController != null && pageController.hasClients) {
-      pageController.jumpToPage(_page);
+      pageController.jumpToPage(_dualPaged ? _spreadIndexOf(_page) : _page);
       return;
     }
     final scrollController = _scrollController;
@@ -305,6 +356,8 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
         );
       });
       _restoreAnchor(anchor);
+      // 配对可能被新到的宽图错开一位，当前页所在的那一屏要重新对准。
+      if (_dualPaged) _syncToPage();
     } catch (_) {
       if (isStale(version)) return;
       setState(() => _failedBatches.add(skip));
@@ -389,12 +442,19 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       prefix[index + 1] = sum;
     }
     _aspectPrefix = prefix;
+    // 新一批图带来真实比例，宽图会改变配对，分屏表跟着重建。
+    _rebuildSpreads();
   }
 
   /// 整页高度，展示与预取共用同一个算式，避免尺寸档分叉。翻页模式铺满屏宽，连续模式按内容宽收窄。
   double _pageHeight(int index) => _mode == ReaderViewMode.paged
-      ? _screenSize.width * _aspect(index)
+      ? _pagedPageWidth(index) * _aspect(index)
       : _continuousPageExtent(index);
+
+  /// 翻页模式下这一页占多宽：分屏时竖版页只占半屏，横跨两页的宽图仍铺满。
+  double _pagedPageWidth(int index) => _dualPaged && _aspect(index) >= 1
+      ? _screenSize.width / 2
+      : _screenSize.width;
 
   double _offsetForPage(int page) =>
       _continuousPageWidth * _aspectPrefix[page.clamp(0, _slots.length)];
@@ -444,11 +504,18 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
 
   void _turn(int delta) {
     if (loading || loadError != null || _slots.isEmpty) return;
+    final pageController = _pageController;
+    if (_dualPaged && pageController != null && pageController.hasClients) {
+      final current = _spreadIndexOf(_page);
+      final target = (current + delta).clamp(0, _spreads.length - 1).toInt();
+      if (target == current) return;
+      pageController.jumpToPage(target);
+      return;
+    }
     final target = (_page + delta)
         .clamp(0, math.max(0, _slots.length - 1))
         .toInt();
     if (target == _page) return;
-    final pageController = _pageController;
     if (pageController != null && pageController.hasClients) {
       pageController.jumpToPage(target);
       return;
@@ -542,21 +609,77 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     );
   }
 
+  /// 一屏的自然尺寸。宽图独占整屏，落单的竖版页仍按半屏宽算，翻页时页面大小不跳。
+  Size _spreadSize(List<int> pages, double width) {
+    final half = width / 2;
+    var height = 0.0;
+    for (final page in pages) {
+      final aspect = _aspect(page);
+      final pageWidth = aspect < 1 ? width : half;
+      height = math.max(height, pageWidth * aspect);
+    }
+    return Size(width, height);
+  }
+
+  /// 一屏的正文：两页并排，右起时右边那页在前。
+  Widget _spreadContent(List<int> pages, Size size, bool reversed) {
+    final half = size.width / 2;
+    Widget page(int index) {
+      final aspect = _aspect(index);
+      final pageWidth = aspect < 1 ? size.width : half;
+      return SizedBox(
+        width: pageWidth,
+        height: size.height,
+        // 两页按中线对齐，高度不同也不会一上一下。
+        child: Center(
+          child: _pageContent(index, pageWidth, pageWidth * aspect),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: size.width,
+      height: size.height,
+      child: pages.length == 1
+          ? Center(child: page(pages.first))
+          : Row(
+              textDirection: reversed ? TextDirection.rtl : TextDirection.ltr,
+              children: <Widget>[for (final index in pages) page(index)],
+            ),
+    );
+  }
+
   Widget _pagedView(bool reversed) {
     final size = _screenSize;
+    final spreads = _dualPaged ? _spreads : null;
     final gallery = PhotoViewGallery.builder(
-      itemCount: _slots.length,
+      itemCount: spreads?.length ?? _slots.length,
       pageController: _pageController,
       reverse: reversed,
-      onPageChanged: _onPageChanged,
+      onPageChanged: spreads == null
+          ? _onPageChanged
+          : (index) => _onPageChanged(spreads[index].first),
       backgroundDecoration: const BoxDecoration(color: Colors.transparent),
-      builder: (context, index) => PhotoViewGalleryPageOptions.customChild(
-        childSize: Size(size.width, size.width * _aspect(index)),
-        minScale: PhotoViewComputedScale.contained,
-        initialScale: PhotoViewComputedScale.contained,
-        maxScale: PhotoViewComputedScale.contained * 6,
-        child: _pageContent(index, size.width, size.width * _aspect(index)),
-      ),
+      builder: (context, index) {
+        if (spreads == null) {
+          return PhotoViewGalleryPageOptions.customChild(
+            childSize: Size(size.width, size.width * _aspect(index)),
+            minScale: PhotoViewComputedScale.contained,
+            initialScale: PhotoViewComputedScale.contained,
+            maxScale: PhotoViewComputedScale.contained * 6,
+            child: _pageContent(index, size.width, size.width * _aspect(index)),
+          );
+        }
+        final pages = spreads[index];
+        final spreadSize = _spreadSize(pages, size.width);
+        return PhotoViewGalleryPageOptions.customChild(
+          childSize: spreadSize,
+          minScale: PhotoViewComputedScale.contained,
+          initialScale: PhotoViewComputedScale.contained,
+          maxScale: PhotoViewComputedScale.contained * 6,
+          child: _spreadContent(pages, spreadSize, reversed),
+        );
+      },
     );
     // PhotoView 会先消费子树里的点按，热区必须铺在它上面。
     return Stack(
@@ -637,6 +760,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       :pagedDirection,
       :volumeKeyPagingEnabled,
       :immersiveEnabled,
+      :dualPageEnabled,
     ) = ref.watch(
       appSettingsProvider.select(
         (settings) => (
@@ -647,6 +771,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
           pagedDirection: settings.comicPagedDirection,
           volumeKeyPagingEnabled: settings.readerVolumeKeyPagingEnabled,
           immersiveEnabled: settings.readerImmersiveEnabled,
+          dualPageEnabled: settings.readerDualPageEnabled,
         ),
       ),
     );
@@ -656,11 +781,11 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       customColorValue: backgroundColorValue,
       oledBlack: oledBlack,
     );
-    if (_mode != viewMode) {
-      _mode = viewMode;
-      if (!loading) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _syncToPage());
-      }
+    // 阅读模式与分屏都会换掉翻页条的页序，落定后要把当前页重新对准。
+    final relaid = _syncDual(dualPageEnabled) | (_mode != viewMode);
+    _mode = viewMode;
+    if (relaid && !loading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _syncToPage());
     }
 
     final Widget body;
