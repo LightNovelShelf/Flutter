@@ -45,9 +45,8 @@ class ReaderHtmlBlock extends StatefulWidget {
     this.onTapUrl,
     this.onLayoutChanged,
     this.borderIllustrations = true,
-    this.imageBottomSpacing = 6,
     this.imagePreviewTrigger = ImagePreviewTrigger.longPress,
-    this.applyParagraphSpacing = true,
+    this.applyLineSpace = true,
     this.measureOnly = false,
   });
 
@@ -57,9 +56,8 @@ class ReaderHtmlBlock extends StatefulWidget {
   final FutureOr<bool> Function(String url)? onTapUrl;
   final VoidCallback? onLayoutChanged;
   final bool borderIllustrations;
-  final double imageBottomSpacing;
   final ImagePreviewTrigger imagePreviewTrigger;
-  final bool applyParagraphSpacing;
+  final bool applyLineSpace;
 
   /// 只用于分页测量时，图片位置摆等尺寸的空盒子而不是真图：测量层只要几何，
   /// 建一份 [ContentImage] 就多一个图片组件与一条 `ImageStream` 监听。
@@ -75,8 +73,8 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
     r'''<a\b[^>]*\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>\s*(<img\b[^>]*>)\s*</a>''',
     caseSensitive: false,
   );
-  static final RegExp _paragraphBlock = RegExp(
-    r'^\s*<p\b',
+  static final RegExp _spacedTextBlock = RegExp(
+    r'^\s*<(?:p|h[1-6])\b',
     caseSensitive: false,
   );
   static const Set<String> _illustrationClasses = <String>{
@@ -134,26 +132,25 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
     return false;
   }
 
-  /// `_paragraphBlock` 的匹配结果，按 [_markup] 的实例缓存。
-  /// 测量层与正文层各解析一遍，跨页块还会再来，正则每帧重跑不值当。
+  /// 块级段间距判定按 [_markup] 的实例缓存。
   String? _spacingSource;
-  bool _hasParagraphBlock = false;
+  bool _hasSpacedTextBlock = false;
 
-  bool get _paragraphBlockPresent {
+  bool get _spacedTextBlockPresent {
     final markup = _markup;
     if (!identical(_spacingSource, markup)) {
       _spacingSource = markup;
-      _hasParagraphBlock = _paragraphBlock.hasMatch(markup);
+      _hasSpacedTextBlock = _spacedTextBlock.hasMatch(markup);
     }
-    return _hasParagraphBlock;
+    return _hasSpacedTextBlock;
   }
 
-  /// 整块下方的段间距，`<p>` 之外的块（插图 `<div>`）没有。
+  /// 标题和正文都按段落级文本块处理，统一应用块后间距。
   double get _blockBottomSpacing =>
-      widget.applyParagraphSpacing &&
-          widget.style.paragraphSpacing > 0 &&
-          _paragraphBlockPresent
-      ? widget.style.paragraphSpacing
+      widget.applyLineSpace &&
+          widget.style.lineSpace > 0 &&
+          _spacedTextBlockPresent
+      ? widget.style.lineSpace
       : 0;
 
   @override
@@ -176,7 +173,6 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
     rebuildTriggers: <Object?>[
       widget.style,
       widget.borderIllustrations,
-      widget.imageBottomSpacing,
       widget.imagePreviewTrigger,
       _imageEpoch,
     ],
@@ -203,7 +199,7 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
       if (element.localName != 'img') return null;
       return _image(
         element.attributes['src'],
-        element.classes,
+        element.parent?.localName,
         element.parent?.classes ?? const <String>{},
         element.parent?.text ?? '',
       );
@@ -215,45 +211,30 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
 
   Widget? _image(
     String? source,
-    Iterable<String> classes,
+    String? parentTag,
     Iterable<String> parentClasses,
     String siblingText,
   ) {
     final url = source == null ? null : resolvePreviewImageUrl(source);
     if (url == null) return const SizedBox.shrink();
     final metadata = contentImageMetadata(url);
-    final previewable = !classes.contains('no-preview');
+    final block = parentTag == 'p' && siblingText.trim().isEmpty;
     final image = _ReaderBlockImage(
       url: url,
       size: _imageSizes[url] ?? metadata.size,
-      // 图下方的留白也占着这一页，扣掉才不会为了几个像素被切到下一页去。
-      reservedHeight:
-          (previewable ? widget.imageBottomSpacing : 0) + _blockBottomSpacing,
+      reservedHeight: _blockBottomSpacing,
       blurHash: metadata.blurHash,
-      previewable: previewable,
       bordered:
-          previewable &&
           widget.borderIllustrations &&
           parentClasses.any(_illustrationClasses.contains),
+      inline: !block,
       trigger: widget.imagePreviewTrigger,
       measureOnly: widget.measureOnly,
       onResolved: _onImageResolved,
     );
-    final spaced = previewable && widget.imageBottomSpacing > 0
-        ? Padding(
-            padding: EdgeInsets.only(bottom: widget.imageBottomSpacing),
-            child: image,
-          )
-        : image;
-    // 段落里夹着文字的图片必须留在行内，否则段落会被断开。
-    return siblingText.trim().isEmpty
-        ? spaced
-        : InlineCustomWidget(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 5),
-              child: spaced,
-            ),
-          );
+    // 纯图片段落占一块；裸图片和带文字的段内图片保持行内语义。
+    if (block) return image;
+    return InlineCustomWidget(child: image);
   }
 
   void _onImageResolved(String url, Size size) {
@@ -284,8 +265,8 @@ class _ReaderBlockImage extends StatefulWidget {
     required this.size,
     required this.reservedHeight,
     required this.blurHash,
-    required this.previewable,
     required this.bordered,
+    required this.inline,
     required this.trigger,
     required this.measureOnly,
     required this.onResolved,
@@ -297,8 +278,8 @@ class _ReaderBlockImage extends StatefulWidget {
   /// 同一块里图片之外还要占的高度，算高度上限时扣掉。
   final double reservedHeight;
   final String? blurHash;
-  final bool previewable;
   final bool bordered;
+  final bool inline;
   final ImagePreviewTrigger trigger;
   final bool measureOnly;
   final void Function(String url, Size size) onResolved;
@@ -367,14 +348,6 @@ class _ReaderBlockImageState extends State<_ReaderBlockImage> {
   @override
   Widget build(BuildContext context) {
     final size = widget.size;
-    if (size == null && !widget.previewable) {
-      final fontSize = DefaultTextStyle.of(context).style.fontSize ?? 16;
-      return Icon(
-        Icons.image_outlined,
-        size: fontSize,
-        color: DefaultTextStyle.of(context).style.color,
-      );
-    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxWidth = constraints.hasBoundedWidth
@@ -403,11 +376,11 @@ class _ReaderBlockImageState extends State<_ReaderBlockImage> {
                 blurHash: widget.blurHash,
                 borderRadius: 3,
                 bordered: widget.bordered,
-                previewable: widget.previewable,
                 trigger: widget.trigger,
                 requestSizedVariant: widget.blurHash != null,
               );
-        // 缩窄之后别贴着左边，居中摆更像一张整页插图。
+        if (widget.inline) return image;
+        // 块级图片缩窄之后居中摆放。
         return widget.bordered || width < maxWidth - 0.5
             ? Align(alignment: Alignment.topCenter, child: image)
             : image;

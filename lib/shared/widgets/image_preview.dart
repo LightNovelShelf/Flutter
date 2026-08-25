@@ -70,7 +70,6 @@ class ContentImage extends StatelessWidget {
     this.errorBuilder,
     this.borderRadius = 0,
     this.bordered = false,
-    this.previewable = true,
     this.trigger = ImagePreviewTrigger.longPress,
     this.requestSizedVariant = true,
   });
@@ -85,7 +84,6 @@ class ContentImage extends StatelessWidget {
   final Widget Function(BuildContext context, VoidCallback retry)? errorBuilder;
   final double borderRadius;
   final bool bordered;
-  final bool previewable;
   final ImagePreviewTrigger trigger;
   final bool requestSizedVariant;
 
@@ -132,7 +130,6 @@ class ContentImage extends StatelessWidget {
         child: image,
       );
     }
-    if (!previewable) return image;
     return Builder(
       builder: (sourceContext) {
         void preview() => unawaited(

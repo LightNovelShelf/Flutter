@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:lightnovel/shared/widgets/blurhash_image.dart';
 import 'package:lightnovel/shared/widgets/book_image.dart';
 import 'package:lightnovel/shared/widgets/image_preview.dart';
@@ -19,15 +20,16 @@ const _markup =
 const _style = ReaderContentStyle(
   fontSize: 16,
   lineHeight: 1.5,
-  paragraphSpacing: 4,
+  lineSpace: 4,
   firstLineIndent: false,
   justify: false,
 );
 
 Future<int Function()> _pumpBlock(
   WidgetTester tester,
-  ImagePreviewTrigger trigger,
-) async {
+  ImagePreviewTrigger trigger, {
+  String markup = _markup,
+}) async {
   debugBlurHashPixelDecoder = (_, {required width, required height}) =>
       Uint8List.fromList(List<int>.filled(width * height * 4, 255));
   addTearDown(() => debugBlurHashPixelDecoder = null);
@@ -38,7 +40,7 @@ Future<int Function()> _pumpBlock(
       home: Scaffold(
         body: SelectionArea(
           child: ReaderHtmlBlock(
-            markup: _markup,
+            markup: markup,
             style: _style,
             onTapUrl: (_) async {
               openedLinks++;
@@ -61,6 +63,10 @@ String _previewUrl(WidgetTester tester) {
       .imageProvider;
   return (provider! as CachedNetworkImageProvider).url;
 }
+
+const _plainImage =
+    '<img src="https://img.example/post.webp?size=40x60'
+    '&amp;placeholder=$_hash">';
 
 void main() {
   testWidgets('阅读器正文图片预留尺寸并使用 BlurHash，长按预览，短按仍走链接', (tester) async {
@@ -106,5 +112,36 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(_previewUrl(tester), displayed.url);
+  });
+
+  testWidgets('裸图片保持行内，纯图片段落成块，段内图片可与文字同行', (tester) async {
+    await _pumpBlock(
+      tester,
+      ImagePreviewTrigger.longPress,
+      markup: _plainImage,
+    );
+    expect(find.byType(InlineCustomWidget), findsOneWidget);
+
+    await _pumpBlock(
+      tester,
+      ImagePreviewTrigger.longPress,
+      markup: '<p>$_plainImage</p>',
+    );
+    expect(find.byType(InlineCustomWidget), findsNothing);
+
+    await _pumpBlock(
+      tester,
+      ImagePreviewTrigger.longPress,
+      markup: '<p>前$_plainImage后</p>',
+    );
+    expect(find.byType(InlineCustomWidget), findsOneWidget);
+    final paragraph = find.byWidgetPredicate(
+      (widget) =>
+          widget is RichText &&
+          widget.text.toPlainText().contains('前') &&
+          widget.text.toPlainText().contains('后'),
+    );
+    expect(paragraph, findsOneWidget);
+    expect(tester.getSize(paragraph).height, lessThanOrEqualTo(70));
   });
 }

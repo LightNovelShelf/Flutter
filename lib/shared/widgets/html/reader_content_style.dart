@@ -10,7 +10,7 @@ class ReaderContentStyle {
     required this.lineHeight,
     required this.firstLineIndent,
     required this.justify,
-    this.paragraphSpacing = 0,
+    this.lineSpace = 0,
     this.fontFamily,
   });
 
@@ -20,8 +20,8 @@ class ReaderContentStyle {
   /// 行高倍数。
   final double lineHeight;
 
-  /// 普通正文段落之后的额外间距（逻辑像素）。
-  final double paragraphSpacing;
+  /// 段落级文本块之后的额外间距（逻辑像素）。
+  final double lineSpace;
 
   /// 段首缩进 2em。
   final bool firstLineIndent;
@@ -211,7 +211,7 @@ class ReaderContentStyle {
       other is ReaderContentStyle &&
       other.fontSize == fontSize &&
       other.lineHeight == lineHeight &&
-      other.paragraphSpacing == paragraphSpacing &&
+      other.lineSpace == lineSpace &&
       other.firstLineIndent == firstLineIndent &&
       other.justify == justify &&
       other.fontFamily == fontFamily;
@@ -220,7 +220,7 @@ class ReaderContentStyle {
   int get hashCode => Object.hash(
     fontSize,
     lineHeight,
-    paragraphSpacing,
+    lineSpace,
     firstLineIndent,
     justify,
     fontFamily,

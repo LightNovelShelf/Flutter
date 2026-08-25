@@ -173,14 +173,14 @@ class ReaderSettingsContent extends ConsumerWidget {
                   title: '行距',
                   description: '段落之间的额外间距',
                   icon: Icons.density_medium,
-                  value: settings.readerParagraphSpacing,
+                  value: settings.readerLineSpace,
                   min: 0,
                   max: 16,
                   divisions: 16,
                   format: (value) => '${value.round()} 点',
                   onChanged: (value) => controller.update(
                     (settings) => settings.copyWith(
-                      readerParagraphSpacing: value.roundToDouble(),
+                      readerLineSpace: value.roundToDouble(),
                     ),
                   ),
                 ),

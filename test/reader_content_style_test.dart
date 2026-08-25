@@ -35,7 +35,7 @@ void main() {
     const spaced = ReaderContentStyle(
       fontSize: 16,
       lineHeight: 1.5,
-      paragraphSpacing: 4,
+      lineSpace: 4,
       firstLineIndent: false,
       justify: false,
     );

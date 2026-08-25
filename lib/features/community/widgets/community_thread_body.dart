@@ -57,7 +57,7 @@ class _CommunityThreadBodyState extends State<CommunityThreadBody> {
     final style = ReaderContentStyle(
       fontSize: 16,
       lineHeight: 1.5,
-      paragraphSpacing: 8,
+      lineSpace: 8,
       firstLineIndent: false,
       justify: false,
     );
@@ -73,7 +73,7 @@ class _CommunityThreadBodyState extends State<CommunityThreadBody> {
               onTapUrl: _openExternalUrl,
               borderIllustrations: false,
               imagePreviewTrigger: ImagePreviewTrigger.tap,
-              applyParagraphSpacing: index + 1 < blocks.length,
+              applyLineSpace: index + 1 < blocks.length,
             ),
         ],
       ),

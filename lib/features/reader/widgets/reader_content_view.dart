@@ -436,7 +436,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
         child: ReaderHtmlBlock(
           markup: markup,
           style: content.style,
-          applyParagraphSpacing: spacing,
+          applyLineSpace: spacing,
           measureOnly: true,
           // 几何只由测量层决定，回填尺寸也只从这一层通知，正文层那份不必再报一次。
           onLayoutChanged: () => _onBlockLayoutChanged(slot, index),
@@ -447,7 +447,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
         child: ReaderHtmlBlock(
           markup: markup,
           style: content.style,
-          applyParagraphSpacing: spacing,
+          applyLineSpace: spacing,
           onFootnote: (id) => widget.onFootnote(content.sortNum, id),
         ),
       );

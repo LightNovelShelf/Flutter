@@ -282,7 +282,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
       ReaderContentStyle(
         fontSize: settings.fontSize,
         lineHeight: settings.readerLineHeight,
-        paragraphSpacing: settings.readerParagraphSpacing,
+        lineSpace: settings.readerLineSpace,
         firstLineIndent: settings.readerFirstLineIndent,
         justify: settings.readerJustify,
         fontFamily: fontFamily,

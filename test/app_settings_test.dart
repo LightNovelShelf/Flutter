@@ -39,17 +39,14 @@ void main() {
     );
   });
 
-  test('小说段间距默认 0，并钳制后持久化', () {
+  test('小说行距默认 4，并钳制后持久化', () {
+    expect(AppSettings.decode(const <String, dynamic>{}).readerLineSpace, 4);
+    final spaced = const AppSettings().copyWith(readerLineSpace: 4);
+    expect(spaced.encode()['readerLineSpace'], 4);
+    expect(AppSettings.decode(spaced.encode()).readerLineSpace, 4);
     expect(
-      AppSettings.decode(const <String, dynamic>{}).readerParagraphSpacing,
-      0,
-    );
-    final spaced = const AppSettings().copyWith(readerParagraphSpacing: 4);
-    expect(spaced.encode()['readerParagraphSpacing'], 4);
-    expect(AppSettings.decode(spaced.encode()).readerParagraphSpacing, 4);
-    expect(
-      AppSettings.decode(const <String, dynamic>{'readerParagraphSpacing': 99})
-          .readerParagraphSpacing,
+      AppSettings.decode(const <String, dynamic>{'readerLineSpace': 99})
+          .readerLineSpace,
       16,
     );
   });

@@ -248,11 +248,11 @@ List<String> _screenSlots(WidgetTester tester, {int columns = 1}) =>
 void main() {
   testWidgets('段间距动态更新后实际增加相邻段落距离', (tester) async {
     final blocks = normalizeNovelBlocks('<p>甲</p><p>乙</p>');
-    Future<double> paragraphAdvance(double paragraphSpacing) async {
+    Future<double> paragraphAdvance(double lineSpace) async {
       final style = ReaderContentStyle(
         fontSize: 20,
         lineHeight: 1.5,
-        paragraphSpacing: paragraphSpacing,
+        lineSpace: lineSpace,
         firstLineIndent: false,
         justify: false,
       );

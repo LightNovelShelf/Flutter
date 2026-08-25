@@ -198,7 +198,7 @@ class AppSettings {
 
     this.readerJustify = false,
     this.readerLineHeight = 1.6,
-    this.readerParagraphSpacing = 0,
+    this.readerLineSpace = 4,
     this.comicPagedDirection = ComicPagedDirection.ltr,
     this.readerPrerenderAdjacent = true,
     this.readerSidePadding = 30,
@@ -228,7 +228,7 @@ class AppSettings {
 
   final bool readerJustify;
   final double readerLineHeight;
-  final double readerParagraphSpacing;
+  final double readerLineSpace;
   final ComicPagedDirection comicPagedDirection;
   final bool readerPrerenderAdjacent;
   final double readerSidePadding;
@@ -258,7 +258,7 @@ class AppSettings {
 
     bool? readerJustify,
     double? readerLineHeight,
-    double? readerParagraphSpacing,
+    double? readerLineSpace,
     ComicPagedDirection? comicPagedDirection,
     bool? readerPrerenderAdjacent,
     double? readerSidePadding,
@@ -289,8 +289,7 @@ class AppSettings {
 
     readerJustify: readerJustify ?? this.readerJustify,
     readerLineHeight: readerLineHeight ?? this.readerLineHeight,
-    readerParagraphSpacing:
-        readerParagraphSpacing ?? this.readerParagraphSpacing,
+    readerLineSpace: readerLineSpace ?? this.readerLineSpace,
     comicPagedDirection: comicPagedDirection ?? this.comicPagedDirection,
     readerPrerenderAdjacent:
         readerPrerenderAdjacent ?? this.readerPrerenderAdjacent,
@@ -345,12 +344,7 @@ class AppSettings {
 
       readerJustify: _bool(raw['readerJustify'], false),
       readerLineHeight: _clampDouble(raw['readerLineHeight'], 1, 2.5, 1.6),
-      readerParagraphSpacing: _clampDouble(
-        raw['readerParagraphSpacing'],
-        0,
-        16,
-        0,
-      ),
+      readerLineSpace: _clampDouble(raw['readerLineSpace'], 0, 16, 4),
       comicPagedDirection: _enumFromName(
         ComicPagedDirection.values,
         raw['comicPagedDirection'],
@@ -400,7 +394,7 @@ class AppSettings {
 
     'readerJustify': readerJustify,
     'readerLineHeight': readerLineHeight,
-    'readerParagraphSpacing': readerParagraphSpacing,
+    'readerLineSpace': readerLineSpace,
     'comicPagedDirection': comicPagedDirection.name,
     'readerPrerenderAdjacent': readerPrerenderAdjacent,
     'readerSidePadding': readerSidePadding,
@@ -432,7 +426,7 @@ class AppSettings {
       other.readerFirstLineIndent == readerFirstLineIndent &&
       other.readerJustify == readerJustify &&
       other.readerLineHeight == readerLineHeight &&
-      other.readerParagraphSpacing == readerParagraphSpacing &&
+      other.readerLineSpace == readerLineSpace &&
       other.comicPagedDirection == comicPagedDirection &&
       other.readerPrerenderAdjacent == readerPrerenderAdjacent &&
       other.readerSidePadding == readerSidePadding &&
@@ -462,7 +456,7 @@ class AppSettings {
 
     readerJustify,
     readerLineHeight,
-    readerParagraphSpacing,
+    readerLineSpace,
     comicPagedDirection,
     readerPrerenderAdjacent,
     readerSidePadding,
