@@ -74,6 +74,7 @@ class ReaderContentView extends StatefulWidget {
     required this.previous,
     required this.next,
     required this.paged,
+    required this.dualPage,
     required this.padding,
     required this.restoreLocator,
     required this.restoreProgression,
@@ -96,6 +97,9 @@ class ReaderContentView extends StatefulWidget {
   final ReaderChapterContent? next;
 
   final bool paged;
+
+  /// 翻页模式下是否把一屏拆成两栏，只在大屏横屏时真的分栏。
+  final bool dualPage;
 
   /// 正文四周留白，翻页模式下上下留白作用在每一页上。
   final EdgeInsets padding;
@@ -166,7 +170,12 @@ class _ChapterSlot {
   int filled = 0;
 
   ReaderGeometry? geometry;
+
+  /// 每一栏的页顶；双页模式下一屏摆两栏，翻页条按屏走。
   List<double> pageTops = const <double>[0];
+
+  /// 这批几何是按几栏测的。重排期间新旧两批交替，栏数得跟着几何一起换。
+  int columns = 1;
 
   /// 分片测量的累积器。测完整章后留着，供图片回填时改写单块。null 表示要从头测。
   ReaderGeometryBuilder? builder;
@@ -178,7 +187,13 @@ class _ChapterSlot {
   final Set<int> dirtyBlocks = <int>{};
 
   int get sortNum => content.sortNum;
-  int get pageCount => pageTops.length;
+
+  /// 翻页条上的页数，也就是屏数。
+  int get pageCount => (pageTops.length + columns - 1) ~/ columns;
+
+  /// 第 [page] 屏最左那一栏的下标。
+  int firstColumnOf(int page) => page * columns;
+
   int get blockCount => pendingMeasure.length;
 
   /// 排版参数或正文变化后测量结果整章作废。
@@ -218,6 +233,9 @@ class _ReaderContentViewState extends State<ReaderContentView> {
   int? _notifiedChapter;
 
   Size _viewport = Size.zero;
+
+  /// 当前视口下的分栏数，测量层照它取正文宽度。
+  int _columns = 1;
 
   ScrollController? _scrollController;
   PageController? _pageController;
@@ -526,6 +544,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     }
     slot.publish(slot.builder!.build());
     final geometry = slot.geometry!;
+    slot.columns = widget.paged ? _columns : 1;
     slot.pageTops = widget.paged
         ? paginateReaderContent(
             contentHeight: geometry.height,
@@ -604,7 +623,8 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       final slot = _active;
       _pageIndex = slot == null
           ? 0
-          : readerPageIndexForOffset(slot.pageTops, _installedOffset);
+          : readerPageIndexForOffset(slot.pageTops, _installedOffset) ~/
+                slot.columns;
       _installPageController();
       return;
     }
@@ -716,7 +736,8 @@ class _ReaderContentViewState extends State<ReaderContentView> {
 
   double _contentOffset(_ChapterSlot slot) {
     if (widget.paged) {
-      return _pageIndex < slot.pageCount ? slot.pageTops[_pageIndex] : 0;
+      final column = slot.firstColumnOf(_pageIndex);
+      return column < slot.pageTops.length ? slot.pageTops[column] : 0;
     }
     final controller = _scrollController;
     // 控制器挂载前（重排后紧跟的那次上报）只有刚定下的偏移可用，读 0 会把定位打回章首。
@@ -786,8 +807,16 @@ class _ReaderContentViewState extends State<ReaderContentView> {
         math.max(1, constraints.maxWidth - widget.padding.horizontal),
         math.max(1, constraints.maxHeight - widget.padding.vertical),
       );
-      if (_viewport != viewport) {
+      final columns = widget.paged
+          ? readerColumnCount(
+              dualPage: widget.dualPage,
+              width: viewport.width,
+              height: viewport.height,
+            )
+          : 1;
+      if (_viewport != viewport || _columns != columns) {
         _viewport = viewport;
+        _columns = columns;
         for (final slot in _slots) {
           slot.invalidate();
         }
@@ -818,7 +847,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
                 child: TickerMode(
                   enabled: false,
                   child: ReaderMeasureBox(
-                    width: viewport.width,
+                    width: _columnWidth(viewport),
                     child: _measureColumn(window),
                   ),
                 ),
@@ -870,6 +899,22 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     );
   }
 
+  /// 一栏的正文宽度：栏间距摊在栏与栏之间，两侧留白仍归 [ReaderContentView.padding]。
+  double _columnWidth(Size viewport) =>
+      (viewport.width - readerColumnGutter * (_columns - 1)) / _columns;
+
+  /// 双页模式下每一栏的留白：外侧照旧，内侧各占一半栏间距。
+  EdgeInsets _columnPadding(int column, int columns) {
+    if (columns <= 1) return widget.padding;
+    final inner = readerColumnGutter / 2;
+    return EdgeInsets.only(
+      left: column == 0 ? widget.padding.left : inner,
+      top: widget.padding.top,
+      right: column == columns - 1 ? widget.padding.right : inner,
+      bottom: widget.padding.bottom,
+    );
+  }
+
   Widget _pagedContent(Size viewport) =>
       NotificationListener<ScrollNotification>(
         onNotification: _onPageScroll,
@@ -881,18 +926,45 @@ class _ReaderContentViewState extends State<ReaderContentView> {
           itemBuilder: (context, index) {
             final located = _strip.locate(index);
             if (located == null) return const SizedBox.shrink();
-            final slot = located.$1;
-            return ReaderPageBody(
-              sortNum: slot.sortNum,
-              geometry: slot.geometry,
-              pageTops: slot.pageTops,
-              blocks: slot.rendered,
-              renderable: slot.renderable,
-              index: located.$2,
-              viewport: viewport,
-              padding: widget.padding,
+            final (slot, page) = located;
+            // 栏数跟着几何走：重排到一半时新旧两批交替，页顶与栏数必须同出一批。
+            final columns = slot.columns;
+            if (columns <= 1) {
+              return _pageColumn(slot, page, viewport, 0, columns);
+            }
+            return Row(
+              children: <Widget>[
+                for (var column = 0; column < columns; column++)
+                  Expanded(
+                    child: _pageColumn(
+                      slot,
+                      slot.firstColumnOf(page) + column,
+                      viewport,
+                      column,
+                      columns,
+                    ),
+                  ),
+              ],
             );
           },
         ),
       );
+
+  /// 一屏里的一栏。末屏的右栏可能没有内容，[ReaderPageBody] 自己摆空。
+  Widget _pageColumn(
+    _ChapterSlot slot,
+    int page,
+    Size viewport,
+    int column,
+    int columns,
+  ) => ReaderPageBody(
+    sortNum: slot.sortNum,
+    geometry: slot.geometry,
+    pageTops: slot.pageTops,
+    blocks: slot.rendered,
+    renderable: slot.renderable,
+    index: page,
+    viewport: viewport,
+    padding: _columnPadding(column, columns),
+  );
 }

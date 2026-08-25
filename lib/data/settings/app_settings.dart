@@ -81,6 +81,7 @@ class AppSettings {
     this.oledBlack = false,
     this.readerBackgroundMode = ReaderBackgroundMode.auto,
     this.readerBackgroundColorValue = '#F7F1E3',
+    this.readerDualPageEnabled = false,
     this.readerFirstLineIndent = true,
     this.readerImmersiveEnabled = false,
     this.readerJustify = false,
@@ -113,6 +114,7 @@ class AppSettings {
   final bool oledBlack;
   final ReaderBackgroundMode readerBackgroundMode;
   final String readerBackgroundColorValue;
+  final bool readerDualPageEnabled;
   final bool readerFirstLineIndent;
   final bool readerImmersiveEnabled;
   final bool readerJustify;
@@ -145,6 +147,7 @@ class AppSettings {
     bool? oledBlack,
     ReaderBackgroundMode? readerBackgroundMode,
     String? readerBackgroundColorValue,
+    bool? readerDualPageEnabled,
     bool? readerFirstLineIndent,
     bool? readerImmersiveEnabled,
     bool? readerJustify,
@@ -179,6 +182,7 @@ class AppSettings {
     readerBackgroundMode: readerBackgroundMode ?? this.readerBackgroundMode,
     readerBackgroundColorValue:
         readerBackgroundColorValue ?? this.readerBackgroundColorValue,
+    readerDualPageEnabled: readerDualPageEnabled ?? this.readerDualPageEnabled,
     readerFirstLineIndent: readerFirstLineIndent ?? this.readerFirstLineIndent,
     readerImmersiveEnabled:
         readerImmersiveEnabled ?? this.readerImmersiveEnabled,
@@ -246,6 +250,7 @@ class AppSettings {
         raw['readerBackgroundColorValue'],
         '#F7F1E3',
       ),
+      readerDualPageEnabled: _bool(raw['readerDualPageEnabled'], false),
       readerFirstLineIndent: _bool(raw['readerFirstLineIndent'], true),
       readerImmersiveEnabled: _bool(raw['readerImmersiveEnabled'], false),
       readerJustify: _bool(raw['readerJustify'], false),
@@ -314,6 +319,7 @@ class AppSettings {
     'oledBlack': oledBlack,
     'readerBackgroundMode': readerBackgroundMode.name,
     'readerBackgroundColorValue': readerBackgroundColorValue,
+    'readerDualPageEnabled': readerDualPageEnabled,
     'readerFirstLineIndent': readerFirstLineIndent,
     'readerImmersiveEnabled': readerImmersiveEnabled,
     'readerJustify': readerJustify,
@@ -349,6 +355,7 @@ class AppSettings {
       other.oledBlack == oledBlack &&
       other.readerBackgroundMode == readerBackgroundMode &&
       other.readerBackgroundColorValue == readerBackgroundColorValue &&
+      other.readerDualPageEnabled == readerDualPageEnabled &&
       other.readerFirstLineIndent == readerFirstLineIndent &&
       other.readerImmersiveEnabled == readerImmersiveEnabled &&
       other.readerJustify == readerJustify &&
@@ -382,6 +389,7 @@ class AppSettings {
     oledBlack,
     readerBackgroundMode,
     readerBackgroundColorValue,
+    readerDualPageEnabled,
     readerFirstLineIndent,
     readerImmersiveEnabled,
     readerJustify,

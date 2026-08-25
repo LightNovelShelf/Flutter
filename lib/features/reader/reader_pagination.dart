@@ -3,6 +3,23 @@
 /// 累加测量高度的浮点误差容差，单位逻辑像素。避免每页最后一行被误判成溢出。
 const double _tolerance = 0.5;
 
+/// 双页模式下两栏之间的空白，单位逻辑像素。
+const double readerColumnGutter = 32;
+
+/// 单栏放不下这么宽就不分栏
+const double readerMinColumnWidth = 320;
+
+/// 翻页模式下正文分几栏。[width]/[height] 是去掉留白后的正文区尺寸。
+
+int readerColumnCount({
+  required bool dualPage,
+  required double width,
+  required double height,
+}) {
+  if (!dualPage || width <= height) return 1;
+  return width >= readerMinColumnWidth * 2 + readerColumnGutter ? 2 : 1;
+}
+
 /// 翻页模式的页顶偏移表；`breaks` 升序去重，元素落在 (0, contentHeight] 区间。
 List<double> paginateReaderContent({
   required double contentHeight,

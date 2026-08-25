@@ -42,6 +42,7 @@ class _Harness {
   _Harness({
     required List<NovelReaderBlock> blocks,
     required this.paged,
+    this.dualPage = false,
     this.previous,
     this.next,
     this.restoreLocator,
@@ -59,6 +60,7 @@ class _Harness {
   ReaderChapterContent? next;
 
   final bool paged;
+  final bool dualPage;
   String? restoreLocator;
   final EdgeInsets padding;
   int restoreToken = 0;
@@ -93,6 +95,7 @@ class _Harness {
           previous: previous,
           next: next,
           paged: paged,
+          dualPage: dualPage,
           padding: padding,
           restoreLocator: restoreLocator,
           restoreProgression: 0,
@@ -113,6 +116,7 @@ class _Harness {
 Future<_Harness> _pump(
   WidgetTester tester, {
   bool paged = true,
+  bool dualPage = false,
   String? restoreLocator,
   int count = 40,
   ReaderChapterContent? previous,
@@ -121,6 +125,7 @@ Future<_Harness> _pump(
   final harness = _Harness(
     blocks: _blocks(count),
     paged: paged,
+    dualPage: dualPage,
     previous: previous,
     next: next,
     restoreLocator: restoreLocator,
@@ -729,6 +734,55 @@ void main() {
     expect(harness.boundaries, isEmpty);
     expect(harness.chapters, <int>[1]);
     expect(harness.last.sortNum, 1);
+  });
+
+  testWidgets('双页模式：两栏并排半屏，一屏摆连续的两栏', (tester) async {
+    // 单栏跑一遍同样宽度的正文，拿到栏数，双页的屏数应当是它的一半（向上取整）。
+    final narrow = _Harness(
+      blocks: _blocks(40),
+      paged: true,
+      padding: const EdgeInsets.fromLTRB(220, 12, 220, 24),
+    );
+    await tester.pumpWidget(narrow.build());
+    await tester.pumpAndSettle();
+    final columns = narrow.last.pages;
+    expect(columns, greaterThan(2));
+
+    final harness = await _pump(tester, count: 40, dualPage: true);
+
+    expect(harness.last.pages, (columns + 1) ~/ 2);
+    expect(harness.last.page, 1);
+
+    // 左右两栏各占半屏：外侧照旧留白，内侧各让出一半栏间距。
+    final left = tester.getRect(find.byKey(readerPageBodyKey(2, 0)));
+    final right = tester.getRect(find.byKey(readerPageBodyKey(2, 1)));
+    expect(left.left, closeTo(24, 0.01));
+    expect(left.width, closeTo(360, 0.01));
+    expect(right.left, closeTo(416, 0.01));
+    expect(right.width, closeTo(360, 0.01));
+    expect(find.byKey(readerPageBodyKey(2, 2)), findsNothing);
+
+    // 翻一屏走两栏。
+    await tester.tapAt(const Offset(700, 300));
+    await tester.pumpAndSettle();
+
+    expect(harness.last.page, 2);
+    expect(
+      tester.getRect(find.byKey(readerPageBodyKey(2, 2))).left,
+      closeTo(24, 0.01),
+    );
+    expect(find.byKey(readerPageBodyKey(2, 1)), findsNothing);
+  });
+
+  testWidgets('屏幕放不下两栏时退回单栏', (tester) async {
+    tester.view.physicalSize = const Size(600, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await _pump(tester, count: 20, dualPage: true);
+
+    expect(find.byKey(readerPageBodyKey(2, 0)), findsOneWidget);
+    expect(find.byKey(readerPageBodyKey(2, 1)), findsNothing);
   });
 
   testWidgets('目录跳进已备好的相邻章：钉在章首，不重新测量', (tester) async {

@@ -445,6 +445,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
                       previous: _chapterContent(_window.previous, settings),
                       next: _chapterContent(_window.next, settings),
                       paged: paged,
+                      dualPage: settings.readerDualPageEnabled,
                       padding: _contentPadding(settings),
                       restoreLocator: _restoreLocator,
                       restoreProgression: _restoreProgression,

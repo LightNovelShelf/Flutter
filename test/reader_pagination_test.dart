@@ -7,6 +7,28 @@ List<double> _lineBreaks(double step, int count) => <double>[
 ];
 
 void main() {
+  group('双页分栏', () {
+    int columns(bool dualPage, double width, double height) =>
+        readerColumnCount(dualPage: dualPage, width: width, height: height);
+
+    /// 刚好放得下两栏的正文宽度。
+    const double fits = readerMinColumnWidth * 2 + readerColumnGutter;
+
+    test('关掉时无论多宽都是单栏', () {
+      expect(columns(false, 2000, 600), 1);
+    });
+
+    test('横向更宽且放得下才分两栏', () {
+      expect(columns(true, fits, fits - 1), 2);
+      // 竖着拿的平板：宽度够，但高比宽大，仍是单栏。
+      expect(columns(true, fits, fits + 1), 1);
+    });
+
+    test('栏宽不够时退回单栏', () {
+      expect(columns(true, fits - 1, 100), 1);
+    });
+  });
+
   group('翻页切分', () {
     test('断点恰好落在行顶时按视口整页切', () {
       expect(

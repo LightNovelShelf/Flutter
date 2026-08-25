@@ -236,6 +236,15 @@ class ReaderSettingsContent extends ConsumerWidget {
                   (settings) => settings.copyWith(comicPagedDirection: value),
                 ),
               ),
+              SettingsToggleRow(
+                title: '双页模式',
+                description: '横屏时显示两页内容',
+                icon: Icons.auto_stories,
+                value: settings.readerDualPageEnabled,
+                onChanged: (value) => controller.update(
+                  (settings) => settings.copyWith(readerDualPageEnabled: value),
+                ),
+              ),
               SettingsPickerRow<ReaderViewMode>(
                 title: '阅读模式',
                 description: '选择滚动或逐页阅读',

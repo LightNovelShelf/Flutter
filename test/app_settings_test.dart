@@ -54,6 +54,24 @@ void main() {
     );
   });
 
+  test('双页模式默认关闭，并可开启与持久化', () {
+    expect(
+      AppSettings.decode(const <String, dynamic>{}).readerDualPageEnabled,
+      isFalse,
+    );
+
+    final enabled = const AppSettings().copyWith(readerDualPageEnabled: true);
+    expect(enabled.encode()['readerDualPageEnabled'], isTrue);
+    expect(AppSettings.decode(enabled.encode()).readerDualPageEnabled, isTrue);
+
+    expect(
+      AppSettings.decode(const <String, dynamic>{
+        'readerDualPageEnabled': 'true',
+      }).readerDualPageEnabled,
+      isFalse,
+    );
+  });
+
   test('沉浸式阅读默认关闭，并可开启与持久化', () {
     expect(
       AppSettings.decode(const <String, dynamic>{}).readerImmersiveEnabled,
