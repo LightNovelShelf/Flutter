@@ -8,6 +8,7 @@ import '../../core/network/request_scheduler.dart';
 import '../../core/platform/reader_immersive_mode.dart';
 import '../../core/platform/reader_volume_keys.dart';
 import '../../data/api/api_client.dart';
+import '../../data/api/models/book.dart';
 import '../../data/providers.dart';
 import '../../data/settings/app_settings.dart';
 import '../../shared/format.dart';
@@ -301,9 +302,10 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
   /// 滚动模式的状态栏留白由外层给出，翻页模式需要计入每一页的内边距。
   EdgeInsets _contentPadding(AppSettings settings) {
     final padding = MediaQuery.paddingOf(context);
-    final paged = settings.readerViewMode == ReaderViewMode.paged;
+    final reader = settings.novelReader;
+    final paged = reader.viewMode == ReaderViewMode.paged;
     // 页底那块留白是给页码胶囊的，胶囊关掉就还给正文。
-    final pills = paged && settings.readerStatusPillsEnabled;
+    final pills = paged && reader.statusPillsEnabled;
     return EdgeInsets.fromLTRB(
       settings.readerSidePadding,
       (paged ? padding.top : 0) + 12,
@@ -479,19 +481,20 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
   Widget build(BuildContext context) {
     ref.listen<AppSettings>(appSettingsProvider, _onSettingsChanged);
     final settings = ref.watch(appSettingsProvider);
+    final reader = settings.novelReader;
     final (:background, :foreground) = readerSurfaceColors(
       context,
-      mode: settings.readerBackgroundMode,
-      customColorValue: settings.readerBackgroundColorValue,
+      mode: reader.backgroundMode,
+      customColorValue: reader.backgroundColorValue,
       oledBlack: settings.oledBlack,
     );
-    final paged = settings.readerViewMode == ReaderViewMode.paged;
+    final paged = reader.viewMode == ReaderViewMode.paged;
     final readerTopInset = paged ? 0.0 : MediaQuery.paddingOf(context).top;
     final current = _window.current;
 
     final shell = ReaderShell(
       background: background,
-      paperTexture: settings.readerBackgroundMode == ReaderBackgroundMode.paper,
+      paperTexture: reader.backgroundMode == ReaderBackgroundMode.paper,
       loading: loading || current == null,
       error: loadError,
       onRetry: () => unawaited(_load()),
@@ -514,7 +517,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
                       totalChapters: _totalChapters,
                       failedChapters: _failedChapters,
                       paged: paged,
-                      dualPage: settings.readerDualPageEnabled,
+                      dualPage: reader.dualPageEnabled,
                       padding: _contentPadding(settings),
                       restoreLocator: _restoreLocator,
                       restoreProgression: _restoreProgression,
@@ -542,7 +545,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
                   ),
               ],
             ),
-      overlay: paged && _contentReady && settings.readerStatusPillsEnabled
+      overlay: paged && _contentReady && reader.statusPillsEnabled
           ? Positioned(
               right: 16,
               bottom: MediaQuery.paddingOf(context).bottom + 16,
@@ -574,10 +577,11 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
         progress: _progression,
         onOpenChapters: () => unawaited(_openChapterSheet()),
         nightMode: Theme.of(context).brightness == Brightness.dark,
-        onToggleNightMode: readerThemeLocked(settings)
+        onToggleNightMode: readerThemeLocked(reader)
             ? null
-            : () => toggleReaderNightMode(context, ref),
-        onOpenSettings: () => unawaited(showReaderSettingsSheet(context)),
+            : () => toggleReaderNightMode(context, ref, BookType.novel),
+        onOpenSettings: () =>
+            unawaited(showReaderSettingsSheet(context, BookType.novel)),
         onDismiss: () => setState(() => _chromeVisible = false),
         onPreviousChapter: _sortNum > 1
             ? () => unawaited(_openAdjacent(false))
@@ -590,9 +594,9 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
       ),
     );
     return ReaderImmersiveMode(
-      enabled: settings.readerImmersiveEnabled,
+      enabled: reader.immersiveEnabled,
       child: ReaderVolumeKeyListener(
-        enabled: settings.readerVolumeKeyPagingEnabled && !_chromeVisible,
+        enabled: reader.volumeKeyPagingEnabled && !_chromeVisible,
         onPrevious: _contentController.previousPage,
         onNext: _contentController.nextPage,
         child: shell,

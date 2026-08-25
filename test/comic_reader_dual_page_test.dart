@@ -129,8 +129,10 @@ Future<void> _open(
   final settings = SettingsController(
     _MemoryStore(),
     AppSettings(
-      readerDualPageEnabled: dualPage,
-      readerStatusPillsEnabled: statusPills,
+      comicReader: ReaderPreferences(
+        dualPageEnabled: dualPage,
+        statusPillsEnabled: statusPills,
+      ),
       comicPagedDirection: direction,
     ),
   );

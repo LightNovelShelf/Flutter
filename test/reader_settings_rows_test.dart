@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightnovel/core/platform/stores.dart';
 import 'package:lightnovel/data/providers.dart';
+import 'package:lightnovel/data/api/models/book.dart';
 import 'package:lightnovel/data/settings/app_settings.dart';
 import 'package:lightnovel/features/settings/reader_settings_screen.dart';
+import 'package:lightnovel/features/settings/settings_screen.dart';
 
 class _MemoryStore implements KeyValueStore {
   final Map<String, String> _values = <String, String>{};
@@ -22,17 +24,18 @@ class _MemoryStore implements KeyValueStore {
 
 Future<SettingsController> _pumpSettings(
   WidgetTester tester,
-  AppSettings settings,
-) async {
+  AppSettings settings, {
+  BookType type = BookType.novel,
+}) async {
   final controller = SettingsController(_MemoryStore(), settings);
   await tester.pumpWidget(
     ProviderScope(
       overrides: <Override>[
         settingsControllerProvider.overrideWith((_) => controller),
       ],
-      child: const MaterialApp(
+      child: MaterialApp(
         home: Scaffold(
-          body: SingleChildScrollView(child: ReaderSettingsContent()),
+          body: SingleChildScrollView(child: ReaderSettingsContent(type: type)),
         ),
       ),
     ),
@@ -53,41 +56,55 @@ Switch _switchFor(WidgetTester tester, String title) {
 }
 
 void main() {
-  testWidgets('滚动模式下双页开关置灰，点不动', (tester) async {
+  testWidgets('小说滚动模式下只禁用小说双页设置', (tester) async {
     final controller = await _pumpSettings(
       tester,
-      const AppSettings(readerViewMode: ReaderViewMode.scroll),
+      const AppSettings(
+        novelReader: ReaderPreferences(viewMode: ReaderViewMode.scroll),
+        comicReader: ReaderPreferences(dualPageEnabled: true),
+      ),
     );
 
     expect(_switchFor(tester, '双页模式').onChanged, isNull);
-
-    // 整行也不响应点按，值不会被翻过去。
     await tester.ensureVisible(find.text('双页模式'));
     await tester.tap(find.text('双页模式'));
     await tester.pump();
-    expect(controller.settings.readerDualPageEnabled, isFalse);
+    expect(controller.settings.novelReader.dualPageEnabled, isFalse);
+    expect(controller.settings.comicReader.dualPageEnabled, isTrue);
   });
 
-  testWidgets('翻页模式下双页开关可用', (tester) async {
+  testWidgets('小说设置只显示小说选项', (tester) async {
+    await _pumpSettings(tester, const AppSettings());
+
+    expect(find.text('字号'), findsOneWidget);
+    expect(find.text('章节标题'), findsOneWidget);
+    expect(find.text('预渲染前后章节'), findsOneWidget);
+    expect(find.text('漫画分页方向'), findsNothing);
+  });
+
+  testWidgets('漫画设置只显示漫画选项并独立更新', (tester) async {
     final controller = await _pumpSettings(
       tester,
-      const AppSettings(readerViewMode: ReaderViewMode.paged),
+      const AppSettings(),
+      type: BookType.comic,
     );
 
-    expect(_switchFor(tester, '双页模式').onChanged, isNotNull);
+    expect(find.text('漫画分页方向'), findsOneWidget);
+    expect(find.text('字号'), findsNothing);
+    expect(find.text('章节标题'), findsNothing);
+    expect(find.text('预渲染前后章节'), findsNothing);
 
     await tester.ensureVisible(find.text('双页模式'));
     await tester.tap(find.text('双页模式'));
     await tester.pump();
-    expect(controller.settings.readerDualPageEnabled, isTrue);
+    expect(controller.settings.comicReader.dualPageEnabled, isTrue);
+    expect(controller.settings.novelReader.dualPageEnabled, isFalse);
   });
+  testWidgets('软件设置把阅读单列并提供小说漫画入口', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: SettingsScreen()));
 
-  testWidgets('页码胶囊不跟着阅读模式置灰：滚动模式下漫画仍用它', (tester) async {
-    await _pumpSettings(
-      tester,
-      const AppSettings(readerViewMode: ReaderViewMode.scroll),
-    );
-
-    expect(_switchFor(tester, '页码胶囊').onChanged, isNotNull);
+    expect(find.text('阅读'), findsOneWidget);
+    expect(find.text('小说'), findsOneWidget);
+    expect(find.text('漫画'), findsOneWidget);
   });
 }

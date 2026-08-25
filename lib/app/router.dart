@@ -252,14 +252,17 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
             'end' => ReaderOpenPosition.end,
             _ => ReaderOpenPosition.saved,
           };
-          final Widget screen = state.uri.queryParameters['type'] == 'Comic'
+          final type = state.uri.queryParameters['type'] == 'Comic'
+              ? BookType.comic
+              : BookType.novel;
+          final Widget screen = type == BookType.comic
               ? ComicReaderScreen(bookId: bookId, sortNum: sortNum)
               : NovelReaderScreen(
                   bookId: bookId,
                   sortNum: sortNum,
                   openPosition: position,
                 );
-          return ReaderThemeScope(child: screen);
+          return ReaderThemeScope(type: type, child: screen);
         },
       ),
       GoRoute(
@@ -309,8 +312,12 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
             builder: (_, _) => const ContentSettingsScreen(),
           ),
           GoRoute(
-            path: 'reader',
-            builder: (_, _) => const ReaderSettingsScreen(),
+            path: 'reader/novel',
+            builder: (_, _) => const ReaderSettingsScreen(type: BookType.novel),
+          ),
+          GoRoute(
+            path: 'reader/comic',
+            builder: (_, _) => const ReaderSettingsScreen(type: BookType.comic),
           ),
           GoRoute(
             path: 'cache',

@@ -174,8 +174,10 @@ Future<_FakeApi> _open(
     _MemoryStore(),
     AppSettings(
       readerPrerenderAdjacent: prerender,
-      readerStatusPillsEnabled: statusPills,
-      readerDualPageEnabled: dualPage,
+      novelReader: ReaderPreferences(
+        statusPillsEnabled: statusPills,
+        dualPageEnabled: dualPage,
+      ),
     ),
   );
   await tester.pumpWidget(

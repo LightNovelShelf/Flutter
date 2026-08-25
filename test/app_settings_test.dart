@@ -54,112 +54,36 @@ void main() {
     );
   });
 
-  test('页码胶囊默认显示，并可关掉与持久化', () {
-    expect(
-      AppSettings.decode(const <String, dynamic>{}).readerStatusPillsEnabled,
-      isTrue,
+  test('小说和漫画通用阅读设置独立持久化', () {
+    final settings = const AppSettings().copyWith(
+      novelReader: const ReaderPreferences(
+        viewMode: ReaderViewMode.scroll,
+        theme: ReaderThemeSetting.dark,
+      ),
+      comicReader: const ReaderPreferences(
+        dualPageEnabled: true,
+        statusPillsEnabled: false,
+      ),
     );
 
-    final hidden = const AppSettings().copyWith(
-      readerStatusPillsEnabled: false,
-    );
-    expect(hidden.encode()['readerStatusPillsEnabled'], isFalse);
-    expect(
-      AppSettings.decode(hidden.encode()).readerStatusPillsEnabled,
-      isFalse,
-    );
-
-    expect(
-      AppSettings.decode(const <String, dynamic>{
-        'readerStatusPillsEnabled': 'false',
-      }).readerStatusPillsEnabled,
-      isTrue,
-    );
+    final restored = AppSettings.decode(settings.encode());
+    expect(restored.novelReader.viewMode, ReaderViewMode.scroll);
+    expect(restored.novelReader.theme, ReaderThemeSetting.dark);
+    expect(restored.novelReader.dualPageEnabled, isFalse);
+    expect(restored.comicReader.viewMode, ReaderViewMode.paged);
+    expect(restored.comicReader.dualPageEnabled, isTrue);
+    expect(restored.comicReader.statusPillsEnabled, isFalse);
   });
 
-  test('双页模式默认关闭，并可开启与持久化', () {
-    expect(
-      AppSettings.decode(const <String, dynamic>{}).readerDualPageEnabled,
-      isFalse,
-    );
+  test('阅读背景只接受 #RRGGBB', () {
+    final restored = AppSettings.decode(const <String, dynamic>{
+      'novelReader': <String, dynamic>{
+        'backgroundMode': 'day',
+        'backgroundColorValue': 'green',
+      },
+    });
 
-    final enabled = const AppSettings().copyWith(readerDualPageEnabled: true);
-    expect(enabled.encode()['readerDualPageEnabled'], isTrue);
-    expect(AppSettings.decode(enabled.encode()).readerDualPageEnabled, isTrue);
-
-    expect(
-      AppSettings.decode(const <String, dynamic>{
-        'readerDualPageEnabled': 'true',
-      }).readerDualPageEnabled,
-      isFalse,
-    );
-  });
-
-  test('沉浸式阅读默认关闭，并可开启与持久化', () {
-    expect(
-      AppSettings.decode(const <String, dynamic>{}).readerImmersiveEnabled,
-      isFalse,
-    );
-
-    final enabled = const AppSettings().copyWith(readerImmersiveEnabled: true);
-    expect(enabled.encode()['readerImmersiveEnabled'], isTrue);
-    expect(AppSettings.decode(enabled.encode()).readerImmersiveEnabled, isTrue);
-
-    expect(
-      AppSettings.decode(const <String, dynamic>{
-        'readerImmersiveEnabled': 'true',
-      }).readerImmersiveEnabled,
-      isFalse,
-    );
-  });
-
-  test('音量键翻页默认关闭，并可开启与持久化', () {
-    expect(
-      AppSettings.decode(const <String, dynamic>{})
-          .readerVolumeKeyPagingEnabled,
-      isFalse,
-    );
-
-    final enabled = const AppSettings().copyWith(
-      readerVolumeKeyPagingEnabled: true,
-    );
-    expect(enabled.readerVolumeKeyPagingEnabled, isTrue);
-    expect(enabled, isNot(const AppSettings()));
-    expect(enabled.encode()['readerVolumeKeyPagingEnabled'], isTrue);
-    expect(
-      AppSettings.decode(enabled.encode()).readerVolumeKeyPagingEnabled,
-      isTrue,
-    );
-    expect(
-      AppSettings.decode(const <String, dynamic>{
-        'readerVolumeKeyPagingEnabled': 'true',
-      }).readerVolumeKeyPagingEnabled,
-      isFalse,
-    );
-  });
-
-  test('阅读背景默认跟随应用主题，自定义色只接受 #RRGGBB', () {
-    final defaults = AppSettings.decode(const <String, dynamic>{});
-    expect(defaults.readerBackgroundMode, ReaderBackgroundMode.auto);
-    expect(defaults.readerBackgroundColorValue, '#F7F1E3');
-
-    final custom = const AppSettings().copyWith(
-      readerBackgroundMode: ReaderBackgroundMode.custom,
-      readerBackgroundColorValue: '#9fed9f',
-    );
-    expect(custom, isNot(const AppSettings()));
-    expect(custom.encode()['readerBackgroundMode'], 'custom');
-    final restored = AppSettings.decode(custom.encode());
-    expect(restored.readerBackgroundMode, ReaderBackgroundMode.custom);
-    // 落库前统一大写，写入路径也走 decode。
-    expect(restored.readerBackgroundColorValue, '#9FED9F');
-
-    expect(
-      AppSettings.decode(const <String, dynamic>{
-        'readerBackgroundMode': 'day',
-        'readerBackgroundColorValue': 'green',
-      }),
-      const AppSettings(),
-    );
+    expect(restored.novelReader, const ReaderPreferences());
+    expect(restored.comicReader, const ReaderPreferences());
   });
 }

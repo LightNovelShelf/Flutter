@@ -24,12 +24,6 @@ class SettingsScreen extends StatelessWidget {
         title: '通用',
         children: <Widget>[
           SettingsNavigationRow(
-            title: '阅读',
-            description: '排版、布局和阅读行为',
-            icon: Icons.menu_book_outlined,
-            onTap: () => context.push('/settings/reader'),
-          ),
-          SettingsNavigationRow(
             title: '内容',
             description: '首页模块和内容筛选',
             icon: Icons.dashboard_outlined,
@@ -40,6 +34,23 @@ class SettingsScreen extends StatelessWidget {
             description: '主题、颜色和显示样式',
             icon: Icons.palette_outlined,
             onTap: () => context.push('/settings/appearance'),
+          ),
+        ],
+      ),
+      SettingsSection(
+        title: '阅读',
+        children: <Widget>[
+          SettingsNavigationRow(
+            title: '小说',
+            description: '小说排版、布局和阅读行为',
+            icon: Icons.menu_book_outlined,
+            onTap: () => context.push('/settings/reader/novel'),
+          ),
+          SettingsNavigationRow(
+            title: '漫画',
+            description: '漫画布局、分页方向和阅读行为',
+            icon: Icons.photo_library_outlined,
+            onTap: () => context.push('/settings/reader/comic'),
           ),
         ],
       ),

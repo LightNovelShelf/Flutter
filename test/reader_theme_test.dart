@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightnovel/core/platform/stores.dart';
+import 'package:lightnovel/data/api/models/book.dart';
 import 'package:lightnovel/data/providers.dart';
 import 'package:lightnovel/data/settings/app_settings.dart';
 import 'package:lightnovel/features/reader/widgets/reader_theme.dart';
@@ -26,7 +27,7 @@ class _Probe extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => TextButton(
-    onPressed: () => toggleReaderNightMode(context, ref),
+    onPressed: () => toggleReaderNightMode(context, ref, BookType.novel),
     child: Text(Theme.of(context).brightness.name),
   );
 }
@@ -66,6 +67,7 @@ Future<SettingsController> pumpReader(
         home: MediaQuery(
           data: MediaQueryData(platformBrightness: platform),
           child: const ReaderThemeScope(
+            type: BookType.novel,
             child: Scaffold(
               body: Column(children: <Widget>[_Probe(), _StateProbe()]),
             ),
@@ -81,7 +83,9 @@ void main() {
   testWidgets('readerTheme 只改阅读页亮暗，全局 theme 不动', (tester) async {
     final controller = await pumpReader(
       tester,
-      settings: const AppSettings(readerTheme: ReaderThemeSetting.dark),
+      settings: const AppSettings(
+        novelReader: ReaderPreferences(theme: ReaderThemeSetting.dark),
+      ),
     );
 
     expect(find.text('dark'), findsOneWidget);
@@ -97,20 +101,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(controller.settings.theme, ThemeSetting.system);
-    expect(controller.settings.readerTheme, ReaderThemeSetting.dark);
+    expect(controller.settings.novelReader.theme, ReaderThemeSetting.dark);
     expect(find.text('dark'), findsOneWidget);
   });
 
   testWidgets('切回与全局一致的亮暗时写 followApp', (tester) async {
     final controller = await pumpReader(
       tester,
-      settings: const AppSettings(readerTheme: ReaderThemeSetting.dark),
+      settings: const AppSettings(
+        novelReader: ReaderPreferences(theme: ReaderThemeSetting.dark),
+      ),
     );
 
     await tester.tap(find.byType(TextButton));
     await tester.pumpAndSettle();
 
-    expect(controller.settings.readerTheme, ReaderThemeSetting.followApp);
+    expect(controller.settings.novelReader.theme, ReaderThemeSetting.followApp);
     expect(find.text('light'), findsOneWidget);
   });
 
@@ -127,9 +133,11 @@ void main() {
     await pumpReader(
       tester,
       settings: const AppSettings(
-        readerBackgroundMode: ReaderBackgroundMode.custom,
-        readerBackgroundColorValue: '#000000',
-        readerTheme: ReaderThemeSetting.light,
+        novelReader: ReaderPreferences(
+          backgroundMode: ReaderBackgroundMode.custom,
+          backgroundColorValue: '#000000',
+          theme: ReaderThemeSetting.light,
+        ),
       ),
     );
 
@@ -140,9 +148,11 @@ void main() {
     await pumpReader(
       tester,
       settings: const AppSettings(
-        readerBackgroundMode: ReaderBackgroundMode.custom,
-        readerBackgroundColorValue: '#F7F1E3',
-        readerTheme: ReaderThemeSetting.dark,
+        novelReader: ReaderPreferences(
+          backgroundMode: ReaderBackgroundMode.custom,
+          backgroundColorValue: '#F7F1E3',
+          theme: ReaderThemeSetting.dark,
+        ),
       ),
     );
 
@@ -152,7 +162,7 @@ void main() {
   test('自定义背景色下锁住主题，其余模式不锁', () {
     expect(
       readerThemeLocked(
-        const AppSettings(readerBackgroundMode: ReaderBackgroundMode.custom),
+        const ReaderPreferences(backgroundMode: ReaderBackgroundMode.custom),
       ),
       isTrue,
     );
@@ -161,7 +171,7 @@ void main() {
       ReaderBackgroundMode.paper,
     ]) {
       expect(
-        readerThemeLocked(AppSettings(readerBackgroundMode: mode)),
+        readerThemeLocked(ReaderPreferences(backgroundMode: mode)),
         isFalse,
       );
     }
@@ -180,8 +190,12 @@ void main() {
     );
   });
   test('readerTheme 走编解码往返', () {
-    final encoded = const AppSettings(readerTheme: ReaderThemeSetting.dark)
-        .encode();
-    expect(AppSettings.decode(encoded).readerTheme, ReaderThemeSetting.dark);
+    final encoded = const AppSettings(
+      novelReader: ReaderPreferences(theme: ReaderThemeSetting.dark),
+    ).encode();
+    expect(
+      AppSettings.decode(encoded).novelReader.theme,
+      ReaderThemeSetting.dark,
+    );
   });
 }

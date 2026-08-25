@@ -61,6 +61,119 @@ int _clampInt(Object? raw, int min, int max, int fallback) {
 
 bool _bool(Object? raw, bool fallback) => raw is bool ? raw : fallback;
 
+/// 小说与漫画各自保存一份通用阅读器设置。
+@immutable
+class ReaderPreferences {
+  const ReaderPreferences({
+    this.backgroundMode = ReaderBackgroundMode.auto,
+    this.backgroundColorValue = '#F7F1E3',
+    this.dualPageEnabled = false,
+    this.immersiveEnabled = false,
+    this.statusPillsEnabled = true,
+    this.theme = ReaderThemeSetting.followApp,
+    this.volumeKeyPagingEnabled = false,
+    this.viewMode = ReaderViewMode.paged,
+  });
+
+  final ReaderBackgroundMode backgroundMode;
+  final String backgroundColorValue;
+  final bool dualPageEnabled;
+  final bool immersiveEnabled;
+  final bool statusPillsEnabled;
+  final ReaderThemeSetting theme;
+  final bool volumeKeyPagingEnabled;
+  final ReaderViewMode viewMode;
+
+  ReaderPreferences copyWith({
+    ReaderBackgroundMode? backgroundMode,
+    String? backgroundColorValue,
+    bool? dualPageEnabled,
+    bool? immersiveEnabled,
+    bool? statusPillsEnabled,
+    ReaderThemeSetting? theme,
+    bool? volumeKeyPagingEnabled,
+    ReaderViewMode? viewMode,
+  }) => ReaderPreferences(
+    backgroundMode: backgroundMode ?? this.backgroundMode,
+    backgroundColorValue: backgroundColorValue ?? this.backgroundColorValue,
+    dualPageEnabled: dualPageEnabled ?? this.dualPageEnabled,
+    immersiveEnabled: immersiveEnabled ?? this.immersiveEnabled,
+    statusPillsEnabled: statusPillsEnabled ?? this.statusPillsEnabled,
+    theme: theme ?? this.theme,
+    volumeKeyPagingEnabled:
+        volumeKeyPagingEnabled ?? this.volumeKeyPagingEnabled,
+    viewMode: viewMode ?? this.viewMode,
+  );
+
+  static final RegExp _hexPattern = RegExp(r'^#[0-9A-Fa-f]{6}$');
+
+  static ReaderPreferences decode(Object? raw) {
+    final values = raw is Map<String, dynamic>
+        ? raw
+        : const <String, dynamic>{};
+    final color = values['backgroundColorValue'];
+    return ReaderPreferences(
+      backgroundMode: _enumFromName(
+        ReaderBackgroundMode.values,
+        values['backgroundMode'],
+        ReaderBackgroundMode.auto,
+      ),
+      backgroundColorValue: color is String && _hexPattern.hasMatch(color)
+          ? color.toUpperCase()
+          : '#F7F1E3',
+      dualPageEnabled: _bool(values['dualPageEnabled'], false),
+      immersiveEnabled: _bool(values['immersiveEnabled'], false),
+      statusPillsEnabled: _bool(values['statusPillsEnabled'], true),
+      theme: _enumFromName(
+        ReaderThemeSetting.values,
+        values['theme'],
+        ReaderThemeSetting.followApp,
+      ),
+      volumeKeyPagingEnabled: _bool(values['volumeKeyPagingEnabled'], false),
+      viewMode: _enumFromName(
+        ReaderViewMode.values,
+        values['viewMode'],
+        ReaderViewMode.paged,
+      ),
+    );
+  }
+
+  Map<String, Object?> encode() => <String, Object?>{
+    'backgroundMode': backgroundMode.name,
+    'backgroundColorValue': backgroundColorValue,
+    'dualPageEnabled': dualPageEnabled,
+    'immersiveEnabled': immersiveEnabled,
+    'statusPillsEnabled': statusPillsEnabled,
+    'theme': theme.name,
+    'volumeKeyPagingEnabled': volumeKeyPagingEnabled,
+    'viewMode': viewMode.name,
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is ReaderPreferences &&
+      other.backgroundMode == backgroundMode &&
+      other.backgroundColorValue == backgroundColorValue &&
+      other.dualPageEnabled == dualPageEnabled &&
+      other.immersiveEnabled == immersiveEnabled &&
+      other.statusPillsEnabled == statusPillsEnabled &&
+      other.theme == theme &&
+      other.volumeKeyPagingEnabled == volumeKeyPagingEnabled &&
+      other.viewMode == viewMode;
+
+  @override
+  int get hashCode => Object.hash(
+    backgroundMode,
+    backgroundColorValue,
+    dualPageEnabled,
+    immersiveEnabled,
+    statusPillsEnabled,
+    theme,
+    volumeKeyPagingEnabled,
+    viewMode,
+  );
+}
+
 /// 持久化的应用设置。
 @immutable
 class AppSettings {
@@ -79,21 +192,17 @@ class AppSettings {
     this.ignoreJapanese = false,
     this.language = LanguageSetting.system,
     this.oledBlack = false,
-    this.readerBackgroundMode = ReaderBackgroundMode.auto,
-    this.readerBackgroundColorValue = '#F7F1E3',
-    this.readerDualPageEnabled = false,
+    this.novelReader = const ReaderPreferences(),
+    this.comicReader = const ReaderPreferences(),
     this.readerFirstLineIndent = true,
-    this.readerImmersiveEnabled = false,
+
     this.readerJustify = false,
     this.readerLineHeight = 1.6,
     this.readerParagraphSpacing = 0,
     this.comicPagedDirection = ComicPagedDirection.ltr,
     this.readerPrerenderAdjacent = true,
     this.readerSidePadding = 30,
-    this.readerStatusPillsEnabled = true,
-    this.readerTheme = ReaderThemeSetting.followApp,
-    this.readerVolumeKeyPagingEnabled = false,
-    this.readerViewMode = ReaderViewMode.paged,
+
     this.seedColorValue = '#B71C1C',
     this.seriesSearchMode = SeriesSearchMode.system,
     this.theme = ThemeSetting.system,
@@ -113,21 +222,17 @@ class AppSettings {
   final bool ignoreJapanese;
   final LanguageSetting language;
   final bool oledBlack;
-  final ReaderBackgroundMode readerBackgroundMode;
-  final String readerBackgroundColorValue;
-  final bool readerDualPageEnabled;
+  final ReaderPreferences novelReader;
+  final ReaderPreferences comicReader;
   final bool readerFirstLineIndent;
-  final bool readerImmersiveEnabled;
+
   final bool readerJustify;
   final double readerLineHeight;
   final double readerParagraphSpacing;
   final ComicPagedDirection comicPagedDirection;
   final bool readerPrerenderAdjacent;
   final double readerSidePadding;
-  final bool readerStatusPillsEnabled;
-  final ReaderThemeSetting readerTheme;
-  final bool readerVolumeKeyPagingEnabled;
-  final ReaderViewMode readerViewMode;
+
   final String seedColorValue;
   final SeriesSearchMode seriesSearchMode;
   final ThemeSetting theme;
@@ -147,21 +252,17 @@ class AppSettings {
     bool? ignoreJapanese,
     LanguageSetting? language,
     bool? oledBlack,
-    ReaderBackgroundMode? readerBackgroundMode,
-    String? readerBackgroundColorValue,
-    bool? readerDualPageEnabled,
+    ReaderPreferences? novelReader,
+    ReaderPreferences? comicReader,
     bool? readerFirstLineIndent,
-    bool? readerImmersiveEnabled,
+
     bool? readerJustify,
     double? readerLineHeight,
     double? readerParagraphSpacing,
     ComicPagedDirection? comicPagedDirection,
     bool? readerPrerenderAdjacent,
     double? readerSidePadding,
-    bool? readerStatusPillsEnabled,
-    ReaderThemeSetting? readerTheme,
-    bool? readerVolumeKeyPagingEnabled,
-    ReaderViewMode? readerViewMode,
+
     String? seedColorValue,
     SeriesSearchMode? seriesSearchMode,
     ThemeSetting? theme,
@@ -182,13 +283,10 @@ class AppSettings {
     ignoreJapanese: ignoreJapanese ?? this.ignoreJapanese,
     language: language ?? this.language,
     oledBlack: oledBlack ?? this.oledBlack,
-    readerBackgroundMode: readerBackgroundMode ?? this.readerBackgroundMode,
-    readerBackgroundColorValue:
-        readerBackgroundColorValue ?? this.readerBackgroundColorValue,
-    readerDualPageEnabled: readerDualPageEnabled ?? this.readerDualPageEnabled,
+    novelReader: novelReader ?? this.novelReader,
+    comicReader: comicReader ?? this.comicReader,
     readerFirstLineIndent: readerFirstLineIndent ?? this.readerFirstLineIndent,
-    readerImmersiveEnabled:
-        readerImmersiveEnabled ?? this.readerImmersiveEnabled,
+
     readerJustify: readerJustify ?? this.readerJustify,
     readerLineHeight: readerLineHeight ?? this.readerLineHeight,
     readerParagraphSpacing:
@@ -197,12 +295,7 @@ class AppSettings {
     readerPrerenderAdjacent:
         readerPrerenderAdjacent ?? this.readerPrerenderAdjacent,
     readerSidePadding: readerSidePadding ?? this.readerSidePadding,
-    readerStatusPillsEnabled:
-        readerStatusPillsEnabled ?? this.readerStatusPillsEnabled,
-    readerTheme: readerTheme ?? this.readerTheme,
-    readerVolumeKeyPagingEnabled:
-        readerVolumeKeyPagingEnabled ?? this.readerVolumeKeyPagingEnabled,
-    readerViewMode: readerViewMode ?? this.readerViewMode,
+
     seedColorValue: seedColorValue ?? this.seedColorValue,
     seriesSearchMode: seriesSearchMode ?? this.seriesSearchMode,
     theme: theme ?? this.theme,
@@ -246,18 +339,10 @@ class AppSettings {
       ignoreJapanese: _bool(raw['ignoreJapanese'], false),
       language: _languageWire[raw['language']] ?? LanguageSetting.system,
       oledBlack: _bool(raw['oledBlack'], false),
-      readerBackgroundMode: _enumFromName(
-        ReaderBackgroundMode.values,
-        raw['readerBackgroundMode'],
-        ReaderBackgroundMode.auto,
-      ),
-      readerBackgroundColorValue: _hexColor(
-        raw['readerBackgroundColorValue'],
-        '#F7F1E3',
-      ),
-      readerDualPageEnabled: _bool(raw['readerDualPageEnabled'], false),
+      novelReader: ReaderPreferences.decode(raw['novelReader']),
+      comicReader: ReaderPreferences.decode(raw['comicReader']),
       readerFirstLineIndent: _bool(raw['readerFirstLineIndent'], true),
-      readerImmersiveEnabled: _bool(raw['readerImmersiveEnabled'], false),
+
       readerJustify: _bool(raw['readerJustify'], false),
       readerLineHeight: _clampDouble(raw['readerLineHeight'], 1, 2.5, 1.6),
       readerParagraphSpacing: _clampDouble(
@@ -273,21 +358,7 @@ class AppSettings {
       ),
       readerPrerenderAdjacent: _bool(raw['readerPrerenderAdjacent'], true),
       readerSidePadding: _clampDouble(raw['readerSidePadding'], 12, 64, 30),
-      readerStatusPillsEnabled: _bool(raw['readerStatusPillsEnabled'], true),
-      readerTheme: _enumFromName(
-        ReaderThemeSetting.values,
-        raw['readerTheme'],
-        ReaderThemeSetting.followApp,
-      ),
-      readerVolumeKeyPagingEnabled: _bool(
-        raw['readerVolumeKeyPagingEnabled'],
-        false,
-      ),
-      readerViewMode: _enumFromName(
-        ReaderViewMode.values,
-        raw['readerViewMode'],
-        ReaderViewMode.paged,
-      ),
+
       seedColorValue: _hexColor(raw['seedColorValue'], '#B71C1C'),
       seriesSearchMode: _enumFromName(
         SeriesSearchMode.values,
@@ -323,21 +394,17 @@ class AppSettings {
     'ignoreJapanese': ignoreJapanese,
     'language': language.wire,
     'oledBlack': oledBlack,
-    'readerBackgroundMode': readerBackgroundMode.name,
-    'readerBackgroundColorValue': readerBackgroundColorValue,
-    'readerDualPageEnabled': readerDualPageEnabled,
+    'novelReader': novelReader.encode(),
+    'comicReader': comicReader.encode(),
     'readerFirstLineIndent': readerFirstLineIndent,
-    'readerImmersiveEnabled': readerImmersiveEnabled,
+
     'readerJustify': readerJustify,
     'readerLineHeight': readerLineHeight,
     'readerParagraphSpacing': readerParagraphSpacing,
     'comicPagedDirection': comicPagedDirection.name,
     'readerPrerenderAdjacent': readerPrerenderAdjacent,
     'readerSidePadding': readerSidePadding,
-    'readerStatusPillsEnabled': readerStatusPillsEnabled,
-    'readerTheme': readerTheme.name,
-    'readerVolumeKeyPagingEnabled': readerVolumeKeyPagingEnabled,
-    'readerViewMode': readerViewMode.name,
+
     'seedColorValue': seedColorValue,
     'seriesSearchMode': seriesSearchMode.name,
     'theme': theme.name,
@@ -360,21 +427,15 @@ class AppSettings {
       other.ignoreJapanese == ignoreJapanese &&
       other.language == language &&
       other.oledBlack == oledBlack &&
-      other.readerBackgroundMode == readerBackgroundMode &&
-      other.readerBackgroundColorValue == readerBackgroundColorValue &&
-      other.readerDualPageEnabled == readerDualPageEnabled &&
+      other.novelReader == novelReader &&
+      other.comicReader == comicReader &&
       other.readerFirstLineIndent == readerFirstLineIndent &&
-      other.readerImmersiveEnabled == readerImmersiveEnabled &&
       other.readerJustify == readerJustify &&
       other.readerLineHeight == readerLineHeight &&
       other.readerParagraphSpacing == readerParagraphSpacing &&
       other.comicPagedDirection == comicPagedDirection &&
       other.readerPrerenderAdjacent == readerPrerenderAdjacent &&
       other.readerSidePadding == readerSidePadding &&
-      other.readerStatusPillsEnabled == readerStatusPillsEnabled &&
-      other.readerTheme == readerTheme &&
-      other.readerVolumeKeyPagingEnabled == readerVolumeKeyPagingEnabled &&
-      other.readerViewMode == readerViewMode &&
       other.seedColorValue == seedColorValue &&
       other.seriesSearchMode == seriesSearchMode &&
       other.theme == theme &&
@@ -395,21 +456,17 @@ class AppSettings {
     ignoreJapanese,
     language,
     oledBlack,
-    readerBackgroundMode,
-    readerBackgroundColorValue,
-    readerDualPageEnabled,
+    novelReader,
+    comicReader,
     readerFirstLineIndent,
-    readerImmersiveEnabled,
+
     readerJustify,
     readerLineHeight,
     readerParagraphSpacing,
     comicPagedDirection,
     readerPrerenderAdjacent,
     readerSidePadding,
-    readerStatusPillsEnabled,
-    readerTheme,
-    readerVolumeKeyPagingEnabled,
-    readerViewMode,
+
     seedColorValue,
     seriesSearchMode,
     theme,

@@ -129,7 +129,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       );
     }
     // 旋转屏幕会让分屏在开合之间切换，当前页所在的那一屏要重新对准。
-    if (_syncDual(ref.read(appSettingsProvider).readerDualPageEnabled) &&
+    if (_syncDual(ref.read(appSettingsProvider).comicReader.dualPageEnabled) &&
         !loading) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _syncToPage());
     }
@@ -761,8 +761,9 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     nightMode: Theme.of(context).brightness == Brightness.dark,
     onToggleNightMode: themeLocked
         ? null
-        : () => toggleReaderNightMode(context, ref),
-    onOpenSettings: () => unawaited(showReaderSettingsSheet(context)),
+        : () => toggleReaderNightMode(context, ref, BookType.comic),
+    onOpenSettings: () =>
+        unawaited(showReaderSettingsSheet(context, BookType.comic)),
     onDismiss: () => _chromeVisible.value = false,
     onPreviousChapter: _chapterIndex > 0
         ? () => unawaited(_openChapterIndex(_chapterIndex - 1))
@@ -790,14 +791,14 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       appSettingsProvider.select(
         (settings) => (
           oledBlack: settings.oledBlack,
-          backgroundMode: settings.readerBackgroundMode,
-          backgroundColorValue: settings.readerBackgroundColorValue,
-          viewMode: settings.readerViewMode,
+          backgroundMode: settings.comicReader.backgroundMode,
+          backgroundColorValue: settings.comicReader.backgroundColorValue,
+          viewMode: settings.comicReader.viewMode,
           pagedDirection: settings.comicPagedDirection,
-          volumeKeyPagingEnabled: settings.readerVolumeKeyPagingEnabled,
-          immersiveEnabled: settings.readerImmersiveEnabled,
-          dualPageEnabled: settings.readerDualPageEnabled,
-          statusPillsEnabled: settings.readerStatusPillsEnabled,
+          volumeKeyPagingEnabled: settings.comicReader.volumeKeyPagingEnabled,
+          immersiveEnabled: settings.comicReader.immersiveEnabled,
+          dualPageEnabled: settings.comicReader.dualPageEnabled,
+          statusPillsEnabled: settings.comicReader.statusPillsEnabled,
         ),
       ),
     );
