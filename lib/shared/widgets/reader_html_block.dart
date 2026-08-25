@@ -10,6 +10,29 @@ import 'html/reader_content_markup.dart';
 import 'html/reader_content_style.dart';
 import 'image_preview.dart';
 
+/// 正文图片的高度上限，翻页模式下由阅读器套在正文层与测量层之上。
+///
+/// 一页放不下的插图会被分页硬切成两半（后半页往往只剩一条），缩到一页内更好读。
+/// 两层读的是同一个值，几何才对得上。
+class ReaderImageBounds extends InheritedWidget {
+  const ReaderImageBounds({
+    super.key,
+    required this.maxHeight,
+    required super.child,
+  });
+
+  /// 一页的正文高度，已扣掉页面留白。
+  final double maxHeight;
+
+  static double? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<ReaderImageBounds>()
+      ?.maxHeight;
+
+  @override
+  bool updateShouldNotify(ReaderImageBounds oldWidget) =>
+      oldWidget.maxHeight != maxHeight;
+}
+
 /// 小说阅读器与社区正文共用的 HTML 块渲染器。
 ///
 /// 调用方决定滚动容器、排版预设与图片预览手势，本组件负责正文样式、图片占位、BlurHash 和尺寸回填。
@@ -111,16 +134,20 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
     return false;
   }
 
+  /// 整块下方的段间距，`<p>` 之外的块（插图 `<div>`）没有。
+  double get _blockBottomSpacing =>
+      widget.applyParagraphSpacing &&
+          widget.style.paragraphSpacing > 0 &&
+          _paragraphBlock.hasMatch(_markup)
+      ? widget.style.paragraphSpacing
+      : 0;
+
   @override
   Widget build(BuildContext context) {
     final content = _html();
-    if (!widget.applyParagraphSpacing ||
-        widget.style.paragraphSpacing <= 0 ||
-        !_paragraphBlock.hasMatch(_markup)) {
-      return content;
-    }
+    if (_blockBottomSpacing <= 0) return content;
     return Padding(
-      padding: EdgeInsets.only(bottom: widget.style.paragraphSpacing),
+      padding: EdgeInsets.only(bottom: _blockBottomSpacing),
       child: content,
     );
   }
@@ -184,6 +211,9 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
     final image = _ReaderBlockImage(
       url: url,
       size: _imageSizes[url] ?? metadata.size,
+      // 图下方的留白也占着这一页，扣掉才不会为了几个像素被切到下一页去。
+      reservedHeight:
+          (previewable ? widget.imageBottomSpacing : 0) + _blockBottomSpacing,
       blurHash: metadata.blurHash,
       previewable: previewable,
       bordered:
@@ -237,6 +267,7 @@ class _ReaderBlockImage extends StatefulWidget {
   const _ReaderBlockImage({
     required this.url,
     required this.size,
+    required this.reservedHeight,
     required this.blurHash,
     required this.previewable,
     required this.bordered,
@@ -247,6 +278,9 @@ class _ReaderBlockImage extends StatefulWidget {
 
   final String url;
   final Size? size;
+
+  /// 同一块里图片之外还要占的高度，算高度上限时扣掉。
+  final double reservedHeight;
   final String? blurHash;
   final bool previewable;
   final bool bordered;
@@ -331,10 +365,19 @@ class _ReaderBlockImageState extends State<_ReaderBlockImage> {
         final maxWidth = constraints.hasBoundedWidth
             ? math.max(1.0, constraints.maxWidth)
             : 320.0;
-        final width = size == null ? maxWidth : math.min(maxWidth, size.width);
-        final height = size == null || size.width <= 0
+        var width = size == null ? maxWidth : math.min(maxWidth, size.width);
+        var height = size == null || size.width <= 0
             ? maxWidth * 3 / 2
             : width * size.height / size.width;
+        // 翻页模式下高过一页的图等比缩进这一页，否则会被分页从中间切开。
+        final bounds = ReaderImageBounds.maybeOf(context);
+        if (bounds != null) {
+          final limit = math.max(1.0, bounds - widget.reservedHeight);
+          if (height > limit) {
+            width *= limit / height;
+            height = limit;
+          }
+        }
         // ContentImage 的外框就是这个 SizedBox，测量层换成空盒子几何完全一致。
         final image = widget.measureOnly
             ? SizedBox(width: width, height: height)
@@ -349,7 +392,8 @@ class _ReaderBlockImageState extends State<_ReaderBlockImage> {
                 trigger: widget.trigger,
                 requestSizedVariant: widget.blurHash != null,
               );
-        return widget.bordered
+        // 缩窄之后别贴着左边，居中摆更像一张整页插图。
+        return widget.bordered || width < maxWidth - 0.5
             ? Align(alignment: Alignment.topCenter, child: image)
             : image;
       },

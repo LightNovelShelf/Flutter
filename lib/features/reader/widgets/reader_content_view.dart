@@ -830,7 +830,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
         _scheduleMeasure(viewport);
       }
       final active = _active;
-      return Stack(
+      final content = Stack(
         children: <Widget>[
           // 测量层：只挂正在测的那一片，尺寸恒为 0，不绘制、不参与命中测试。
           //
@@ -869,6 +869,10 @@ class _ReaderContentViewState extends State<ReaderContentView> {
             ),
         ],
       );
+      // 翻页模式下正文层与测量层共用同一个图片高度上限，几何才对得上。
+      return widget.paged
+          ? ReaderImageBounds(maxHeight: viewport.height, child: content)
+          : content;
     },
   );
 

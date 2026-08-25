@@ -736,6 +736,31 @@ void main() {
     expect(harness.last.sortNum, 1);
   });
 
+  testWidgets('整页插图缩进一页，不再被分页切成两半', (tester) async {
+    final harness = _Harness(
+      blocks: normalizeNovelBlocks(
+        '<div class="illus duokan-image-single">'
+        '<img src="https://img.example/cover.webp?size=1000x2000"/></div>'
+        '<p>图后的正文</p>',
+      ),
+      paged: true,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    // 插图独占一页，正文另起一页：中间不再夹着只剩一条图的碎片页。
+    expect(harness.last.pages, 2);
+
+    final page = tester.getRect(find.byKey(readerPageBodyKey(2, 0)));
+    final image = tester.getRect(find.byType(BookImage).first);
+    expect(image.top, page.top);
+    // 图连同下方的 6px 间距一起装进这一页。
+    expect(image.height, closeTo(page.height - 6, 0.01));
+    // 等比缩窄，并且居中摆放。
+    expect(image.width / image.height, closeTo(0.5, 0.01));
+    expect(image.center.dx, closeTo(page.center.dx, 0.5));
+  });
+
   testWidgets('双页模式：两栏并排半屏，一屏摆连续的两栏', (tester) async {
     // 单栏跑一遍同样宽度的正文，拿到栏数，双页的屏数应当是它的一半（向上取整）。
     final narrow = _Harness(
