@@ -40,13 +40,12 @@ ReaderChapterContent _chapter(int sortNum, {int count = 12}) =>
       style: _style,
     );
 
-/// 整页插图正好占满一栏，用它按栏数造章：栏数完全可控，不受字体度量影响。
+/// 整页图片正好占满一栏，用它按栏数造章：栏数完全可控，不受字体度量影响。
 List<NovelReaderBlock> _pageBlocks(int columns) => normalizeNovelBlocks(
   List<String>.generate(
     columns,
     (index) =>
-        '<div class="illus duokan-image-single">'
-        '<img src="https://img.example/p$index.webp?size=1000x2000"/></div>',
+        '<p><img src="https://img.example/p$index.webp?size=1000x700"/></p>',
   ).join(),
 );
 
@@ -757,7 +756,7 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byType(ListView), findsOneWidget);
   });
-  testWidgets('站内正文图使用 URL 元数据，并统一保留 6px 下边距', (tester) async {
+  testWidgets('站内正文图使用 URL 元数据，行布局不附加固定图片边距', (tester) async {
     const hash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj';
     debugBlurHashPixelDecoder = (_, {required width, required height}) =>
         Uint8List.fromList(List<int>.filled(width * height * 4, 255));
@@ -825,8 +824,8 @@ void main() {
 
     expect(hasEdge(marginsOf(firstImages), top: 6), isFalse);
     expect(hasEdge(marginsOf(secondImages), top: 6), isFalse);
-    expect(hasEdge(marginsOf(firstImages), bottom: 6), isTrue);
-    expect(hasEdge(marginsOf(secondImages), bottom: 6), isTrue);
+    expect(hasEdge(marginsOf(firstImages), bottom: 6), isFalse);
+    expect(hasEdge(marginsOf(secondImages), bottom: 6), isFalse);
   });
 
   testWidgets('测量层不建图片组件，分页几何照常按图片尺寸算', (tester) async {
@@ -863,8 +862,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(BookImage), findsOneWidget);
 
-    // 图片块的高度仍是「按 URL 元数据算出的 60 + 6px 下边距」，几何没变。
-    expect(tester.getSize(find.byType(ReaderBlockBox).first).height, 66);
+    // div > img 走行布局，高度包含 60px 图片与 4px 行几何。
+    expect(tester.getSize(find.byType(ReaderBlockBox).first).height, 64);
   });
 
   testWidgets('尺寸未知的图不挡正文：先按 2:3 占位出画面，不等图片下载', (tester) async {
@@ -883,11 +882,11 @@ void main() {
     expect(find.byType(ListView), findsOneWidget);
     expect(harness.positions, isNotEmpty);
 
-    // 几何按占位尺寸算：正文宽 800-24-24，占位比例 2:3，外加 6px 图片下边距。
+    // 几何按占位尺寸算，div > img 的行布局还会留下 4px 行几何。
     const width = 800 - 48.0;
     expect(
       tester.getSize(find.byType(ReaderBlockBox).first).height,
-      width * 3 / 2 + 6,
+      width * 3 / 2 + 4,
     );
   });
 
@@ -998,9 +997,9 @@ void main() {
 
     final page = tester.getRect(find.byKey(readerPageBodyKey(2, 0)));
     final image = tester.getRect(find.byType(BookImage).first);
-    expect(image.top, page.top);
-    // 图连同下方的 6px 间距一起装进这一页。
-    expect(image.height, closeTo(page.height - 6, 0.01));
+    expect(image.top, closeTo(page.top + 0.5, 0.01));
+    // div > img 走行布局；图片本身占满页面正文高度。
+    expect(image.height, closeTo(page.height, 0.01));
     // 等比缩窄，并且居中摆放。
     expect(image.width / image.height, closeTo(0.5, 0.01));
     expect(image.center.dx, closeTo(page.center.dx, 0.5));
@@ -1058,12 +1057,9 @@ void main() {
   testWidgets('双页模式：只有一栏的章节，右栏接下一章而不是留空', (tester) async {
     useTabletLandscape(tester);
 
-    // 整页插图的章节只占一栏。屏按栏切，右栏该接上已预渲染的下一章。
+    // 纯图片段落只占一栏。屏按栏切，右栏该接上已预渲染的下一章。
     final harness = _Harness(
-      blocks: normalizeNovelBlocks(
-        '<div class="illus duokan-image-single">'
-        '<img src="https://img.example/only.webp?size=1000x2000"/></div>',
-      ),
+      blocks: _pageBlocks(1),
       paged: true,
       dualPage: true,
       next: _chapter(3, count: 12),
@@ -1090,11 +1086,8 @@ void main() {
     expect(_pageText('第3章第0段'), findsWidgets);
   });
 
-  /// 只占一栏的整页插图章。
-  List<NovelReaderBlock> illustration() => normalizeNovelBlocks(
-    '<div class="illus duokan-image-single">'
-    '<img src="https://img.example/only.webp?size=1000x2000"/></div>',
-  );
+  /// 只占一栏的图片章。
+  List<NovelReaderBlock> illustration() => _pageBlocks(1);
 
   ReaderChapterContent illustrated(int sortNum) => ReaderChapterContent(
     sortNum: sortNum,

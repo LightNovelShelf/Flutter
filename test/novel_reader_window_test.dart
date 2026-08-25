@@ -21,7 +21,7 @@ import 'support/reader_screen.dart';
 const int _bookId = 7;
 const int _totalChapters = 6;
 
-/// [columns] 给定时按整页插图造章，一张插图正好占一栏，栏数完全可控；
+/// [columns] 给定时按纯图片段落造章，一张图片正好占一栏，栏数完全可控；
 /// 否则按段落造章。
 Map<String, dynamic> _chapterResponse(
   int sortNum,
@@ -42,9 +42,8 @@ Map<String, dynamic> _chapterResponse(
         : List<String>.generate(
             columns,
             (index) =>
-                '<div class="illus duokan-image-single">'
-                '<img src="https://img.example/c$sortNum-$index.webp'
-                '?size=1000x2000"/></div>',
+                '<p><img src="https://img.example/c$sortNum-$index.webp'
+                '?size=1000x700"/></p>',
           ).join(),
     'Font': null,
     'SortNum': sortNum,
@@ -77,7 +76,7 @@ class _FakeApi extends ApiClient {
   /// 每章的段数，正文按它撑开栏数。
   final int paragraphs;
 
-  /// 指定了栏数的章，按整页插图造，栏数精确可控。
+  /// 指定了栏数的章，按纯图片段落造，栏数精确可控。
   final Map<int, int> columnsByChapter;
   final List<int> requested = <int>[];
   final List<(int, String)> saved = <(int, String)>[];
