@@ -27,12 +27,15 @@ Map<String, dynamic> _chapterResponse(
   int sortNum,
   int paragraphs,
   int? columns,
+  bool longSingleBlock,
 ) => <String, dynamic>{
   'Chapter': <String, dynamic>{
     'Id': 100 + sortNum,
     'BookId': _bookId,
     'Title': '第$sortNum章',
-    'Content': columns == null
+    'Content': longSingleBlock
+        ? '<p>${'第$sortNum章正文' * 500}</p>'
+        : columns == null
         ? List<String>.generate(
             paragraphs,
             (index) =>
@@ -61,6 +64,7 @@ class _FakeApi extends ApiClient {
     this.latency = Duration.zero,
     this.paragraphs = 12,
     this.columnsByChapter = const <int, int>{},
+    this.longSingleBlock = false,
   }) : super(
          signalR: SignalRConnection(
            endpoint: 'http://localhost/hub',
@@ -78,6 +82,7 @@ class _FakeApi extends ApiClient {
 
   /// 指定了栏数的章，按纯图片段落造，栏数精确可控。
   final Map<int, int> columnsByChapter;
+  final bool longSingleBlock;
   final List<int> requested = <int>[];
   final List<(int, String)> saved = <(int, String)>[];
 
@@ -99,7 +104,12 @@ class _FakeApi extends ApiClient {
           throw const RequestCancelledError();
         }
         return decode(
-          _chapterResponse(sortNum, paragraphs, columnsByChapter[sortNum]),
+          _chapterResponse(
+            sortNum,
+            paragraphs,
+            columnsByChapter[sortNum],
+            longSingleBlock,
+          ),
         );
       case 'SaveReadPosition':
         saved.add((args['Cid']! as int, args['XPath']! as String));
@@ -163,11 +173,14 @@ Future<_FakeApi> _open(
   int paragraphs = 12,
   Map<int, int> columnsByChapter = const <int, int>{},
   Duration latency = Duration.zero,
+  bool scroll = false,
+  bool longSingleBlock = false,
 }) async {
   final api = _FakeApi(
     latency: latency,
     paragraphs: paragraphs,
     columnsByChapter: columnsByChapter,
+    longSingleBlock: longSingleBlock,
   );
   final settings = SettingsController(
     _MemoryStore(),
@@ -175,6 +188,7 @@ Future<_FakeApi> _open(
       readerPrerenderAdjacent: prerender,
       novelReader: ReaderPreferences(
         statusPillsEnabled: statusPills,
+        viewMode: scroll ? ReaderViewMode.scroll : ReaderViewMode.paged,
         dualPageEnabled: dualPage,
       ),
     ),
@@ -222,6 +236,39 @@ void main() {
     final api = await _open(tester, sortNum: 1);
 
     expect(api.requested.toSet(), <int>{1, 2});
+  });
+
+  testWidgets('滚动模式跨章按方向落在目标章边界', (tester) async {
+    await _open(tester, scroll: true, longSingleBlock: true);
+
+    final current = tester
+        .state<ScrollableState>(find.byType(Scrollable).last)
+        .position;
+    expect(current.pixels, closeTo(current.minScrollExtent, 0.5));
+
+    final view = tester.getRect(find.byType(ReaderContentView));
+    await tester.tapAt(Offset(view.center.dx, view.top + view.height * 0.1));
+    await tester.pumpAndSettle();
+
+    final previous = tester
+        .state<ScrollableState>(find.byType(Scrollable).last)
+        .position;
+    expect(previous.maxScrollExtent, greaterThan(0));
+    expect(previous.pixels, closeTo(previous.maxScrollExtent, 0.5));
+
+    final previousView = tester.getRect(find.byType(ReaderContentView));
+    await tester.tapAt(
+      Offset(
+        previousView.center.dx,
+        previousView.bottom - previousView.height * 0.1,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final next = tester
+        .state<ScrollableState>(find.byType(Scrollable).last)
+        .position;
+    expect(next.pixels, closeTo(next.minScrollExtent, 0.5));
   });
 
   testWidgets('双页开预加载：一屏跨两章时下一屏那章也已备好，翻过去左栏不转圈', (tester) async {
