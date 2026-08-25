@@ -1,73 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:markdown/markdown.dart' as md;
 
 import '../../data/api/api_client.dart';
 import '../../data/api/models.dart';
 import '../../data/providers.dart';
+import '../../shared/widgets/html_content.dart';
 import 'community_providers.dart';
 import 'widgets/community_primitives.dart';
 
-/// 正文里允许保留的标签，其余字符转义。
-const List<String> _allowedTags = <String>[
-  'strong',
-  'em',
-  'blockquote',
-  'ul',
-  'ol',
-  'li',
-];
+String _escapeRawHtml(String text) => text.replaceAll('<', '&lt;');
 
-final RegExp _allowedTagPattern = RegExp(
-  '</?(${_allowedTags.join('|')})>',
-  caseSensitive: false,
-);
-final RegExp _blockLevelStart = RegExp(
-  r'^<(blockquote|ul|ol)>',
-  caseSensitive: false,
-);
-final RegExp _blankLine = RegExp(r'\n[ \t]*\n');
-final RegExp _blockOpenOnOwnLine = RegExp(
-  r'(?<!\n)\n[ \t]*(<(?:blockquote|ul|ol)>)',
-  caseSensitive: false,
-);
-final RegExp _blockCloseOnOwnLine = RegExp(
-  r'(</(?:blockquote|ul|ol)>)[ \t]*\n(?!\n)',
-  caseSensitive: false,
-);
+/// 把社区正文 Markdown 转成接口与正文渲染器使用的 HTML。
+String buildCommunityContentHtml(String text) => md
+    .markdownToHtml(
+      _escapeRawHtml(text),
+      extensionSet: md.ExtensionSet.gitHubFlavored,
+      encodeHtml: true,
+    )
+    .trim();
 
-/// 正文用纯文本编辑，发布时按空行切段生成 HTML。
-String buildCommunityContentHtml(String text) {
-  final escaped = text
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;');
-  var restored = escaped;
-  for (final String tag in _allowedTags) {
-    restored = restored
-        .replaceAll('&lt;$tag&gt;', '<$tag>')
-        .replaceAll('&lt;/$tag&gt;', '</$tag>');
-  }
-  // 块级标签必须独立成段，被 <p> 包住是非法嵌套。
-  final normalized = restored
-      .replaceAllMapped(_blockOpenOnOwnLine, (match) => '\n\n${match[1]}')
-      .replaceAllMapped(_blockCloseOnOwnLine, (match) => '${match[1]}\n\n');
-  final buffer = StringBuffer();
-  for (final String block in normalized.split(_blankLine)) {
-    final trimmed = block.trim();
-    if (trimmed.isEmpty) continue;
-    if (_blockLevelStart.hasMatch(trimmed)) {
-      buffer.write(trimmed.replaceAll('\n', ''));
-      continue;
-    }
-    buffer.write('<p>${trimmed.replaceAll('\n', '<br />')}</p>');
-  }
-  return buffer.toString();
+/// 字数校验只看 Markdown 渲染后的正文文字。
+String communityPlainText(String text) {
+  final nodes = md.Document(
+    extensionSet: md.ExtensionSet.gitHubFlavored,
+    encodeHtml: true,
+  ).parse(_escapeRawHtml(text));
+  return nodes.map((node) => node.textContent).join('\n');
 }
-
-/// 字数校验只看正文文字，标记不计入。
-String communityPlainText(String text) =>
-    text.replaceAll(_allowedTagPattern, '');
 
 class CommunityComposeScreen extends ConsumerStatefulWidget {
   const CommunityComposeScreen({super.key, this.boardKey, this.subCategoryKey});
@@ -91,6 +52,7 @@ class _CommunityComposeScreenState
   bool _preparing = true;
   bool _publishing = false;
   bool _noticeAccepted = false;
+  bool _previewing = false;
   String? _error;
 
   @override
@@ -186,8 +148,7 @@ class _CommunityComposeScreenState
         content: const Text(
           '社区用于友好交流，请在发布前确认：\n\n'
           '• 尊重他人，避免攻击、嘲讽或引战。\n'
-          '• 请勿求书，也不要请求他人上传或发送书籍。\n'
-          '• 不要在站点社区反馈软件问题。',
+          '• 请勿求书，也不要请求他人上传或发送书籍。',
         ),
         actions: <Widget>[
           TextButton(
@@ -242,7 +203,7 @@ class _CommunityComposeScreenState
     }
   }
 
-  /// 把选中文字包进标签，无选区时作用于当前行。
+  /// 把选中文字包进 Markdown 标记，无选区时作用于当前行。
   void _wrapSelection(String open, String close) {
     final value = _body.value;
     final text = value.text;
@@ -265,26 +226,21 @@ class _CommunityComposeScreenState
     );
   }
 
-  void _wrapList(String tag) {
+  void _prefixLines(String Function(int index) prefixForIndex) {
     final value = _body.value;
     final text = value.text;
     var start = value.selection.isValid ? value.selection.start : text.length;
     var end = value.selection.isValid ? value.selection.end : text.length;
-    if (start == end) {
-      start = text.lastIndexOf('\n', start > 0 ? start - 1 : 0);
-      start = start < 0 ? 0 : start + 1;
-      final lineEnd = text.indexOf('\n', end);
-      end = lineEnd < 0 ? text.length : lineEnd;
-      if (end < start) end = start;
-    }
-    final selected = text.substring(start, end);
-    final lines = selected.isEmpty
-        ? const <String>['']
-        : selected.split('\n').where((line) => line.trim().isNotEmpty).toList();
-    final items = (lines.isEmpty ? const <String>[''] : lines)
-        .map((line) => '<li>${line.trim()}</li>')
-        .join('\n');
-    final replacement = '<$tag>\n$items\n</$tag>';
+    start = text.lastIndexOf('\n', start > 0 ? start - 1 : 0);
+    start = start < 0 ? 0 : start + 1;
+    final lineEnd = text.indexOf('\n', end);
+    end = lineEnd < 0 ? text.length : lineEnd;
+
+    final lines = text.substring(start, end).split('\n');
+    final replacement = <String>[
+      for (var index = 0; index < lines.length; index++)
+        '${prefixForIndex(index)}${lines[index]}',
+    ].join('\n');
     _body.value = TextEditingValue(
       text: text.replaceRange(start, end, replacement),
       selection: TextSelection.collapsed(offset: start + replacement.length),
@@ -470,12 +426,20 @@ class _CommunityComposeScreenState
                 _BodyEditor(
                   controller: _body,
                   enabled: !_publishing,
-                  onBold: () => _wrapSelection('<strong>', '</strong>'),
-                  onItalic: () => _wrapSelection('<em>', '</em>'),
-                  onQuote: () =>
-                      _wrapSelection('<blockquote>', '</blockquote>'),
-                  onBulletList: () => _wrapList('ul'),
-                  onNumberList: () => _wrapList('ol'),
+                  previewing: _previewing,
+                  previewHtml: _previewing
+                      ? buildCommunityContentHtml(_body.text)
+                      : '',
+                  onTogglePreview: () =>
+                      setState(() => _previewing = !_previewing),
+                  onHeading: (level) => _prefixLines(
+                    (_) => '${List<String>.filled(level, '#').join()} ',
+                  ),
+                  onBold: () => _wrapSelection('**', '**'),
+                  onItalic: () => _wrapSelection('*', '*'),
+                  onQuote: () => _prefixLines((_) => '> '),
+                  onBulletList: () => _prefixLines((_) => '- '),
+                  onNumberList: () => _prefixLines((index) => '${index + 1}. '),
                 ),
                 if (bodyLength > 0 && bodyLength < 20) ...<Widget>[
                   const SizedBox(height: 6),
@@ -494,6 +458,10 @@ class _BodyEditor extends StatelessWidget {
   const _BodyEditor({
     required this.controller,
     required this.enabled,
+    required this.previewing,
+    required this.previewHtml,
+    required this.onTogglePreview,
+    required this.onHeading,
     required this.onBold,
     required this.onItalic,
     required this.onQuote,
@@ -503,6 +471,10 @@ class _BodyEditor extends StatelessWidget {
 
   final TextEditingController controller;
   final bool enabled;
+  final bool previewing;
+  final String previewHtml;
+  final ValueChanged<int> onHeading;
+  final VoidCallback onTogglePreview;
   final VoidCallback onBold;
   final VoidCallback onItalic;
   final VoidCallback onQuote;
@@ -512,6 +484,7 @@ class _BodyEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final formattingEnabled = enabled && !previewing;
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
@@ -526,30 +499,41 @@ class _BodyEditor extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
             child: Row(
               children: <Widget>[
+                _HeadingToolbarButton(
+                  enabled: formattingEnabled,
+                  onSelected: onHeading,
+                ),
                 _ToolbarButton(
                   icon: Icons.format_bold,
                   tooltip: '加粗',
-                  onPressed: enabled ? onBold : null,
+                  onPressed: formattingEnabled ? onBold : null,
                 ),
                 _ToolbarButton(
                   icon: Icons.format_italic,
                   tooltip: '斜体',
-                  onPressed: enabled ? onItalic : null,
+                  onPressed: formattingEnabled ? onItalic : null,
                 ),
                 _ToolbarButton(
                   icon: Icons.format_quote,
                   tooltip: '引用',
-                  onPressed: enabled ? onQuote : null,
+                  onPressed: formattingEnabled ? onQuote : null,
                 ),
                 _ToolbarButton(
                   icon: Icons.format_list_bulleted,
                   tooltip: '无序列表',
-                  onPressed: enabled ? onBulletList : null,
+                  onPressed: formattingEnabled ? onBulletList : null,
                 ),
                 _ToolbarButton(
                   icon: Icons.format_list_numbered,
                   tooltip: '有序列表',
-                  onPressed: enabled ? onNumberList : null,
+                  onPressed: formattingEnabled ? onNumberList : null,
+                ),
+                _ToolbarButton(
+                  icon: previewing
+                      ? Icons.edit_outlined
+                      : Icons.visibility_outlined,
+                  tooltip: previewing ? '继续编辑' : '预览',
+                  onPressed: onTogglePreview,
                 ),
               ],
             ),
@@ -557,25 +541,57 @@ class _BodyEditor extends StatelessWidget {
           Divider(height: 0.5, thickness: 0.5, color: colors.outlineVariant),
           ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 220),
-            child: TextField(
-              controller: controller,
-              enabled: enabled,
-              maxLines: null,
-              minLines: 8,
-              keyboardType: TextInputType.multiline,
-              textCapitalization: TextCapitalization.sentences,
-              style: const TextStyle(fontSize: 16, height: 24 / 16),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.all(14),
-                hintText: '写下帖子内容…',
-              ),
-            ),
+            child: previewing
+                ? Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: previewHtml.isEmpty
+                        ? Text(
+                            '暂无可预览的内容。',
+                            style: TextStyle(color: colors.onSurfaceVariant),
+                          )
+                        : HtmlContent(html: previewHtml),
+                  )
+                : TextField(
+                    controller: controller,
+                    enabled: enabled,
+                    maxLines: null,
+                    minLines: 8,
+                    keyboardType: TextInputType.multiline,
+                    textCapitalization: TextCapitalization.sentences,
+                    style: const TextStyle(fontSize: 16, height: 24 / 16),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.all(14),
+                      hintText: '支持 Markdown 格式',
+                    ),
+                  ),
           ),
         ],
       ),
     );
   }
+}
+
+class _HeadingToolbarButton extends StatelessWidget {
+  const _HeadingToolbarButton({
+    required this.enabled,
+    required this.onSelected,
+  });
+
+  final bool enabled;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<int>(
+    enabled: enabled,
+    tooltip: '标题',
+    icon: const Icon(Icons.title, size: 19),
+    onSelected: onSelected,
+    itemBuilder: (context) => <PopupMenuEntry<int>>[
+      for (var level = 1; level <= 6; level++)
+        PopupMenuItem<int>(value: level, child: Text('H$level')),
+    ],
+  );
 }
 
 class _ToolbarButton extends StatelessWidget {

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 
 import '../../core/network/api_error.dart';
 import '../../data/api/models.dart';
@@ -8,7 +7,7 @@ import '../../data/repositories/comment_thread_repository.dart';
 import '../../shared/format.dart';
 import '../../shared/widgets/comments/comment_compose_sheet.dart';
 import '../../shared/widgets/comments/comment_thread_list.dart';
-import '../../shared/widgets/image_preview.dart';
+import '../../shared/widgets/html_content.dart';
 import '../announcement/announcement_providers.dart';
 
 /// 正文作为评论列表的头部，整页只有一个滚动容器。
@@ -107,15 +106,7 @@ class _ArticleCard extends StatelessWidget {
           const SizedBox(height: 10),
           Divider(height: 1, thickness: 0.5, color: colors.outlineVariant),
           const SizedBox(height: 12),
-          HtmlWidget(
-            item.contentHtml,
-            textStyle: TextStyle(
-              fontSize: 16,
-              height: 25.6 / 16,
-              color: colors.onSurface,
-            ),
-            onTapImage: (metadata) => previewHtmlImage(context, metadata),
-          ),
+          HtmlContent(html: item.contentHtml),
         ],
       ),
     );

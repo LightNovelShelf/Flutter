@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../../data/api/models.dart';
 import '../../../shared/format.dart';
+import '../../../shared/widgets/html_content.dart';
 import '../../../shared/widgets/user_avatar.dart';
 import '../community_thread_providers.dart';
 import 'community_primitives.dart';
-import 'community_thread_body.dart';
 
-/// 帖子头部（含正文）。正文解析的结果由 [CommunityThreadBody] 自己按 html 缓存，
-/// 所以点赞忙碌位、翻页、高亮这些无关跳变虽然会重建这棵树，但不会重跑解析。
+/// 帖子头部及正文。
 class CommunityThreadHeader extends StatelessWidget {
   const CommunityThreadHeader({
     super.key,
@@ -113,10 +112,7 @@ class CommunityThreadHeader extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 19),
-                    CommunityThreadBody(
-                      html: detail.bodyHtml,
-                      color: colors.onSurface,
-                    ),
+                    HtmlContent(html: detail.bodyHtml),
                   ],
                 ),
               ),

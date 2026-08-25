@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../data/api/models.dart';
 import '../../../shared/widgets/app_sheet.dart';
-import 'book_html_content.dart';
+import '../../../shared/widgets/html_content.dart';
 
 /// 在可拖到全屏的抽屉里展示完整简介。
 void showBookIntroductionSheet(BuildContext context, BookDetail detail) {
@@ -23,9 +23,11 @@ void showBookIntroductionSheet(BuildContext context, BookDetail detail) {
             padding: EdgeInsets.zero,
           ),
           const SizedBox(height: 16),
-          BookHtmlContent(
-            html: detail.introduction,
-            textColor: colors.onSurfaceVariant,
+          HtmlContentTheme.merge(
+            data: HtmlContentThemeData(
+              textStyle: TextStyle(color: colors.onSurfaceVariant),
+            ),
+            child: HtmlContent(html: detail.introduction),
           ),
         ],
       );

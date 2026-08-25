@@ -197,7 +197,7 @@ class AppSettings {
     this.readerFirstLineIndent = true,
 
     this.readerJustify = false,
-    this.readerLineHeight = 1.6,
+    this.readerLineHeight = 1.5,
     this.readerLineSpace = 4,
     this.comicPagedDirection = ComicPagedDirection.ltr,
     this.readerPrerenderAdjacent = true,
@@ -343,7 +343,7 @@ class AppSettings {
       readerFirstLineIndent: _bool(raw['readerFirstLineIndent'], true),
 
       readerJustify: _bool(raw['readerJustify'], false),
-      readerLineHeight: _clampDouble(raw['readerLineHeight'], 1, 2.5, 1.6),
+      readerLineHeight: _clampDouble(raw['readerLineHeight'], 1, 2.5, 1.5),
       readerLineSpace: _clampDouble(raw['readerLineSpace'], 0, 16, 4),
       comicPagedDirection: _enumFromName(
         ComicPagedDirection.values,

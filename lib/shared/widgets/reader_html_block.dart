@@ -8,6 +8,7 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
 import '../image_cache.dart';
 import 'html/reader_content_markup.dart';
 import 'html/reader_content_style.dart';
+import 'html_content.dart';
 import 'image_preview.dart';
 
 /// 正文图片的高度上限，翻页模式下由阅读器套在正文层与测量层之上。
@@ -33,9 +34,9 @@ class ReaderImageBounds extends InheritedWidget {
       oldWidget.maxHeight != maxHeight;
 }
 
-/// 小说阅读器与社区正文共用的 HTML 块渲染器。
+/// 小说正文的 HTML 块渲染器。
 ///
-/// 调用方决定滚动容器、排版预设与图片预览手势，本组件负责正文样式、图片占位、BlurHash 和尺寸回填。
+/// 负责分页测量、正文额外样式、脚注链接和长按图片预览。
 class ReaderHtmlBlock extends StatefulWidget {
   const ReaderHtmlBlock({
     super.key,
@@ -45,7 +46,6 @@ class ReaderHtmlBlock extends StatefulWidget {
     this.onTapUrl,
     this.onLayoutChanged,
     this.borderIllustrations = true,
-    this.imagePreviewTrigger = ImagePreviewTrigger.longPress,
     this.applyLineSpace = true,
     this.measureOnly = false,
   });
@@ -56,7 +56,6 @@ class ReaderHtmlBlock extends StatefulWidget {
   final FutureOr<bool> Function(String url)? onTapUrl;
   final VoidCallback? onLayoutChanged;
   final bool borderIllustrations;
-  final ImagePreviewTrigger imagePreviewTrigger;
   final bool applyLineSpace;
 
   /// 只用于分页测量时，图片位置摆等尺寸的空盒子而不是真图：测量层只要几何，
@@ -69,10 +68,6 @@ class ReaderHtmlBlock extends StatefulWidget {
 }
 
 class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
-  static final RegExp _linkedImage = RegExp(
-    r'''<a\b[^>]*\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>\s*(<img\b[^>]*>)\s*</a>''',
-    caseSensitive: false,
-  );
   static final RegExp _spacedTextBlock = RegExp(
     r'^\s*<(?:p|h[1-6])\b',
     caseSensitive: false,
@@ -88,56 +83,18 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
   /// 图片回填尺寸的代数，作为 `HtmlWidget` 缓存树的失效条件。
   int _imageEpoch = 0;
 
-  /// 点按预览要摘掉图片外的链接，摘的结果按 markup 缓存，别每次 build 重跑正则。
-  String? _strippedMarkup;
-
   @override
   void didUpdateWidget(covariant ReaderHtmlBlock oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.markup != widget.markup) {
-      _imageSizes.clear();
-      _strippedMarkup = null;
-    }
+    if (oldWidget.markup != widget.markup) _imageSizes.clear();
   }
 
-  /// 点按预览时，包在图片外的链接会先吃掉点按，渲染前摘掉链接只留图片。
-  bool get _previewOnTap =>
-      widget.imagePreviewTrigger == ImagePreviewTrigger.tap;
-
-  String get _markup {
-    if (!_previewOnTap) return widget.markup;
-    return _strippedMarkup ??= widget.markup.replaceAllMapped(
-      _linkedImage,
-      (match) => match.group(4) ?? '',
-    );
-  }
-
-  bool _isImageLink(String url) {
-    if (!_previewOnTap) return false;
-    final target = Uri.tryParse(url);
-    for (final match in _linkedImage.allMatches(widget.markup)) {
-      final href = (match.group(1) ?? match.group(2) ?? match.group(3) ?? '')
-          .replaceAll('&amp;', '&');
-      if (href == url) return true;
-      final candidate = Uri.tryParse(href);
-      if (candidate == null || target == null) continue;
-      final normalizedCandidate = candidate.path.isEmpty
-          ? candidate.replace(path: '/')
-          : candidate;
-      final normalizedTarget = target.path.isEmpty
-          ? target.replace(path: '/')
-          : target;
-      if (normalizedCandidate == normalizedTarget) return true;
-    }
-    return false;
-  }
-
-  /// 块级段间距判定按 [_markup] 的实例缓存。
+  /// 块级段间距判定按 markup 的实例缓存。
   String? _spacingSource;
   bool _hasSpacedTextBlock = false;
 
   bool get _spacedTextBlockPresent {
-    final markup = _markup;
+    final markup = widget.markup;
     if (!identical(_spacingSource, markup)) {
       _spacingSource = markup;
       _hasSpacedTextBlock = _spacedTextBlock.hasMatch(markup);
@@ -155,7 +112,7 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
 
   @override
   Widget build(BuildContext context) {
-    final content = _html();
+    final content = _html(context);
     final spacing = _blockBottomSpacing;
     if (spacing <= 0) return content;
     return Padding(
@@ -164,50 +121,55 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
     );
   }
 
-  Widget _html() => HtmlWidget(
-    _markup,
-    // 超过一万字符时组件默认改成异步建树，那期间块高是 0，分页测量会把它当空块。
-    buildAsync: false,
-    // 同一块 markup 至少被解析两次（测量层与正文层各一份），跨页块在相邻两页还各来一次。
-    enableCaching: true,
-    rebuildTriggers: <Object?>[
-      widget.style,
-      widget.borderIllustrations,
-      widget.imagePreviewTrigger,
-      _imageEpoch,
-    ],
-    renderMode: RenderMode.column,
-    textStyle: widget.style.textStyle,
-    customStylesBuilder: (element) => widget.style.stylesFor(
-      tag: element.localName,
-      classes: element.classes,
-      // 只有 `<font size>` 需要读属性，其余标签不建表。
-      attributes: element.localName == 'font'
-          ? <String, String>{
-              for (final entry in element.attributes.entries)
-                entry.key.toString(): entry.value,
-            }
-          : const <String, String>{},
-    ),
-    customWidgetBuilder: (element) {
-      if (element.localName == readerIndentElement) {
-        return InlineCustomWidget(
-          alignment: PlaceholderAlignment.bottom,
-          child: SizedBox(width: widget.style.fontSize * 2),
-        );
-      }
-      if (element.localName != 'img') return null;
-      return _image(
-        element.attributes['src'],
-        element.parent?.localName,
-        element.parent?.classes ?? const <String>{},
-        element.parent?.text ?? '',
-      );
-    },
-    onTapUrl: _onTapUrl,
-    onErrorBuilder: (context, element, error) => const SizedBox.shrink(),
-    onLoadingBuilder: (context, element, progress) => const SizedBox.shrink(),
-  );
+  Widget _html(BuildContext context) {
+    final color = DefaultTextStyle.of(context).style.color;
+    return HtmlContentTheme(
+      data: HtmlContentThemeData(
+        textStyle: widget.style.textStyle.copyWith(color: color),
+        linkColor: color,
+        stylesBuilder: (element) => widget.style.stylesFor(
+          tag: element.localName,
+          classes: element.classes,
+          // 只有 `<font size>` 需要读属性，其余标签不建表。
+          attributes: element.localName == 'font'
+              ? <String, String>{
+                  for (final entry in element.attributes.entries)
+                    entry.key.toString(): entry.value,
+                }
+              : const <String, String>{},
+        ),
+        widgetBuilder: (element) {
+          if (element.localName == readerIndentElement) {
+            return InlineCustomWidget(
+              alignment: PlaceholderAlignment.bottom,
+              child: SizedBox(width: widget.style.fontSize * 2),
+            );
+          }
+          if (element.localName != 'img') return null;
+          return _image(
+            element.attributes['src'],
+            element.parent?.localName,
+            element.parent?.classes ?? const <String>{},
+            element.parent?.text ?? '',
+          );
+        },
+        onTapUrl: _onTapUrl,
+        onErrorBuilder: (context, element, error) => const SizedBox.shrink(),
+        onLoadingBuilder: (context, element, progress) =>
+            const SizedBox.shrink(),
+        buildAsync: false,
+        enableCaching: true,
+        removeImageLinks: false,
+        enableDefaultImagePreview: false,
+        rebuildTriggers: <Object?>[
+          widget.style,
+          widget.borderIllustrations,
+          _imageEpoch,
+        ],
+      ),
+      child: HtmlContent(html: widget.markup),
+    );
+  }
 
   Widget? _image(
     String? source,
@@ -228,7 +190,6 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
           widget.borderIllustrations &&
           parentClasses.any(_illustrationClasses.contains),
       inline: !block,
-      trigger: widget.imagePreviewTrigger,
       measureOnly: widget.measureOnly,
       onResolved: _onImageResolved,
     );
@@ -247,7 +208,6 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
   }
 
   FutureOr<bool> _onTapUrl(String url) {
-    if (_isImageLink(url)) return true;
     final footnote = readerFootnoteIdFromUrl(url);
     final onFootnote = widget.onFootnote;
     if (footnote != null && onFootnote != null) {
@@ -267,7 +227,6 @@ class _ReaderBlockImage extends StatefulWidget {
     required this.blurHash,
     required this.bordered,
     required this.inline,
-    required this.trigger,
     required this.measureOnly,
     required this.onResolved,
   });
@@ -280,7 +239,6 @@ class _ReaderBlockImage extends StatefulWidget {
   final String? blurHash;
   final bool bordered;
   final bool inline;
-  final ImagePreviewTrigger trigger;
   final bool measureOnly;
   final void Function(String url, Size size) onResolved;
 
@@ -376,7 +334,6 @@ class _ReaderBlockImageState extends State<_ReaderBlockImage> {
                 blurHash: widget.blurHash,
                 borderRadius: 3,
                 bordered: widget.bordered,
-                trigger: widget.trigger,
                 requestSizedVariant: widget.blurHash != null,
               );
         if (widget.inline) return image;

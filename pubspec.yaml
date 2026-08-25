@@ -50,6 +50,7 @@ dependencies:
   hooks: ^2.0.2
   # GlobalCupertinoLocalizations 引入的 Cupertino 组件引用 CupertinoIcons 字形。
   cupertino_icons: ^1.0.8
+  markdown: ^7.3.1
 
 dev_dependencies:
   flutter_test:

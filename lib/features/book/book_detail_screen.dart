@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -11,17 +12,15 @@ import '../../data/providers.dart';
 import '../../data/repositories/read_position_cache.dart';
 import '../../shared/format.dart';
 import '../../shared/widgets/state_views.dart';
+import '../../shared/widgets/html_content.dart';
 import '../search/search_providers.dart';
 import 'book_providers.dart';
 import 'widgets/book_action_row.dart';
 import 'widgets/book_detail_hero.dart';
 import 'widgets/book_detail_skeleton.dart';
-import 'widgets/book_html_content.dart';
 import 'widgets/book_introduction_sheet.dart';
 import 'widgets/book_uploader_sheet.dart';
 import 'widgets/cover_palette_theme.dart';
-
-const double _collapsedIntroHeight = 90;
 
 class BookDetailScreen extends ConsumerStatefulWidget {
   const BookDetailScreen({
@@ -306,12 +305,17 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
 
   Widget _introduction(BuildContext context, BookDetail detail) {
     final colors = Theme.of(context).colorScheme;
+    final collapsedHeight = HtmlContent.compactLineExtentOf(context) * 5;
     // 带 ruby 的简介不折叠，否则注音被截断。
     final clampable = !htmlHasRuby(detail.introduction);
-    final content = BookHtmlContent(
-      html: detail.introduction,
-      preview: clampable,
-      textColor: colors.onSurfaceVariant,
+    final html = clampable
+        ? HtmlContent.compact(html: detail.introduction)
+        : HtmlContent(html: detail.introduction);
+    final content = HtmlContentTheme.merge(
+      data: HtmlContentThemeData(
+        textStyle: TextStyle(color: colors.onSurfaceVariant),
+      ),
+      child: html,
     );
     return Padding(
       padding: const EdgeInsets.only(top: 24),
@@ -329,12 +333,12 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
           else
             ClipRect(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxHeight: _collapsedIntroHeight,
-                ),
-                child: Align(
+                constraints: BoxConstraints(maxHeight: collapsedHeight),
+                child: OverflowBox(
                   alignment: Alignment.topLeft,
-                  heightFactor: 1,
+                  minHeight: 0,
+                  maxHeight: double.infinity,
+                  fit: OverflowBoxFit.deferToChild,
                   child: content,
                 ),
               ),

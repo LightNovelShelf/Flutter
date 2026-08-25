@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 
 import '../../../shared/widgets/app_sheet.dart';
-import '../../../shared/widgets/html/reader_content_style.dart';
-import '../../../shared/widgets/image_preview.dart';
+import '../../../shared/widgets/html_content.dart';
 
 /// 脚注弹层。注文与正文共用章节混淆字体，需要传入字体族名。
 Future<void> showReaderFootnoteSheet(
@@ -35,13 +33,6 @@ class _ReaderFootnoteSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final style = ReaderContentStyle(
-      fontSize: 16,
-      lineHeight: 1.7,
-      firstLineIndent: false,
-      justify: false,
-      fontFamily: fontFamily,
-    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -50,34 +41,14 @@ class _ReaderFootnoteSheet extends StatelessWidget {
           child: SingleChildScrollView(
             controller: scrollController,
             padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
-            child: DefaultTextStyle.merge(
-              style: TextStyle(color: colors.onSurface),
-              child: HtmlWidget(
-                html,
-                renderMode: RenderMode.column,
-                textStyle: style.textStyle,
-                customStylesBuilder: (element) {
-                  final styles = style.stylesFor(
-                    tag: element.localName,
-                    classes: element.classes,
-                    attributes: const <String, String>{},
-                  );
-                  // 注文按段落阅读，补段间距；列表补左内边距容纳项目符号。
-                  return switch (element.localName) {
-                    'p' => <String, String>{...?styles, 'margin': '0 0 0.8em'},
-                    'ol' || 'ul' => <String, String>{
-                      ...?styles,
-                      'padding-left': '1.2em',
-                    },
-                    _ => styles,
-                  };
-                },
-                onTapImage: (metadata) => previewHtmlImage(context, metadata),
-                onErrorBuilder: (context, element, error) => Text(
-                  '注释无法显示。',
-                  style: TextStyle(fontSize: 16, color: colors.error),
+            child: HtmlContentTheme.merge(
+              data: HtmlContentThemeData(
+                textStyle: TextStyle(
+                  color: colors.onSurface,
+                  fontFamily: fontFamily,
                 ),
               ),
+              child: HtmlContent(html: html),
             ),
           ),
         ),

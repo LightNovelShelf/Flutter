@@ -39,6 +39,11 @@ void main() {
     );
   });
 
+  test('默认 HTML 和小说阅读行高均为 1.5', () {
+    expect(const AppSettings().readerLineHeight, 1.5);
+    expect(AppSettings.decode(const <String, dynamic>{}).readerLineHeight, 1.5);
+  });
+
   test('小说行距默认 4，并钳制后持久化', () {
     expect(AppSettings.decode(const <String, dynamic>{}).readerLineSpace, 4);
     final spaced = const AppSettings().copyWith(readerLineSpace: 4);

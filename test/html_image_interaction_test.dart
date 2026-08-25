@@ -26,8 +26,7 @@ const _style = ReaderContentStyle(
 );
 
 Future<int Function()> _pumpBlock(
-  WidgetTester tester,
-  ImagePreviewTrigger trigger, {
+  WidgetTester tester, {
   String markup = _markup,
 }) async {
   debugBlurHashPixelDecoder = (_, {required width, required height}) =>
@@ -47,7 +46,6 @@ Future<int Function()> _pumpBlock(
               return true;
             },
             borderIllustrations: false,
-            imagePreviewTrigger: trigger,
           ),
         ),
       ),
@@ -70,7 +68,7 @@ const _plainImage =
 
 void main() {
   testWidgets('阅读器正文图片预留尺寸并使用 BlurHash，长按预览，短按仍走链接', (tester) async {
-    final openedLinks = await _pumpBlock(tester, ImagePreviewTrigger.longPress);
+    final openedLinks = await _pumpBlock(tester);
 
     final image = find.byType(BookImage);
     expect(image, findsOneWidget);
@@ -88,52 +86,28 @@ void main() {
     expect(openedLinks(), 1);
   });
 
-  testWidgets('社区正文图片短按预览，外层链接不跳转', (tester) async {
-    final openedLinks = await _pumpBlock(tester, ImagePreviewTrigger.tap);
-
-    final image = find.byType(BookImage);
-    await tester.tap(image);
-    // 先出一帧把预览路由推进去，再推进过渡动画。
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byKey(imagePreviewTransformKey), findsOneWidget);
-    expect(openedLinks(), 0);
-  });
-
   testWidgets('预览请求的地址与显示的一致，命中同一份缓存', (tester) async {
-    await _pumpBlock(tester, ImagePreviewTrigger.tap);
+    await _pumpBlock(tester);
 
     final displayed = tester.widget<BookImage>(find.byType(BookImage));
     // 显示高度 60、DPR 3 落在 256 档。
     expect(displayed.url, contains('height=256'));
     expect(displayed.requestSizedVariant, isFalse);
 
-    await tester.tap(find.byType(BookImage));
+    await tester.longPress(find.byType(BookImage));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(_previewUrl(tester), displayed.url);
   });
 
   testWidgets('裸图片保持行内，纯图片段落成块，段内图片可与文字同行', (tester) async {
-    await _pumpBlock(
-      tester,
-      ImagePreviewTrigger.longPress,
-      markup: _plainImage,
-    );
+    await _pumpBlock(tester, markup: _plainImage);
     expect(find.byType(InlineCustomWidget), findsOneWidget);
 
-    await _pumpBlock(
-      tester,
-      ImagePreviewTrigger.longPress,
-      markup: '<p>$_plainImage</p>',
-    );
+    await _pumpBlock(tester, markup: '<p>$_plainImage</p>');
     expect(find.byType(InlineCustomWidget), findsNothing);
 
-    await _pumpBlock(
-      tester,
-      ImagePreviewTrigger.longPress,
-      markup: '<p>前$_plainImage后</p>',
-    );
+    await _pumpBlock(tester, markup: '<p>前$_plainImage后</p>');
     expect(find.byType(InlineCustomWidget), findsOneWidget);
     final paragraph = find.byWidgetPredicate(
       (widget) =>
