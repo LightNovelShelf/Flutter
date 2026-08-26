@@ -299,18 +299,17 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
           style: _contentStyle(settings, prepared.fontFamily),
         );
 
-  /// 滚动模式的状态栏留白由外层给出，翻页模式需要计入每一页的内边距。
+  /// 系统栏由外层 SafeArea 处理，这里只保留正文和页码胶囊的间距。
   EdgeInsets _contentPadding(AppSettings settings) {
-    final padding = MediaQuery.paddingOf(context);
     final reader = settings.novelReader;
     final paged = reader.viewMode == ReaderViewMode.paged;
     // 页底那块留白是给页码胶囊的，胶囊关掉就还给正文。
     final pills = paged && reader.statusPillsEnabled;
     return EdgeInsets.fromLTRB(
       settings.readerSidePadding,
-      (paged ? padding.top : 0) + 12,
+      12,
       settings.readerSidePadding,
-      padding.bottom + (pills ? 56 : 12),
+      pills ? 56 : 12,
     );
   }
 
@@ -489,7 +488,6 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
       oledBlack: settings.oledBlack,
     );
     final paged = reader.viewMode == ReaderViewMode.paged;
-    final readerTopInset = paged ? 0.0 : MediaQuery.paddingOf(context).top;
     final current = _window.current;
 
     final shell = ReaderShell(
@@ -500,69 +498,80 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
       onRetry: () => unawaited(_load()),
       body: current == null
           ? const SizedBox.shrink()
-          : Stack(
-              children: <Widget>[
-                Positioned.fill(
-                  top: readerTopInset,
-                  // 正文色走 DefaultTextStyle：亮暗切换只重画文字，不动排版参数，
-                  // 也就不会整章重建再分页。
-                  child: DefaultTextStyle.merge(
-                    style: TextStyle(color: foreground),
-                    child: ReaderContentView(
-                      chapters: <ReaderChapterContent>[
-                        for (final prepared in _window.chapters)
-                          _chapterContent(prepared, settings)!,
-                      ],
-                      sortNum: _sortNum,
-                      totalChapters: _totalChapters,
-                      failedChapters: _failedChapters,
-                      paged: paged,
-                      dualPage: reader.dualPageEnabled,
-                      padding: _contentPadding(settings),
-                      restoreLocator: _restoreLocator,
-                      restoreProgression: _restoreProgression,
-                      restoreToken: _restoreToken,
-                      onPosition: _onPositionReported,
-                      onTapCenter: () =>
-                          setState(() => _chromeVisible = !_chromeVisible),
-                      onChapterChanged: _onChapterChanged,
-                      onBoundary: (next) => unawaited(_openAdjacent(next)),
-                      onNeedChapter: (next, from) =>
-                          unawaited(_needChapter(next, from)),
-                      onFootnote: _onFootnote,
-                      onReady: () {
-                        if (mounted && !_contentReady) {
-                          setState(() => _contentReady = true);
-                        }
-                      },
-                      controller: _contentController,
+          : SafeArea(
+              left: false,
+              right: false,
+              bottom: paged,
+              child: Stack(
+                children: <Widget>[
+                  Positioned.fill(
+                    // 正文色走 DefaultTextStyle：亮暗切换只重画文字，不动排版参数，
+                    // 也就不会整章重建再分页。
+                    child: DefaultTextStyle.merge(
+                      style: TextStyle(color: foreground),
+                      child: ReaderContentView(
+                        chapters: <ReaderChapterContent>[
+                          for (final prepared in _window.chapters)
+                            _chapterContent(prepared, settings)!,
+                        ],
+                        sortNum: _sortNum,
+                        totalChapters: _totalChapters,
+                        failedChapters: _failedChapters,
+                        paged: paged,
+                        dualPage: reader.dualPageEnabled,
+                        padding: _contentPadding(settings),
+                        restoreLocator: _restoreLocator,
+                        restoreProgression: _restoreProgression,
+                        restoreToken: _restoreToken,
+                        onPosition: _onPositionReported,
+                        onTapCenter: () =>
+                            setState(() => _chromeVisible = !_chromeVisible),
+                        onChapterChanged: _onChapterChanged,
+                        onBoundary: (next) => unawaited(_openAdjacent(next)),
+                        onNeedChapter: (next, from) =>
+                            unawaited(_needChapter(next, from)),
+                        onFootnote: _onFootnote,
+                        onReady: () {
+                          if (mounted && !_contentReady) {
+                            setState(() => _contentReady = true);
+                          }
+                        },
+                        controller: _contentController,
+                      ),
                     ),
                   ),
-                ),
-                if (!_contentReady)
-                  const IgnorePointer(
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-              ],
+                  if (!_contentReady)
+                    const IgnorePointer(
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                ],
+              ),
             ),
       overlay: paged && _contentReady && reader.statusPillsEnabled
           ? Positioned(
               right: 16,
-              bottom: MediaQuery.paddingOf(context).bottom + 16,
-              child: ValueListenableBuilder<(int, int)>(
-                valueListenable: _pages,
-                builder: (context, pages, _) {
-                  final (page, total) = pages;
-                  if (page <= 0 || total <= 0) return const SizedBox.shrink();
-                  return ReaderStatusPills(
-                    visible: !_chromeVisible,
-                    foregroundColor: foreground,
-                    currentChapter: _sortNum,
-                    totalChapters: _totalChapters,
-                    currentPage: page,
-                    totalPages: total,
-                  );
-                },
+              bottom: 16,
+              child: SafeArea(
+                top: false,
+                left: false,
+                right: false,
+                child: ValueListenableBuilder<(int, int)>(
+                  valueListenable: _pages,
+                  builder: (context, pages, _) {
+                    final (page, total) = pages;
+                    if (page <= 0 || total <= 0) {
+                      return const SizedBox.shrink();
+                    }
+                    return ReaderStatusPills(
+                      visible: !_chromeVisible,
+                      foregroundColor: foreground,
+                      currentChapter: _sortNum,
+                      totalChapters: _totalChapters,
+                      currentPage: page,
+                      totalPages: total,
+                    );
+                  },
+                ),
               ),
             )
           : null,

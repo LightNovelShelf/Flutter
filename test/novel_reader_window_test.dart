@@ -175,7 +175,15 @@ Future<_FakeApi> _open(
   Duration latency = Duration.zero,
   bool scroll = false,
   bool longSingleBlock = false,
+  Size? size,
+  FakeViewPadding padding = const FakeViewPadding(),
 }) async {
+  if (size != null) {
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1;
+  }
+  tester.view.padding = padding;
+  addTearDown(tester.view.reset);
   final api = _FakeApi(
     latency: latency,
     paragraphs: paragraphs,
@@ -523,5 +531,43 @@ void main() {
     expect(barePadding, 12);
     // 多出来的高度落到正文上，页尾能多排一行。
     expect(bareHeight, greaterThan(pillHeight));
+  });
+
+  testWidgets('翻页模式用 SafeArea 避开系统栏并保留胶囊空间', (tester) async {
+    await _open(
+      tester,
+      size: const Size(800, 800),
+      padding: const FakeViewPadding(top: 40, bottom: 30),
+    );
+
+    final content = tester.getRect(find.byType(ReaderContentView));
+    final view = tester.widget<ReaderContentView>(
+      find.byType(ReaderContentView),
+    );
+    final pills = tester.getRect(find.byType(ReaderStatusPills));
+    expect(content.top, 40);
+    expect(content.bottom, 770);
+    expect(view.padding.top, 12);
+    expect(view.padding.bottom, 56);
+    expect(pills.bottom, 754);
+  });
+
+  testWidgets('滚动模式用 SafeArea 只避开状态栏并隐藏胶囊', (tester) async {
+    await _open(
+      tester,
+      scroll: true,
+      size: const Size(800, 800),
+      padding: const FakeViewPadding(top: 40, bottom: 30),
+    );
+
+    final content = tester.getRect(find.byType(ReaderContentView));
+    final view = tester.widget<ReaderContentView>(
+      find.byType(ReaderContentView),
+    );
+    expect(content.top, 40);
+    expect(content.bottom, 800);
+    expect(view.padding.top, 12);
+    expect(view.padding.bottom, 12);
+    expect(find.byType(ReaderStatusPills), findsNothing);
   });
 }

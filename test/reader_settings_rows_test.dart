@@ -103,7 +103,7 @@ void main() {
     expect(controller.settings.novelReader.dualPageEnabled, isFalse);
   });
 
-  testWidgets('漫画滚动模式仍可设置页码胶囊', (tester) async {
+  testWidgets('漫画滚动模式下禁用页码胶囊', (tester) async {
     await _pumpSettings(
       tester,
       const AppSettings(
@@ -112,8 +112,9 @@ void main() {
       type: BookType.comic,
     );
 
-    expect(_switchFor(tester, '页码胶囊').onChanged, isNotNull);
+    expect(_switchFor(tester, '页码胶囊').onChanged, isNull);
   });
+
   testWidgets('软件设置把阅读单列并提供小说漫画入口', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: SettingsScreen()));
 

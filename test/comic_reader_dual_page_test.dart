@@ -119,11 +119,14 @@ Future<void> _open(
   WidgetTester tester, {
   bool dualPage = true,
   bool statusPills = true,
+  ReaderViewMode viewMode = ReaderViewMode.paged,
   ComicPagedDirection direction = ComicPagedDirection.ltr,
   Size size = const Size(1400, 800),
+  FakeViewPadding padding = const FakeViewPadding(),
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
+  tester.view.padding = padding;
   addTearDown(tester.view.reset);
 
   final settings = SettingsController(
@@ -132,6 +135,7 @@ Future<void> _open(
       comicReader: ReaderPreferences(
         dualPageEnabled: dualPage,
         statusPillsEnabled: statusPills,
+        viewMode: viewMode,
       ),
       comicPagedDirection: direction,
     ),
@@ -250,6 +254,35 @@ void main() {
   testWidgets('关掉页码胶囊后画面上不再叠这一层', (tester) async {
     await _open(tester, statusPills: false);
 
+    expect(find.byType(ReaderStatusPills), findsNothing);
+  });
+
+  testWidgets('翻页模式避开状态栏、导航栏和页码胶囊', (tester) async {
+    await _open(
+      tester,
+      dualPage: false,
+      size: const Size(800, 800),
+      padding: const FakeViewPadding(top: 40, bottom: 30),
+    );
+
+    final gallery = tester.getRect(find.byType(PhotoViewGallery));
+    final pills = tester.getRect(find.byType(ReaderStatusPills));
+    expect(gallery.top, 52);
+    expect(gallery.bottom, 714);
+    expect(pills.top, greaterThan(gallery.bottom));
+  });
+
+  testWidgets('滚动模式只避开状态栏并隐藏页码胶囊', (tester) async {
+    await _open(
+      tester,
+      viewMode: ReaderViewMode.scroll,
+      size: const Size(800, 800),
+      padding: const FakeViewPadding(top: 40, bottom: 30),
+    );
+
+    final list = tester.getRect(find.byType(ListView));
+    expect(list.top, 40);
+    expect(list.bottom, 800);
     expect(find.byType(ReaderStatusPills), findsNothing);
   });
 
