@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightnovel/features/reader/widgets/reader_shell.dart';
 
@@ -59,5 +60,21 @@ void main() {
       tester.state<_ChromeProbeState>(find.byType(_ChromeProbe)),
       same(before),
     );
+  });
+
+  testWidgets('阅读器禁用透明系统栏对比度遮罩', (tester) async {
+    await tester.pumpWidget(shell());
+
+    final region = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
+      find.descendant(
+        of: find.byType(ReaderShell),
+        matching: find.byType(AnnotatedRegion<SystemUiOverlayStyle>),
+      ),
+    );
+
+    expect(region.value.statusBarColor, Colors.transparent);
+    expect(region.value.systemStatusBarContrastEnforced, isFalse);
+    expect(region.value.systemNavigationBarColor, Colors.transparent);
+    expect(region.value.systemNavigationBarContrastEnforced, isFalse);
   });
 }

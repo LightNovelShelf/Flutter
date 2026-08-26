@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/platform/app_system_ui.dart';
 import '../../data/api/api_client.dart';
 import '../../data/api/models.dart';
 import '../../data/providers.dart';
@@ -49,9 +50,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
         );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: theme.brightness == Brightness.dark
-          ? SystemUiOverlayStyle.light
-          : SystemUiOverlayStyle.dark,
+      value: AppSystemUi.defaultOverlayStyle(theme.brightness),
       child: Scaffold(
         body: Stack(
           clipBehavior: Clip.hardEdge,
