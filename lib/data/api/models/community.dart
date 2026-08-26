@@ -458,6 +458,7 @@ class CommunityThreadDetail {
     required this.item,
     required this.liked,
     required this.favorited,
+    required this.canEdit,
     required this.bodyHtml,
     required this.repliesPage,
     required this.replyItems,
@@ -467,6 +468,7 @@ class CommunityThreadDetail {
   final CommunityFeedItem item;
   final bool liked;
   final bool favorited;
+  final bool canEdit;
   final String bodyHtml;
   final CommunityPagination repliesPage;
   final List<CommunityThreadReply> replyItems;
@@ -481,6 +483,7 @@ class CommunityThreadDetail {
     item: item,
     liked: liked ?? this.liked,
     favorited: favorited ?? this.favorited,
+    canEdit: canEdit,
     bodyHtml: bodyHtml,
     repliesPage: repliesPage ?? this.repliesPage,
     replyItems: replyItems ?? this.replyItems,
@@ -493,6 +496,7 @@ class CommunityThreadDetail {
       item: CommunityFeedItem.decode(response),
       liked: asBool(response['Liked'], false),
       favorited: asBool(response['Favorited'], false),
+      canEdit: asBool(response['CanEdit'], false),
       bodyHtml: asStringOrEmpty(response['BodyHtml']),
       repliesPage: CommunityPagination.decode(response['RepliesPage']),
       replyItems: decodeOptionalList(

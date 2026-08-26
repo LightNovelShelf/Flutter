@@ -58,6 +58,12 @@ extension ApiClientCommunity on ApiClient {
     'ContentHtml': contentHtml,
   }, CommunityThreadDetail.decodeRequired);
 
+  Future<void> deleteCommunityThread(int threadId) async {
+    await invoke('DeleteCommunityThread', <String, Object?>{
+      'ThreadId': threadId,
+    }, (_) {});
+  }
+
   Future<CommunityThreadReply> createCommunityReply({
     required int threadId,
     required String content,

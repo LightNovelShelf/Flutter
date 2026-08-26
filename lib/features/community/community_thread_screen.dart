@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/network/api_error.dart';
 import '../../data/api/models.dart';
@@ -156,6 +157,23 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
     if (posted && mounted) await ref.read(_provider.notifier).refresh();
   }
 
+  Future<void> _deleteThread() async {
+    final state = ref.read(_provider);
+    if (state.thread?.canEdit != true || state.deletingThread) return;
+    final confirmed = await showAppConfirm(
+      context: context,
+      title: '提示',
+      message: '你确定要删除这个帖子吗？',
+      confirmLabel: '删除',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    final deleted = await ref.read(_provider.notifier).deleteThread();
+    if (!deleted || !mounted) return;
+    showAppSnackBar(context, '帖子已删除');
+    context.go('/community');
+  }
+
   @override
   Widget build(BuildContext context) {
     // 互动失败是一次性提示，用 noticeTag 区分文案相同的重复失败。
@@ -173,6 +191,23 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
     final controller = ref.read(_provider.notifier);
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text(''),
+        actions: <Widget>[
+          if (detail?.canEdit ?? false) ...<Widget>[
+            IconButton(
+              onPressed: null,
+              tooltip: '编辑',
+              icon: const Icon(Icons.edit_outlined),
+            ),
+            IconButton(
+              onPressed: state.deletingThread ? null : _deleteThread,
+              tooltip: '删除',
+              icon: const Icon(Icons.delete_outline),
+            ),
+          ],
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: controller.refresh,
         // 整页一个 SelectionArea：逐行包会给每条回复各装一套手势识别与选区注册。
@@ -181,7 +216,6 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
             controller: _controller,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: <Widget>[
-              const SliverAppBar(title: Text('')),
               if (detail != null)
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
