@@ -72,6 +72,7 @@ flutter_launcher_icons:
 
 flutter_native_splash:
   color: "#FFFFFF"
+  color_dark: "#121212"
   image: assets/icon/splash_icon.png
   android: true
   ios: true
@@ -80,6 +81,7 @@ flutter_native_splash:
   ios_content_mode: center
   android_12:
     color: "#FFFFFF"
+    color_dark: "#121212"
     image: assets/icon/splash_icon.png
 
 flutter:
