@@ -122,6 +122,23 @@ void main() {
     expect(networkImageLayer(), findsOneWidget);
   });
 
+  testWidgets('真图缓存被驱逐后恢复占位层', (WidgetTester tester) async {
+    await pumpCover(tester);
+    final element = tester.element(networkImageLayer());
+    final image = tester.widget<CachedNetworkImage>(networkImageLayer());
+
+    image.imageBuilder!(element, const AssetImage('unused'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 251));
+    expect(blurHashLayer(), findsNothing);
+
+    image.placeholder!(element, image.imageUrl);
+    await tester.pump();
+    await tester.pump();
+
+    expect(blurHashLayer(), findsOneWidget);
+  });
+
   testWidgets('网络图单层淡入，按尺寸档请求图床并使用高质量采样', (WidgetTester tester) async {
     await pumpCover(tester);
 

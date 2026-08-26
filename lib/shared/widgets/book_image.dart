@@ -98,6 +98,7 @@ class _BookImageState extends State<BookImage> {
   /// 真图淡入结束后置位，之后不再构建占位层。
   bool _placeholderHidden = false;
   Timer? _fadeTimer;
+  bool _placeholderRestoreScheduled = false;
 
   /// build 期间只读的解析结果，只在 (url, displayHeight, DPR) 变化时重算。
   String _url = '';
@@ -164,6 +165,19 @@ class _BookImageState extends State<BookImage> {
   bool _isDecoded() => PaintingBinding.instance.imageCache
       .statusForKey(CachedNetworkImageProvider(_url, cacheKey: _cacheKey))
       .keepAlive;
+
+  /// 路由覆盖期间 Image 会停止监听；解码缓存被驱逐后，返回列表会重新走占位回调。
+  /// 先恢复外层占位，避免磁盘重新解码与淡入期间露出卡片底色。
+  void _onImageLoading() {
+    if (!_placeholderHidden || _placeholderRestoreScheduled) return;
+    _placeholderRestoreScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _placeholderRestoreScheduled = false;
+      if (mounted && _placeholderHidden) {
+        setState(() => _placeholderHidden = false);
+      }
+    });
+  }
 
   /// 真图出现：记录进程级已展示集合，并在淡入结束后摘掉占位层。
   ///
@@ -249,7 +263,10 @@ class _BookImageState extends State<BookImage> {
                 : widget.fadeInDuration,
             // 占位层由外层 Stack 负责，不能再淡出一层，否则中途露底。
             fadeOutDuration: Duration.zero,
-            placeholder: (context, _) => const SizedBox.expand(),
+            placeholder: (context, _) {
+              _onImageLoading();
+              return const SizedBox.expand();
+            },
             imageBuilder: (context, provider) {
               _onImageShown();
               return Image(
