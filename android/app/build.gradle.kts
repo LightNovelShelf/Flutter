@@ -51,6 +51,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+
         release {
             // CI 注入正式签名；本地未配置时保留 debug 签名，方便调试 release 模式。
             signingConfig =
