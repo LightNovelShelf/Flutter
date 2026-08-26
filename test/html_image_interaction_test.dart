@@ -100,12 +100,12 @@ void main() {
     expect(_previewUrl(tester), displayed.url);
   });
 
-  testWidgets('裸图片保持行内，纯图片段落成块，段内图片可与文字同行', (tester) async {
+  testWidgets('裸图片成块，段落内图片保持行内布局', (tester) async {
     await _pumpBlock(tester, markup: _plainImage);
-    expect(find.byType(InlineCustomWidget), findsOneWidget);
+    expect(find.byType(InlineCustomWidget), findsNothing);
 
     await _pumpBlock(tester, markup: '<p>$_plainImage</p>');
-    expect(find.byType(InlineCustomWidget), findsNothing);
+    expect(find.byType(InlineCustomWidget), findsOneWidget);
 
     await _pumpBlock(tester, markup: '<p>前$_plainImage后</p>');
     expect(find.byType(InlineCustomWidget), findsOneWidget);

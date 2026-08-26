@@ -45,8 +45,8 @@ Map<String, dynamic> _chapterResponse(
         : List<String>.generate(
             columns,
             (index) =>
-                '<p><img src="https://img.example/c$sortNum-$index.webp'
-                '?size=1000x700"/></p>',
+                '<div><img src="https://img.example/c$sortNum-$index.webp'
+                '?size=1000x700"/></div>',
           ).join(),
     'Font': null,
     'SortNum': sortNum,

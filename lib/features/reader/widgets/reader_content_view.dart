@@ -4,14 +4,29 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../shared/widgets/html/reader_content_style.dart';
+import '../../../shared/widgets/html/html_source.dart';
 import '../../../shared/widgets/reader_html_block.dart';
 import '../reader_block_markup.dart';
-import '../reader_html_blocks.dart';
 import '../reader_pagination.dart';
 import '../reader_position.dart';
 import 'reader_measure_box.dart';
 import 'reader_page_body.dart';
 import 'reader_tap_zone.dart';
+
+final RegExp _spacedReaderTextBlock = RegExp(
+  r'^\s*<(?:p|h[1-6])\b',
+  caseSensitive: false,
+);
+
+double _readerBlockSpacing(
+  ReaderBlock block,
+  ReaderBlock? next,
+  double lineSpace,
+) {
+  if (next == null || lineSpace <= 0) return 0;
+  if (block is ReaderImageBlock) return 0;
+  return _spacedReaderTextBlock.hasMatch(block.html) ? lineSpace : 0;
+}
 
 /// 一章正文及其排版参数。正文字形逐章混淆，字体各章不同，所以样式随章走。
 class ReaderChapterContent {
@@ -22,7 +37,7 @@ class ReaderChapterContent {
   });
 
   final int sortNum;
-  final List<NovelReaderBlock> blocks;
+  final List<ReaderBlock> blocks;
   final ReaderContentStyle style;
 }
 
@@ -429,14 +444,18 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     final markupBuilder = slot.markupBuilder!;
     final last = math.min(upTo, slot.blockCount - 1);
     for (var index = slot.filled; index <= last; index++) {
-      final markup = markupBuilder.next(content.blocks[index]);
-      final spacing = index + 1 < slot.blockCount;
+      final block = content.blocks[index];
+      final next = index + 1 < slot.blockCount
+          ? content.blocks[index + 1]
+          : null;
+      final markup = markupBuilder.next(block);
+      final spacing = _readerBlockSpacing(block, next, content.style.lineSpace);
       slot.pendingMeasure[index] = ReaderBlockBox(
         index: index,
         child: ReaderHtmlBlock(
           markup: markup,
           style: content.style,
-          applyLineSpace: spacing,
+          bottomSpacing: spacing,
           measureOnly: true,
           // 几何只由测量层决定，回填尺寸也只从这一层通知，正文层那份不必再报一次。
           onLayoutChanged: () => _onBlockLayoutChanged(slot, index),
@@ -447,7 +466,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
         child: ReaderHtmlBlock(
           markup: markup,
           style: content.style,
-          applyLineSpace: spacing,
+          bottomSpacing: spacing,
           onFootnote: (id) => widget.onFootnote(content.sortNum, id),
         ),
       );

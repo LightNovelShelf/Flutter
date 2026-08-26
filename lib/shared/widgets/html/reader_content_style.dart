@@ -1,5 +1,7 @@
 import 'package:flutter/painting.dart';
 
+import 'html_source.dart';
+
 /// 正文 class/标签的排版语义由本文件维护。
 
 /// 正文样式来源。`stylesFor` 的返回值直接交给 HtmlWidget 的 `customStylesBuilder`，
@@ -50,6 +52,7 @@ class ReaderContentStyle {
 
   /// 这些 class 在原 CSS 里带 `text-indent: 0`，段首不缩进。
   static const Set<String> _indentCancelling = <String>{
+    htmlImageBlockClass,
     'center',
     'left',
     'right',
@@ -114,6 +117,10 @@ class ReaderContentStyle {
     // class 后写，命中同一属性时覆盖标签默认值。
     for (final className in classes) {
       switch (className) {
+        case htmlImageBlockClass:
+          styles['display'] = 'block';
+        case htmlImageSpacingClass:
+          styles['margin-bottom'] = _px(lineSpace);
         case 'right':
           styles['text-align'] = 'right';
         case 'left':

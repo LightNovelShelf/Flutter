@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 
 import '../image_cache.dart';
+import 'html/html_source.dart';
 import 'html/reader_content_markup.dart';
 import 'html/reader_content_style.dart';
 import 'html_content.dart';
@@ -46,7 +47,7 @@ class ReaderHtmlBlock extends StatefulWidget {
     this.onTapUrl,
     this.onLayoutChanged,
     this.borderIllustrations = true,
-    this.applyLineSpace = true,
+    this.bottomSpacing = 0,
     this.measureOnly = false,
   });
 
@@ -56,7 +57,7 @@ class ReaderHtmlBlock extends StatefulWidget {
   final FutureOr<bool> Function(String url)? onTapUrl;
   final VoidCallback? onLayoutChanged;
   final bool borderIllustrations;
-  final bool applyLineSpace;
+  final double bottomSpacing;
 
   /// 只用于分页测量时，图片位置摆等尺寸的空盒子而不是真图：测量层只要几何，
   /// 建一份 [ContentImage] 就多一个图片组件与一条 `ImageStream` 监听。
@@ -68,10 +69,6 @@ class ReaderHtmlBlock extends StatefulWidget {
 }
 
 class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
-  static final RegExp _spacedTextBlock = RegExp(
-    r'^\s*<(?:p|h[1-6])\b',
-    caseSensitive: false,
-  );
   static const Set<String> _illustrationClasses = <String>{
     'illu',
     'illus',
@@ -89,26 +86,8 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
     if (oldWidget.markup != widget.markup) _imageSizes.clear();
   }
 
-  /// 块级段间距判定按 markup 的实例缓存。
-  String? _spacingSource;
-  bool _hasSpacedTextBlock = false;
-
-  bool get _spacedTextBlockPresent {
-    final markup = widget.markup;
-    if (!identical(_spacingSource, markup)) {
-      _spacingSource = markup;
-      _hasSpacedTextBlock = _spacedTextBlock.hasMatch(markup);
-    }
-    return _hasSpacedTextBlock;
-  }
-
-  /// 标题和正文都按段落级文本块处理，统一应用块后间距。
   double get _blockBottomSpacing =>
-      widget.applyLineSpace &&
-          widget.style.lineSpace > 0 &&
-          _spacedTextBlockPresent
-      ? widget.style.lineSpace
-      : 0;
+      widget.bottomSpacing > 0 ? widget.bottomSpacing : 0;
 
   @override
   Widget build(BuildContext context) {
@@ -148,9 +127,8 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
           if (element.localName != 'img') return null;
           return _image(
             element.attributes['src'],
-            element.parent?.localName,
+            element.classes,
             element.parent?.classes ?? const <String>{},
-            element.parent?.text ?? '',
           );
         },
         onTapUrl: _onTapUrl,
@@ -164,6 +142,7 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
         rebuildTriggers: <Object?>[
           widget.style,
           widget.borderIllustrations,
+          widget.bottomSpacing,
           _imageEpoch,
         ],
       ),
@@ -173,18 +152,20 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
 
   Widget? _image(
     String? source,
-    String? parentTag,
+    Iterable<String> imageClasses,
     Iterable<String> parentClasses,
-    String siblingText,
   ) {
     final url = source == null ? null : resolvePreviewImageUrl(source);
     if (url == null) return const SizedBox.shrink();
     final metadata = contentImageMetadata(url);
-    final block = parentTag == 'p' && siblingText.trim().isEmpty;
+    final block = imageClasses.contains(htmlImageBlockClass);
+    final imageSpacing = imageClasses.contains(htmlImageSpacingClass)
+        ? widget.style.lineSpace
+        : 0.0;
     final image = _ReaderBlockImage(
       url: url,
       size: _imageSizes[url] ?? metadata.size,
-      reservedHeight: _blockBottomSpacing,
+      reservedHeight: _blockBottomSpacing + imageSpacing,
       blurHash: metadata.blurHash,
       bordered:
           widget.borderIllustrations &&
@@ -193,8 +174,15 @@ class _ReaderHtmlBlockState extends State<ReaderHtmlBlock> {
       measureOnly: widget.measureOnly,
       onResolved: _onImageResolved,
     );
-    // 纯图片段落占一块；裸图片和带文字的段内图片保持行内语义。
-    if (block) return image;
+    // 通用预处理标记图片块；段内图片没有标记，保持行内语义。
+    if (block) {
+      return imageSpacing > 0
+          ? Padding(
+              padding: EdgeInsets.only(bottom: imageSpacing),
+              child: image,
+            )
+          : image;
+    }
     return InlineCustomWidget(child: image);
   }
 

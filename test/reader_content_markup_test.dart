@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightnovel/features/reader/reader_block_markup.dart';
-import 'package:lightnovel/features/reader/reader_html_blocks.dart';
+import 'package:lightnovel/shared/widgets/html/html_source.dart';
 import 'package:lightnovel/shared/widgets/html/reader_content_markup.dart';
 import 'package:lightnovel/shared/widgets/html/reader_content_style.dart';
 
@@ -11,7 +11,7 @@ ReaderContentStyle _style({bool indent = false}) => ReaderContentStyle(
   justify: false,
 );
 
-List<NovelReaderBlock> _blocks(String html) => normalizeNovelBlocks(html);
+List<ReaderBlock> _blocks(String html) => parseRenderableHtmlBlocks(html);
 
 void main() {
   group('正文标记加工', () {
@@ -49,7 +49,10 @@ void main() {
     });
 
     test('段首缩进插在块内，且只插在会缩进的段落上', () {
-      final blocks = _blocks('<p>正文</p><p class="center">居中</p><h2>标题</h2>');
+      final blocks = _blocks(
+        '<p>正文</p><p class="center">居中</p><h2>标题</h2>'
+        '<p><img src="cover.webp"></p>',
+      );
       final offBuilder = ReaderBlockMarkupBuilder(_style());
       final onBuilder = ReaderBlockMarkupBuilder(_style(indent: true));
       final off = <String>[for (final block in blocks) offBuilder.next(block)];
@@ -59,6 +62,7 @@ void main() {
       expect(on[0], '<p><$readerIndentElement></$readerIndentElement>正文</p>');
       expect(on[1], isNot(contains(readerIndentElement)));
       expect(on[2], isNot(contains(readerIndentElement)));
+      expect(on[3], contains(readerIndentElement));
     });
 
     test('根标签正则忽略属性值里的大于号', () {

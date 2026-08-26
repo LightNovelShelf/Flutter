@@ -5,9 +5,9 @@ import '../../core/network/request_scheduler.dart';
 import '../../data/api/api_client.dart';
 import '../../data/api/models.dart';
 import '../../data/repositories/reader_font_repository.dart';
+import '../../shared/widgets/html/html_source.dart';
 import 'reader_footnotes.dart';
 import 'reader_html_document.dart';
-import 'reader_html_blocks.dart';
 
 /// 小说章节预渲染：取数、分块、脚注抽取、字体注册一次完成，供章节窗口取用。
 
@@ -21,7 +21,7 @@ class ReaderPreparedChapter {
   });
 
   final NovelContent content;
-  final List<NovelReaderBlock> blocks;
+  final List<ReaderBlock> blocks;
   final Map<String, String> notes;
   final String? fontFamily;
 
@@ -183,7 +183,7 @@ class ReaderChapterPrerenderer {
 class _ChapterMarkup {
   const _ChapterMarkup({required this.blocks, required this.notes});
 
-  final List<NovelReaderBlock> blocks;
+  final List<ReaderBlock> blocks;
   final Map<String, String> notes;
 }
 
@@ -201,7 +201,7 @@ _ChapterMarkup _chapterMarkup(String html) {
   final footnotes = processNovelFootnotesDocument(document);
   // 分块文本与渲染出来的正文必须逐字一致，否则保存的定位会漂。
   return _ChapterMarkup(
-    blocks: normalizeNovelDocument(document),
+    blocks: splitRenderableHtmlBlocks(document.fragment),
     notes: footnotes.notesById,
   );
 }

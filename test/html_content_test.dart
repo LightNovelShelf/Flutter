@@ -1,8 +1,10 @@
+import 'package:html/dom.dart' as dom;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit, RenderParagraph;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:lightnovel/shared/widgets/html_content.dart';
+import 'package:lightnovel/shared/widgets/html/html_source.dart';
 
 void main() {
   test('compact source removes scripts and images but preserves blocks', () {
@@ -33,10 +35,77 @@ void main() {
     );
 
     final widget = tester.widget<HtmlWidget>(find.byType(HtmlWidget));
-    expect(widget.html, '<img src="https://example.com/a.png">');
+    expect(widget.html, contains('<img src="https://example.com/a.png"'));
+    expect(widget.html, contains(htmlImageBlockClass));
     expect(widget.textStyle?.fontFamily, 'NovelFont');
     expect(widget.onTapImage, isNotNull);
     expect(widget.textStyle?.height, 1.5);
+  });
+
+  testWidgets('default renderer removes metadata and hidden nodes', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: HtmlContent(
+          html:
+              '<p>可见正文</p>'
+              '<script>bad()</script>'
+              '<style>.bad{}</style>'
+              '<object>备用正文</object>'
+              '<div hidden>hidden</div>'
+              '<div aria-hidden="true">aria</div>'
+              '<div style="display:none">display</div>'
+              '<div style="visibility: hidden">visibility</div>',
+        ),
+      ),
+    );
+
+    final widget = tester.widget<HtmlWidget>(find.byType(HtmlWidget));
+    expect(widget.html, '<p>可见正文</p>');
+  });
+
+  test('common preprocessing assigns image block spacing once', () {
+    const html =
+        '<img src="bare.webp">'
+        '<p><img src="paragraph.webp"></p>'
+        '<div><img src="first.webp"><img src="second.webp"></div>'
+        '<p>正文</p>';
+    final blocks = parseRenderableHtmlBlocks(html);
+
+    expect(blocks, hasLength(5));
+    expect(blocks[0], isA<ReaderImageBlock>());
+    expect(blocks[1], isA<ReaderMarkupBlock>());
+    expect(blocks[2], isA<ReaderImageBlock>());
+    expect(blocks[3], isA<ReaderImageBlock>());
+    expect(blocks[4], isA<ReaderMarkupBlock>());
+    expect(blocks[0].html, isNot(contains(htmlImageSpacingClass)));
+    expect(blocks[1].html, isNot(contains(htmlImageBlockClass)));
+    expect(blocks[2].html, contains(htmlImageSpacingClass));
+    expect(blocks[3].html, isNot(contains(htmlImageSpacingClass)));
+    expect(
+      prepareRenderableHtml(html),
+      blocks.map((block) => block.html).join(),
+    );
+  });
+
+  testWidgets('default renderer applies the common image block spacing style', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: HtmlContent(
+          html: '<div><img src="first.webp"><img src="second.webp"></div>',
+        ),
+      ),
+    );
+
+    final widget = tester.widget<HtmlWidget>(find.byType(HtmlWidget));
+    final image = dom.Element.tag('img')
+      ..classes.addAll(<String>[htmlImageBlockClass, htmlImageSpacingClass]);
+    final styles = widget.customStylesBuilder?.call(image);
+    expect(styles?['display'], 'block');
+    expect(styles?['margin-bottom'], '8.00px');
   });
 
   testWidgets('compact mode disables image interaction', (tester) async {

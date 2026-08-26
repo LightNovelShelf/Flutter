@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightnovel/features/reader/reader_footnotes.dart';
-import 'package:lightnovel/features/reader/reader_html_blocks.dart';
 import 'package:lightnovel/features/reader/reader_position.dart';
+import 'package:lightnovel/shared/widgets/html/html_source.dart';
 
 /// 服务端的阅读进度是一条 xpath（`//*/div[2]/p[76]`），客户端须与 Web 端算出同一
 /// 路径，否则跨端续读会跳段。
@@ -15,9 +15,9 @@ const String _html =
     '<p>第三段</p>'
     '</div>';
 
-List<NovelReaderBlock> _blocks(String html) => normalizeNovelBlocks(html);
+List<ReaderBlock> _blocks(String html) => parseRenderableHtmlBlocks(html);
 
-String _textOf(NovelReaderBlock block) =>
+String _textOf(ReaderBlock block) =>
     block.html.replaceAll(RegExp(r'<[^>]*>'), '');
 
 void main() {
@@ -135,6 +135,42 @@ void main() {
       // 父路径不是块（`div[2]` 只是容器）时没有可落点，只能回章首。
       expect(findReaderBlockIndex(blocks, '//*/div[2]/p[99]'), 0);
       expect(findReaderBlockIndex(blocks, '//*/section[9]/p[1]'), 0);
+    });
+
+    test('裸图片和单图容器是图片块，图片段落保持普通块', () {
+      final blocks = _blocks(
+        '<img src="bare.webp">'
+        '<div class="illus"><img src="div.webp"></div>'
+        '<p><img src="paragraph.webp"></p>',
+      );
+
+      expect(blocks, hasLength(3));
+      expect(blocks[0], isA<ReaderImageBlock>());
+      expect(blocks[1], isA<ReaderImageBlock>());
+      expect(blocks[2], isA<ReaderMarkupBlock>());
+      expect(blocks[0].html, contains(htmlImageBlockClass));
+      expect(blocks[1].html, contains(htmlImageBlockClass));
+      expect(blocks[2].html, isNot(contains(htmlImageBlockClass)));
+      expect(blocks[0].html, contains(htmlImageSpacingClass));
+      expect(blocks[1].html, isNot(contains(htmlImageSpacingClass)));
+      expect(blocks[2].html, isNot(contains(htmlImageSpacingClass)));
+    });
+
+    test('同一容器里的连续图片拆成独立图片块', () {
+      final blocks = _blocks(
+        '<div class="illus"><img src="first.webp"><img src="second.webp"></div>',
+      );
+
+      expect(blocks.every((block) => block is ReaderImageBlock), isTrue);
+      expect(blocks.map((block) => block.locator), <String>[
+        '//*/div[1]/img[1]',
+        '//*/div[1]/img[2]',
+      ]);
+      expect(blocks.first.html, contains('first.webp'));
+      expect(blocks.first.html, isNot(contains('second.webp')));
+      expect(blocks.last.html, contains('second.webp'));
+      expect(blocks.last.html, isNot(contains('first.webp')));
+      expect(blocks.every((block) => block.html.contains('illus')), isTrue);
     });
   });
 }

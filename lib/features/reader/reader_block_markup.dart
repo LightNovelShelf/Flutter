@@ -1,6 +1,6 @@
 import '../../shared/widgets/html/reader_content_markup.dart';
 import '../../shared/widgets/html/reader_content_style.dart';
-import 'reader_html_blocks.dart';
+import '../../shared/widgets/html/html_source.dart';
 
 /// 小说正文块交给渲染器前的字符串加工。
 ///
@@ -31,7 +31,7 @@ class ReaderBlockMarkupBuilder {
   final ReaderContentStyle style;
   int _footnote = 0;
 
-  String next(NovelReaderBlock block) {
+  String next(ReaderBlock block) {
     final html = block.html.replaceAllMapped(_footnoteMarkerPattern, (match) {
       _footnote++;
       final id = _unescapeHtmlAttribute(match[1] ?? '');

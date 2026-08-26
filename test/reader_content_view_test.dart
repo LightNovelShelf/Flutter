@@ -4,11 +4,13 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightnovel/features/reader/reader_html_blocks.dart';
+import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
+import 'package:lightnovel/shared/widgets/html/html_source.dart';
 import 'package:lightnovel/shared/widgets/html/reader_content_style.dart';
 import 'package:lightnovel/shared/widgets/blurhash_image.dart';
 import 'package:lightnovel/shared/widgets/book_image.dart';
 import 'package:lightnovel/shared/widgets/image_preview.dart';
+import 'package:lightnovel/shared/widgets/html_content.dart';
 import 'package:lightnovel/features/reader/widgets/reader_content_view.dart';
 import 'package:lightnovel/features/reader/widgets/reader_measure_box.dart';
 import 'package:lightnovel/features/reader/widgets/reader_page_body.dart';
@@ -23,8 +25,8 @@ const ReaderContentStyle _style = ReaderContentStyle(
 );
 
 /// 生成足够长的段落，使内容一屏放不下而分成多页。
-List<NovelReaderBlock> _blocks([int count = 40, String label = '第']) =>
-    normalizeNovelBlocks(
+List<ReaderBlock> _blocks([int count = 40, String label = '第']) =>
+    parseRenderableHtmlBlocks(
       List<String>.generate(
         count,
         (index) =>
@@ -41,11 +43,11 @@ ReaderChapterContent _chapter(int sortNum, {int count = 12}) =>
     );
 
 /// 整页图片正好占满一栏，用它按栏数造章：栏数完全可控，不受字体度量影响。
-List<NovelReaderBlock> _pageBlocks(int columns) => normalizeNovelBlocks(
+List<ReaderBlock> _pageBlocks(int columns) => parseRenderableHtmlBlocks(
   List<String>.generate(
     columns,
     (index) =>
-        '<p><img src="https://img.example/p$index.webp?size=1000x700"/></p>',
+        '<div><img src="https://img.example/p$index.webp?size=1000x700"/></div>',
   ).join(),
 );
 
@@ -58,7 +60,7 @@ ReaderChapterContent _paged(int sortNum, int columns) => ReaderChapterContent(
 
 class _Harness {
   _Harness({
-    required List<NovelReaderBlock> blocks,
+    required List<ReaderBlock> blocks,
     required this.paged,
     this.dualPage = false,
     ReaderChapterContent? previous,
@@ -116,7 +118,7 @@ class _Harness {
 
   ReaderChapterContent get chapter =>
       chapters.firstWhere((chapter) => chapter.sortNum == sortNum);
-  List<NovelReaderBlock> get blocks => chapter.blocks;
+  List<ReaderBlock> get blocks => chapter.blocks;
   ReaderContentPosition get last => positions.last;
 
   set chapter(ReaderChapterContent value) =>
@@ -245,8 +247,35 @@ List<String> _screenSlots(WidgetTester tester, {int columns = 1}) =>
     readerScreenSlots(tester, columns: columns);
 
 void main() {
+  testWidgets('无脚注 HTML 在滚动阅读、公告和社区共用同一渲染源', (tester) async {
+    const html =
+        '<div><p>甲</p><section><h2>标题</h2><p>乙</p></section></div>'
+        '<script>bad()</script><p hidden>隐藏</p>';
+    await tester.pumpWidget(const MaterialApp(home: HtmlContent(html: html)));
+    final genericSource = tester
+        .widget<HtmlWidget>(find.byType(HtmlWidget))
+        .html;
+
+    final harness = _Harness(
+      blocks: parseRenderableHtmlBlocks(html),
+      paged: false,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    final readerSource = tester
+        .widgetList<HtmlWidget>(
+          find.descendant(
+            of: find.byType(ListView),
+            matching: find.byType(HtmlWidget),
+          ),
+        )
+        .map((widget) => widget.html)
+        .join();
+    expect(readerSource, genericSource);
+  });
   testWidgets('段间距动态更新后实际增加相邻段落距离', (tester) async {
-    final blocks = normalizeNovelBlocks('<p>甲</p><p>乙</p>');
+    final blocks = parseRenderableHtmlBlocks('<p>甲</p><p>乙</p>');
     Future<double> paragraphAdvance(double lineSpace) async {
       final style = ReaderContentStyle(
         fontSize: 20,
@@ -282,7 +311,7 @@ void main() {
 
   testWidgets('两端对齐时首行缩进保持固定 2em', (tester) async {
     final harness = _Harness(
-      blocks: normalizeNovelBlocks('<p>${'正文内容' * 40}</p>'),
+      blocks: parseRenderableHtmlBlocks('<p>${'正文内容' * 40}</p>'),
       paged: false,
       padding: EdgeInsets.zero,
       style: _justifiedIndentedStyle,
@@ -439,7 +468,7 @@ void main() {
 
   testWidgets('翻页只在行距处下刀：跨页的长段落在下一页从整行开始', (tester) async {
     final harness = _Harness(
-      blocks: normalizeNovelBlocks('<p>${'字' * 2000}</p>'),
+      blocks: parseRenderableHtmlBlocks('<p>${'字' * 2000}</p>'),
       paged: true,
     );
     await tester.pumpWidget(harness.build());
@@ -465,7 +494,7 @@ void main() {
 
   testWidgets('页底不留下一页的首行：可见高度恰好裁到下一页页顶', (tester) async {
     final harness = _Harness(
-      blocks: normalizeNovelBlocks('<p>${'字' * 2000}</p>'),
+      blocks: parseRenderableHtmlBlocks('<p>${'字' * 2000}</p>'),
       paged: true,
     );
     await tester.pumpWidget(harness.build());
@@ -756,7 +785,7 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byType(ListView), findsOneWidget);
   });
-  testWidgets('站内正文图使用 URL 元数据，行布局不附加固定图片边距', (tester) async {
+  testWidgets('站内正文图使用 URL 元数据，不附加固定图片边距', (tester) async {
     const hash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj';
     debugBlurHashPixelDecoder = (_, {required width, required height}) =>
         Uint8List.fromList(List<int>.filled(width * height * 4, 255));
@@ -767,7 +796,7 @@ void main() {
         'src="https://img.example/$name.webp?size=40x60'
         '&amp;placeholder=$hash"/></div>';
     final harness = _Harness(
-      blocks: normalizeNovelBlocks(
+      blocks: parseRenderableHtmlBlocks(
         '${image('first')}${image('second')}<p>图片后的正文</p>',
       ),
       paged: false,
@@ -828,6 +857,55 @@ void main() {
     expect(hasEdge(marginsOf(secondImages), bottom: 6), isFalse);
   });
 
+  testWidgets('连续图片之间应用行距，最后一张图片没有底部间距', (tester) async {
+    const style = ReaderContentStyle(
+      fontSize: 18,
+      lineHeight: 1.6,
+      lineSpace: 8,
+      firstLineIndent: false,
+      justify: false,
+    );
+    final harness = _Harness(
+      blocks: parseRenderableHtmlBlocks(
+        '<div class="illus">'
+        '<img src="https://img.example/first.webp?size=40x60">'
+        '<img src="https://img.example/second.webp?size=40x60">'
+        '</div>',
+      ),
+      paged: false,
+      style: style,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    final boxes = find.byType(ReaderBlockBox);
+    expect(boxes, findsNWidgets(2));
+    expect(tester.getSize(boxes.at(0)).height, 68);
+    expect(tester.getSize(boxes.at(1)).height, 60);
+  });
+
+  testWidgets('段落里的图片保持行内，前后文字围绕图片排版', (tester) async {
+    final harness = _Harness(
+      blocks: parseRenderableHtmlBlocks(
+        '<p>图片前文字'
+        '<img src="https://img.example/inline.webp?size=40x60">'
+        '图片后文字</p>',
+      ),
+      paged: false,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    final paragraph = find.byWidgetPredicate(
+      (widget) =>
+          widget is RichText &&
+          widget.text.toPlainText().contains('图片前文字') &&
+          widget.text.toPlainText().contains('图片后文字'),
+    );
+    expect(paragraph, findsOneWidget);
+    expect(tester.getSize(paragraph).height, lessThanOrEqualTo(70));
+  });
+
   testWidgets('测量层不建图片组件，分页几何照常按图片尺寸算', (tester) async {
     const hash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj';
     debugBlurHashPixelDecoder = (_, {required width, required height}) =>
@@ -835,7 +913,7 @@ void main() {
     addTearDown(() => debugBlurHashPixelDecoder = null);
 
     final harness = _Harness(
-      blocks: normalizeNovelBlocks(
+      blocks: parseRenderableHtmlBlocks(
         '<div class="illus duokan-image-single"><img '
         'src="https://img.example/only.webp?size=40x60&amp;placeholder=$hash"/>'
         '</div><p>图片后的正文</p>',
@@ -862,13 +940,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(BookImage), findsOneWidget);
 
-    // div > img 走行布局，高度包含 60px 图片与 4px 行几何。
-    expect(tester.getSize(find.byType(ReaderBlockBox).first).height, 64);
+    // 纯图片容器走块布局，块高就是图片高度。
+    expect(tester.getSize(find.byType(ReaderBlockBox).first).height, 60);
   });
 
   testWidgets('尺寸未知的图不挡正文：先按 2:3 占位出画面，不等图片下载', (tester) async {
     final harness = _Harness(
-      blocks: normalizeNovelBlocks(
+      blocks: parseRenderableHtmlBlocks(
         '<div class="illus duokan-image-single">'
         '<img src="https://img.example/unknown.webp"/></div><p>图片后的正文</p>',
       ),
@@ -882,11 +960,11 @@ void main() {
     expect(find.byType(ListView), findsOneWidget);
     expect(harness.positions, isNotEmpty);
 
-    // 几何按占位尺寸算，div > img 的行布局还会留下 4px 行几何。
+    // 几何直接按 2:3 占位尺寸计算，不再叠加空行高度。
     const width = 800 - 48.0;
     expect(
       tester.getSize(find.byType(ReaderBlockBox).first).height,
-      width * 3 / 2 + 4,
+      width * 3 / 2,
     );
   });
 
@@ -982,7 +1060,7 @@ void main() {
 
   testWidgets('整页插图缩进一页，不再被分页切成两半', (tester) async {
     final harness = _Harness(
-      blocks: normalizeNovelBlocks(
+      blocks: parseRenderableHtmlBlocks(
         '<div class="illus duokan-image-single">'
         '<img src="https://img.example/cover.webp?size=1000x2000"/></div>'
         '<p>图后的正文</p>',
@@ -997,11 +1075,30 @@ void main() {
 
     final page = tester.getRect(find.byKey(readerPageBodyKey(2, 0)));
     final image = tester.getRect(find.byType(BookImage).first);
-    expect(image.top, closeTo(page.top + 0.5, 0.01));
-    // div > img 走行布局；图片本身占满页面正文高度。
+    expect(image.top, closeTo(page.top, 0.01));
+    // 纯图片容器走块布局，图片本身占满页面正文高度。
     expect(image.height, closeTo(page.height, 0.01));
     // 等比缩窄，并且居中摆放。
     expect(image.width / image.height, closeTo(0.5, 0.01));
+    expect(image.center.dx, closeTo(page.center.dx, 0.5));
+  });
+
+  testWidgets('单张超长插图缩进一页，不产生空白碎片页', (tester) async {
+    final harness = _Harness(
+      blocks: parseRenderableHtmlBlocks(
+        '<div class="illus">'
+        '<img src="https://img.example/image.png?size=259x2062"></div>',
+      ),
+      paged: true,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    expect(harness.last.pages, 1);
+    final page = tester.getRect(find.byKey(readerPageBodyKey(2, 0)));
+    final image = tester.getRect(find.byType(BookImage).first);
+    expect(image.height, closeTo(page.height, 0.01));
+    expect(image.width / image.height, closeTo(259 / 2062, 0.01));
     expect(image.center.dx, closeTo(page.center.dx, 0.5));
   });
 
@@ -1087,7 +1184,7 @@ void main() {
   });
 
   /// 只占一栏的图片章。
-  List<NovelReaderBlock> illustration() => _pageBlocks(1);
+  List<ReaderBlock> illustration() => _pageBlocks(1);
 
   ReaderChapterContent illustrated(int sortNum) => ReaderChapterContent(
     sortNum: sortNum,

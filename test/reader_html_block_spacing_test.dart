@@ -14,7 +14,7 @@ const _style = ReaderContentStyle(
 Future<double> _renderHeight(
   WidgetTester tester,
   String markup, {
-  required bool applyLineSpace,
+  required double bottomSpacing,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -27,7 +27,7 @@ Future<double> _renderHeight(
             child: ReaderHtmlBlock(
               markup: markup,
               style: _style,
-              applyLineSpace: applyLineSpace,
+              bottomSpacing: bottomSpacing,
             ),
           ),
         ),
@@ -44,12 +44,12 @@ void main() {
       final withoutSpacing = await _renderHeight(
         tester,
         markup,
-        applyLineSpace: false,
+        bottomSpacing: 0,
       );
       final withSpacing = await _renderHeight(
         tester,
         markup,
-        applyLineSpace: true,
+        bottomSpacing: _style.lineSpace,
       );
 
       expect(

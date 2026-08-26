@@ -5,6 +5,7 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
 import 'package:url_launcher/url_launcher.dart';
 
 import 'image_preview.dart';
+import 'html/html_source.dart';
 
 final RegExp _scriptOrStyle = RegExp(
   r'<(script|style)[^>]*>[\s\S]*?<\/\1>',
@@ -180,15 +181,16 @@ class HtmlContent extends StatelessWidget {
   ];
 
   String _source(HtmlContentThemeData theme) {
-    if (_compact) return createCompactHtmlSource(html);
-    var source = theme.sourceTransformer?.call(html) ?? html;
-    if (theme.removeImageLinks ?? true) {
+    var source = _compact
+        ? createCompactHtmlSource(html)
+        : theme.sourceTransformer?.call(html) ?? html;
+    if (!_compact && (theme.removeImageLinks ?? true)) {
       source = source.replaceAllMapped(
         _linkedImage,
         (match) => match.group(1) ?? '',
       );
     }
-    return source;
+    return prepareRenderableHtml(source);
   }
 
   Map<String, String>? _stylesFor(
@@ -248,6 +250,10 @@ class HtmlContent extends StatelessWidget {
 
     for (final className in classes) {
       switch (className) {
+        case htmlImageBlockClass:
+          styles['display'] = 'block';
+        case htmlImageSpacingClass:
+          styles['margin-bottom'] = _px(htmlDefaultBlockSpacing);
         case 'center':
           styles['text-align'] = 'center';
         case 'left':
