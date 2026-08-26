@@ -1,7 +1,7 @@
 name: lightnovel
 description: 轻书架官方 Flutter 客户端。
 publish_to: 'none'
-version: 1.5.1+7
+version: 1.5.2+8
 
 environment:
   sdk: ^3.13.0
