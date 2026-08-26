@@ -4,12 +4,20 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 要发布的版本标签
+        required: true
+        type: string
 
 permissions:
   contents: write
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.ref }}-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
@@ -22,6 +30,8 @@ jobs:
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - uses: actions/setup-java@v5
         with:
@@ -63,7 +73,7 @@ jobs:
 
       - uses: actions/upload-artifact@v5
         with:
-          name: lightnovel-shelf-${{ github.ref_name }}-android
+          name: lightnovel-shelf-${{ env.RELEASE_TAG }}-android
           path: dist
           retention-days: 30
 
@@ -72,6 +82,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - uses: subosito/flutter-action@v2
         with:
@@ -94,7 +106,7 @@ jobs:
 
       - uses: actions/upload-artifact@v5
         with:
-          name: lightnovel-shelf-${{ github.ref_name }}-ios
+          name: lightnovel-shelf-${{ env.RELEASE_TAG }}-ios
           path: dist
           retention-days: 30
 
@@ -105,12 +117,13 @@ jobs:
     steps:
       - uses: actions/download-artifact@v5
         with:
-          pattern: lightnovel-shelf-${{ github.ref_name }}-*
+          pattern: lightnovel-shelf-${{ env.RELEASE_TAG }}-*
           merge-multiple: true
           path: dist
 
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: dist/*
