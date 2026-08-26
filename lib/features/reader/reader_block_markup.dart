@@ -1,7 +1,6 @@
 import '../../shared/widgets/html/reader_content_markup.dart';
 import '../../shared/widgets/html/reader_content_style.dart';
-import 'reader_html_blocks.dart';
-import 'reader_html_text.dart';
+import '../../shared/widgets/html/html_source.dart';
 
 /// 小说正文块交给渲染器前的字符串加工。
 ///
@@ -9,11 +8,18 @@ import 'reader_html_text.dart';
 /// 宽度的内联占位，避免普通空白被两端对齐拉伸。
 
 final RegExp _footnoteMarkerPattern = RegExp(
-  r'<a\b[^>]*\bdata-reader-footnote-id\s*=\s*"([^"]*)"[^>]*>.*?</a>',
+  r'<a data-reader-footnote-id="([^"]*)">.*?</a>',
   caseSensitive: false,
   dotAll: true,
 );
-final RegExp _openingTagPattern = RegExp(r'^\s*<([a-zA-Z][\w:-]*)([^>]*)>');
+final RegExp _openingTagPattern = RegExp(
+  r'''^\s*<([a-zA-Z][\w:-]*)((?:"[^"]*"|'[^']*'|[^<>'"])*)>''',
+);
+final RegExp _classAttributePattern = RegExp(
+  r'''\bclass\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))''',
+  caseSensitive: false,
+);
+final RegExp _whitespacePattern = RegExp(r'\s+');
 
 /// 按全章顺序给脚注标记编号，逐块产出可渲染 HTML。
 ///
@@ -25,27 +31,26 @@ class ReaderBlockMarkupBuilder {
   final ReaderContentStyle style;
   int _footnote = 0;
 
-  String next(NovelReaderBlock block) => _indentBlock(
-    block.html.replaceAllMapped(_footnoteMarkerPattern, (match) {
+  String next(ReaderBlock block) {
+    final html = block.html.replaceAllMapped(_footnoteMarkerPattern, (match) {
       _footnote++;
       final id = _unescapeHtmlAttribute(match[1] ?? '');
       final href = '$readerFootnoteScheme:${Uri.encodeComponent(id)}';
       return '<a href="$href"><sup>[$_footnote]</sup></a>';
-    }),
-    style,
-  );
+    });
+    return _indentBlock(html, style);
+  }
 }
 
 /// 缩进占位插在块内，插到块外会跟随外层对齐方式偏移。
 String _indentBlock(String html, ReaderContentStyle style) {
   final opening = _openingTagPattern.firstMatch(html);
   if (opening == null) return html;
-  final classes =
-      readHtmlAttribute(
-        '<${opening[1]}${opening[2]}>',
-        'class',
-      )?.split(whitespacePattern) ??
-      const <String>[];
+  final classMatch = _classAttributePattern.firstMatch(opening[2] ?? '');
+  final classValue = classMatch == null
+      ? null
+      : classMatch[1] ?? classMatch[2] ?? classMatch[3];
+  final classes = classValue?.split(_whitespacePattern) ?? const <String>[];
   if (!style.indentsParagraph(
     tag: opening[1]!.toLowerCase(),
     classes: classes,

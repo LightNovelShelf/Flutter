@@ -381,6 +381,7 @@ class CommunityThreadReply {
     required this.replyTo,
     required this.childReplies,
     required this.childPage,
+    required this.canDelete,
   });
 
   final int id;
@@ -396,11 +397,15 @@ class CommunityThreadReply {
   final List<CommunityThreadReply> childReplies;
   final CommunityPagination childPage;
 
+  /// 服务端下发的删除权限（作者本人或有社区编辑权限）。
+  final bool canDelete;
+
   CommunityThreadReply copyWith({
     int? likes,
     bool? liked,
     List<CommunityThreadReply>? childReplies,
     CommunityPagination? childPage,
+    bool? canDelete,
   }) => CommunityThreadReply(
     id: id,
     authorName: authorName,
@@ -414,6 +419,7 @@ class CommunityThreadReply {
     replyTo: replyTo,
     childReplies: childReplies ?? this.childReplies,
     childPage: childPage ?? this.childPage,
+    canDelete: canDelete ?? this.canDelete,
   );
 
   static CommunityThreadReply decode(Object? value) {
@@ -426,6 +432,7 @@ class CommunityThreadReply {
       authorBadge: asNullableString(reply['AuthorBadge']),
       authorAvatar: asStringOrEmpty(reply['AuthorAvatar']),
       publishedAt: asNullableDate(reply['PublishedAt']),
+      canDelete: asBool(reply['CanDelete'], false),
       content: asStringOrEmpty(reply['Content']),
       likes: asCount(reply['Likes']),
       liked: asBool(reply['Liked'], false),
@@ -451,6 +458,7 @@ class CommunityThreadDetail {
     required this.item,
     required this.liked,
     required this.favorited,
+    required this.canEdit,
     required this.bodyHtml,
     required this.repliesPage,
     required this.replyItems,
@@ -460,6 +468,7 @@ class CommunityThreadDetail {
   final CommunityFeedItem item;
   final bool liked;
   final bool favorited;
+  final bool canEdit;
   final String bodyHtml;
   final CommunityPagination repliesPage;
   final List<CommunityThreadReply> replyItems;
@@ -474,6 +483,7 @@ class CommunityThreadDetail {
     item: item,
     liked: liked ?? this.liked,
     favorited: favorited ?? this.favorited,
+    canEdit: canEdit,
     bodyHtml: bodyHtml,
     repliesPage: repliesPage ?? this.repliesPage,
     replyItems: replyItems ?? this.replyItems,
@@ -486,6 +496,7 @@ class CommunityThreadDetail {
       item: CommunityFeedItem.decode(response),
       liked: asBool(response['Liked'], false),
       favorited: asBool(response['Favorited'], false),
+      canEdit: asBool(response['CanEdit'], false),
       bodyHtml: asStringOrEmpty(response['BodyHtml']),
       repliesPage: CommunityPagination.decode(response['RepliesPage']),
       replyItems: decodeOptionalList(

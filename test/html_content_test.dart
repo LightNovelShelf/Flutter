@@ -1,8 +1,14 @@
+import 'dart:typed_data';
+
+import 'package:html/dom.dart' as dom;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit, RenderParagraph;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:lightnovel/shared/widgets/html_content.dart';
+import 'package:lightnovel/shared/widgets/html/html_source.dart';
+import 'package:lightnovel/shared/widgets/blurhash_image.dart';
+import 'package:lightnovel/shared/widgets/image_preview.dart';
 
 void main() {
   test('compact source removes scripts and images but preserves blocks', () {
@@ -33,10 +39,128 @@ void main() {
     );
 
     final widget = tester.widget<HtmlWidget>(find.byType(HtmlWidget));
-    expect(widget.html, '<img src="https://example.com/a.png">');
+    expect(widget.html, contains('<img src="https://example.com/a.png"'));
+    expect(widget.html, contains(htmlImageBlockClass));
     expect(widget.textStyle?.fontFamily, 'NovelFont');
     expect(widget.onTapImage, isNotNull);
     expect(widget.textStyle?.height, 1.5);
+  });
+
+  testWidgets('官方图床图片按 URL 元数据预留尺寸并显示 BlurHash', (tester) async {
+    const hash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj';
+    debugBlurHashPixelDecoder = (_, {required width, required height}) =>
+        Uint8List.fromList(List<int>.filled(width * height * 4, 255));
+    addTearDown(() => debugBlurHashPixelDecoder = null);
+    ImageMetadata? tapped;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 200,
+            child: HtmlContentTheme(
+              data: HtmlContentThemeData(
+                onTapImage: (metadata) => tapped = metadata,
+              ),
+              child: const HtmlContent(
+                html:
+                    '<img src="https://img.lightnovel.life/file/post.webp'
+                    '?size=400x600&amp;placeholder=$hash" alt="插图">',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final image = tester.widget<ContentImage>(find.byType(ContentImage));
+    expect(image.url, contains('size=400x600&placeholder=$hash'));
+    expect(image.blurHash, hash);
+    expect(image.width, 200);
+    expect(image.height, 300);
+    expect(image.trigger, ImagePreviewTrigger.tap);
+    expect(tester.getSize(find.byType(ContentImage)), const Size(200, 300));
+
+    await tester.tap(find.byType(ContentImage));
+    expect(tapped?.alt, '插图');
+    expect(tapped?.sources.single.url, image.url);
+  });
+
+  testWidgets('没有图床元数据的图片继续交给 HTML 渲染器', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: HtmlContent(html: '<img src="https://example.com/post.webp">'),
+      ),
+    );
+
+    expect(find.byType(ContentImage), findsNothing);
+    expect(find.byType(HtmlWidget), findsOneWidget);
+  });
+
+  testWidgets('default renderer removes metadata and hidden nodes', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: HtmlContent(
+          html:
+              '<p>可见正文</p>'
+              '<script>bad()</script>'
+              '<style>.bad{}</style>'
+              '<object>备用正文</object>'
+              '<div hidden>hidden</div>'
+              '<div aria-hidden="true">aria</div>'
+              '<div style="display:none">display</div>'
+              '<div style="visibility: hidden">visibility</div>',
+        ),
+      ),
+    );
+
+    final widget = tester.widget<HtmlWidget>(find.byType(HtmlWidget));
+    expect(widget.html, '<p>可见正文</p>');
+  });
+
+  test('common preprocessing assigns image block spacing once', () {
+    const html =
+        '<img src="bare.webp">'
+        '<p><img src="paragraph.webp"></p>'
+        '<div><img src="first.webp"><img src="second.webp"></div>'
+        '<p>正文</p>';
+    final blocks = parseRenderableHtmlBlocks(html);
+
+    expect(blocks, hasLength(5));
+    expect(blocks[0], isA<ReaderImageBlock>());
+    expect(blocks[1], isA<ReaderMarkupBlock>());
+    expect(blocks[2], isA<ReaderImageBlock>());
+    expect(blocks[3], isA<ReaderImageBlock>());
+    expect(blocks[4], isA<ReaderMarkupBlock>());
+    expect(blocks[0].html, isNot(contains(htmlImageSpacingClass)));
+    expect(blocks[1].html, isNot(contains(htmlImageBlockClass)));
+    expect(blocks[2].html, contains(htmlImageSpacingClass));
+    expect(blocks[3].html, isNot(contains(htmlImageSpacingClass)));
+    expect(
+      prepareRenderableHtml(html),
+      blocks.map((block) => block.html).join(),
+    );
+  });
+
+  testWidgets('default renderer applies the common image block spacing style', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: HtmlContent(
+          html: '<div><img src="first.webp"><img src="second.webp"></div>',
+        ),
+      ),
+    );
+
+    final widget = tester.widget<HtmlWidget>(find.byType(HtmlWidget));
+    final image = dom.Element.tag('img')
+      ..classes.addAll(<String>[htmlImageBlockClass, htmlImageSpacingClass]);
+    final styles = widget.customStylesBuilder?.call(image);
+    expect(styles?['display'], 'block');
+    expect(styles?['margin-bottom'], '8.00px');
   });
 
   testWidgets('compact mode disables image interaction', (tester) async {

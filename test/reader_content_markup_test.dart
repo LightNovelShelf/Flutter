@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightnovel/features/reader/reader_block_markup.dart';
-import 'package:lightnovel/features/reader/reader_html_blocks.dart';
+import 'package:lightnovel/shared/widgets/html/html_source.dart';
 import 'package:lightnovel/shared/widgets/html/reader_content_markup.dart';
 import 'package:lightnovel/shared/widgets/html/reader_content_style.dart';
 
@@ -11,7 +11,7 @@ ReaderContentStyle _style({bool indent = false}) => ReaderContentStyle(
   justify: false,
 );
 
-List<NovelReaderBlock> _blocks(String html) => normalizeNovelBlocks(html);
+List<ReaderBlock> _blocks(String html) => parseRenderableHtmlBlocks(html);
 
 void main() {
   group('正文标记加工', () {
@@ -49,7 +49,10 @@ void main() {
     });
 
     test('段首缩进插在块内，且只插在会缩进的段落上', () {
-      final blocks = _blocks('<p>正文</p><p class="center">居中</p><h2>标题</h2>');
+      final blocks = _blocks(
+        '<p>正文</p><p class="center">居中</p><h2>标题</h2>'
+        '<p><img src="cover.webp"></p>',
+      );
       final offBuilder = ReaderBlockMarkupBuilder(_style());
       final onBuilder = ReaderBlockMarkupBuilder(_style(indent: true));
       final off = <String>[for (final block in blocks) offBuilder.next(block)];
@@ -59,6 +62,18 @@ void main() {
       expect(on[0], '<p><$readerIndentElement></$readerIndentElement>正文</p>');
       expect(on[1], isNot(contains(readerIndentElement)));
       expect(on[2], isNot(contains(readerIndentElement)));
+      expect(on[3], contains(readerIndentElement));
+    });
+
+    test('根标签正则忽略属性值里的大于号', () {
+      final block = _blocks('<p title="1 > 0" class="body emphasized">正文</p>')
+          .single;
+
+      expect(
+        ReaderBlockMarkupBuilder(_style(indent: true)).next(block),
+        '<p title="1 > 0" class="body emphasized">'
+        '<$readerIndentElement></$readerIndentElement>正文</p>',
+      );
     });
   });
 
@@ -75,6 +90,15 @@ void main() {
     expect(splitContentHtmlBlocks(html), <String>[
       '<p data-reader-footnote-id="keep">甲</p>',
       '<div class="community">乙</div>',
+    ]);
+  });
+
+  test('DOM 分块忽略注释里的伪标签并修复未闭合段落', () {
+    const html = '<div><p>甲<!-- <p>伪段落</p> --><p>乙</div>';
+
+    expect(splitContentHtmlBlocks(html), <String>[
+      '<p>甲<!-- <p>伪段落</p> --></p>',
+      '<p>乙</p>',
     ]);
   });
 }

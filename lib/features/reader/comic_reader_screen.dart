@@ -666,60 +666,66 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     );
   }
 
-  Widget _pagedView(bool reversed) {
-    final size = _screenSize;
-    final spreads = _dualPaged ? _spreads : null;
-    final gallery = PhotoViewGallery.builder(
-      itemCount: spreads?.length ?? _slots.length,
-      pageController: _pageController,
-      reverse: reversed,
-      // 当前页按屏首算，与小说阅读器一致：翻页条上的位置就是这一屏最前面那一页。
-      // 读实时的 _spreads：jumpToPage 会同步派发滚动通知，而这一跳往往就发生在新一批
-      // 图刚改过配对、PhotoViewGallery 还没重建的时候，捕获的旧表会错位甚至越界。
-      onPageChanged: spreads == null
-          ? _onPageChanged
-          : (index) => _onPageChanged(
-              index >= 0 && index < _spreads.length
-                  ? _spreads[index].first
-                  : index,
-            ),
-      backgroundDecoration: const BoxDecoration(color: Colors.transparent),
-      builder: (context, index) {
-        if (spreads == null) {
+  Widget _pagedView(bool reversed) => LayoutBuilder(
+    builder: (context, constraints) {
+      final size = constraints.biggest;
+      final spreads = _dualPaged ? _spreads : null;
+      final gallery = PhotoViewGallery.builder(
+        itemCount: spreads?.length ?? _slots.length,
+        pageController: _pageController,
+        reverse: reversed,
+        // 当前页按屏首算，与小说阅读器一致：翻页条上的位置就是这一屏最前面那一页。
+        // 读实时的 _spreads：jumpToPage 会同步派发滚动通知，而这一跳往往就发生在新一批
+        // 图刚改过配对、PhotoViewGallery 还没重建的时候，捕获的旧表会错位甚至越界。
+        onPageChanged: spreads == null
+            ? _onPageChanged
+            : (index) => _onPageChanged(
+                index >= 0 && index < _spreads.length
+                    ? _spreads[index].first
+                    : index,
+              ),
+        backgroundDecoration: const BoxDecoration(color: Colors.transparent),
+        builder: (context, index) {
+          if (spreads == null) {
+            return PhotoViewGalleryPageOptions.customChild(
+              childSize: Size(size.width, size.width * _aspect(index)),
+              minScale: PhotoViewComputedScale.contained,
+              initialScale: PhotoViewComputedScale.contained,
+              maxScale: PhotoViewComputedScale.contained * 6,
+              child: _pageContent(
+                index,
+                size.width,
+                size.width * _aspect(index),
+              ),
+            );
+          }
+          final pages = spreads[index];
+          final spreadSize = _spreadSize(pages, size.width);
           return PhotoViewGalleryPageOptions.customChild(
-            childSize: Size(size.width, size.width * _aspect(index)),
+            childSize: spreadSize,
             minScale: PhotoViewComputedScale.contained,
             initialScale: PhotoViewComputedScale.contained,
             maxScale: PhotoViewComputedScale.contained * 6,
-            child: _pageContent(index, size.width, size.width * _aspect(index)),
+            child: _spreadContent(pages, spreadSize, reversed),
           );
-        }
-        final pages = spreads[index];
-        final spreadSize = _spreadSize(pages, size.width);
-        return PhotoViewGalleryPageOptions.customChild(
-          childSize: spreadSize,
-          minScale: PhotoViewComputedScale.contained,
-          initialScale: PhotoViewComputedScale.contained,
-          maxScale: PhotoViewComputedScale.contained * 6,
-          child: _spreadContent(pages, spreadSize, reversed),
-        );
-      },
-    );
-    // PhotoView 会先消费子树里的点按，热区必须铺在它上面。
-    return Stack(
-      children: <Widget>[
-        Positioned.fill(child: gallery),
-        Positioned.fill(
-          child: ReaderTapZoneLayer(
-            reversed: reversed,
-            onPrevious: () => _turn(-1),
-            onNext: () => _turn(1),
-            onToggleChrome: _toggleChrome,
+        },
+      );
+      // PhotoView 会先消费子树里的点按，热区必须铺在它上面。
+      return Stack(
+        children: <Widget>[
+          Positioned.fill(child: gallery),
+          Positioned.fill(
+            child: ReaderTapZoneLayer(
+              reversed: reversed,
+              onPrevious: () => _turn(-1),
+              onNext: () => _turn(1),
+              onToggleChrome: _toggleChrome,
+            ),
           ),
-        ),
-      ],
-    );
-  }
+        ],
+      );
+    },
+  );
 
   Widget _continuousView() {
     final width = _continuousPageWidth;
@@ -817,6 +823,9 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       WidgetsBinding.instance.addPostFrameCallback((_) => _syncToPage());
     }
 
+    final paged = viewMode == ReaderViewMode.paged;
+    final pills = paged && statusPillsEnabled;
+
     final Widget body;
     if (_chapter == null) {
       body = const SizedBox.shrink();
@@ -825,7 +834,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
         child: EmptyStateView(icon: Icons.image_outlined, title: '本章暂无页面'),
       );
     } else {
-      body = viewMode == ReaderViewMode.paged
+      body = paged
           ? _pagedView(pagedDirection == ComicPagedDirection.rtl)
           : _continuousView();
     }
@@ -836,26 +845,42 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       loading: loading || _chapter == null,
       error: loadError,
       onRetry: () => unawaited(_loadChapter()),
-      body: body,
-      overlay: _slots.isEmpty || !statusPillsEnabled
+      body: SafeArea(
+        left: false,
+        right: false,
+        bottom: paged,
+        child: paged
+            ? Padding(
+                padding: EdgeInsets.only(top: 12, bottom: pills ? 56 : 12),
+                child: body,
+              )
+            : body,
+      ),
+      overlay: _slots.isEmpty || !pills
           ? null
           : Positioned(
-              bottom: MediaQuery.paddingOf(context).bottom + 12,
+              bottom: 12,
               left: 0,
               right: 0,
-              child: Center(
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: _chromeVisible,
-                  builder: (context, visible, _) => ValueListenableBuilder<int>(
-                    valueListenable: _pageNotifier,
-                    builder: (context, page, _) => ReaderStatusPills(
-                      visible: !visible,
-                      foregroundColor: foreground,
-                      currentChapter: _chapterIndex + 1,
-                      totalChapters: _chapters.length,
-                      currentPage: page + 1,
-                      totalPages: _slots.length,
-                    ),
+              child: SafeArea(
+                top: false,
+                left: false,
+                right: false,
+                child: Center(
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: _chromeVisible,
+                    builder: (context, visible, _) =>
+                        ValueListenableBuilder<int>(
+                          valueListenable: _pageNotifier,
+                          builder: (context, page, _) => ReaderStatusPills(
+                            visible: !visible,
+                            foregroundColor: foreground,
+                            currentChapter: _chapterIndex + 1,
+                            totalChapters: _chapters.length,
+                            currentPage: page + 1,
+                            totalPages: _slots.length,
+                          ),
+                        ),
                   ),
                 ),
               ),

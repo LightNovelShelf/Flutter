@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
+import 'package:html/dom.dart' as dom;
 import 'package:url_launcher/url_launcher.dart';
 
 import 'image_preview.dart';
+import 'html/html_source.dart';
 
 final RegExp _scriptOrStyle = RegExp(
   r'<(script|style)[^>]*>[\s\S]*?<\/\1>',
@@ -180,15 +182,16 @@ class HtmlContent extends StatelessWidget {
   ];
 
   String _source(HtmlContentThemeData theme) {
-    if (_compact) return createCompactHtmlSource(html);
-    var source = theme.sourceTransformer?.call(html) ?? html;
-    if (theme.removeImageLinks ?? true) {
+    var source = _compact
+        ? createCompactHtmlSource(html)
+        : theme.sourceTransformer?.call(html) ?? html;
+    if (!_compact && (theme.removeImageLinks ?? true)) {
       source = source.replaceAllMapped(
         _linkedImage,
         (match) => match.group(1) ?? '',
       );
     }
-    return source;
+    return prepareRenderableHtml(source);
   }
 
   Map<String, String>? _stylesFor(
@@ -248,6 +251,10 @@ class HtmlContent extends StatelessWidget {
 
     for (final className in classes) {
       switch (className) {
+        case htmlImageBlockClass:
+          styles['display'] = 'block';
+        case htmlImageSpacingClass:
+          styles['margin-bottom'] = _px(htmlDefaultBlockSpacing);
         case 'center':
           styles['text-align'] = 'center';
         case 'left':
@@ -305,6 +312,47 @@ class HtmlContent extends StatelessWidget {
     return value / 10;
   }
 
+  Widget? _widgetFor(HtmlContentThemeData theme, dom.Element element) {
+    final custom = theme.widgetBuilder?.call(element);
+    if (custom != null || _compact || element.localName != 'img') {
+      return custom;
+    }
+
+    final source = element.attributes['src'];
+    final url = source == null
+        ? null
+        : resolvePreviewImageUrl(source, baseUrl: theme.baseUrl);
+    if (url == null) return null;
+    final imageData = contentImageMetadata(url);
+    final size = imageData.size;
+    final blurHash = imageData.blurHash;
+    if (size == null || blurHash == null) return null;
+
+    final onTapImage = theme.onTapImage;
+    final image = _MetadataHtmlImage(
+      url: url,
+      size: size,
+      blurHash: blurHash,
+      block: element.classes.contains(htmlImageBlockClass),
+      bottomSpacing: element.classes.contains(htmlImageSpacingClass)
+          ? htmlDefaultBlockSpacing
+          : 0,
+      trigger: ImagePreviewTrigger.tap,
+      onPreview: onTapImage == null
+          ? null
+          : () => onTapImage(
+              ImageMetadata(
+                alt: element.attributes['alt'],
+                title: element.attributes['title'],
+                sources: <ImageSource>[
+                  ImageSource(url, width: size.width, height: size.height),
+                ],
+              ),
+            ),
+    );
+    return image.block ? image : InlineCustomWidget(child: image);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -346,7 +394,7 @@ class HtmlContent extends StatelessWidget {
         if (extra == null) return defaults;
         return <String, String>{...defaults, ...extra};
       },
-      customWidgetBuilder: theme.widgetBuilder,
+      customWidgetBuilder: (element) => _widgetFor(theme, element),
       onTapImage: _compact
           ? null
           : theme.onTapImage ??
@@ -381,6 +429,55 @@ class HtmlContent extends StatelessWidget {
                     : null),
     );
   }
+}
+
+class _MetadataHtmlImage extends StatelessWidget {
+  const _MetadataHtmlImage({
+    required this.url,
+    required this.size,
+    required this.blurHash,
+    required this.block,
+    required this.bottomSpacing,
+    required this.trigger,
+    required this.onPreview,
+  });
+
+  final String url;
+  final Size size;
+  final String blurHash;
+  final bool block;
+  final double bottomSpacing;
+  final ImagePreviewTrigger trigger;
+  final VoidCallback? onPreview;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final maxWidth = constraints.hasBoundedWidth
+          ? constraints.maxWidth
+          : size.width;
+      final width = size.width < maxWidth ? size.width : maxWidth;
+      final height = width * size.height / size.width;
+      Widget image = ContentImage(
+        url: url,
+        width: width,
+        height: height,
+        blurHash: blurHash,
+        trigger: trigger,
+        onPreview: onPreview,
+      );
+      if (block && width < maxWidth) {
+        image = Align(alignment: Alignment.topCenter, child: image);
+      }
+      if (bottomSpacing > 0) {
+        image = Padding(
+          padding: EdgeInsets.only(bottom: bottomSpacing),
+          child: image,
+        );
+      }
+      return image;
+    },
+  );
 }
 
 Future<bool> _openExternalUrl(String url) async {

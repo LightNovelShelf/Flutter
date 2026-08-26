@@ -1,5 +1,6 @@
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lightnovel/shared/widgets/html/html_source.dart';
 import 'package:lightnovel/shared/widgets/html/reader_content_style.dart';
 
 const _style = ReaderContentStyle(
@@ -41,6 +42,18 @@ void main() {
     );
     expect(spaced.textStyle.height, 1.5);
     expect(_styles(tag: 'p', style: spaced), <String, String>{'margin': '0'});
+    expect(
+      _styles(
+        tag: 'img',
+        classes: const <String>[htmlImageBlockClass, htmlImageSpacingClass],
+        style: spaced,
+      ),
+      <String, String>{
+        'max-width': '100%',
+        'display': 'block',
+        'margin-bottom': '4.00px',
+      },
+    );
   });
 
   test('段首缩进由 indentsParagraph 判定，不再吐 text-indent', () {

@@ -245,6 +245,41 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
     );
   }
 
+  /// 删除回复，成功后整页重拉，与发布回复后的刷新一致。
+  Future<void> deleteReply(int replyId) async {
+    if (state.replyActionId != null) return;
+    state = state.copyWith(replyActionId: 'delete:$replyId');
+    try {
+      await _api.deleteCommunityReply(replyId);
+      if (_disposed) return;
+      state = state.copyWith(replyActionId: null);
+      await _load(refresh: true);
+    } catch (error) {
+      if (_disposed || isCancellation(error)) return;
+      state = _withNotice(
+        state.copyWith(replyActionId: null),
+        describeCommunityError(error, fallback: '无法删除回复。'),
+      );
+    }
+  }
+
+  Future<bool> deleteThread() async {
+    final detail = state.thread;
+    if (detail == null || !detail.canEdit || state.deletingThread) return false;
+    state = state.copyWith(deletingThread: true);
+    try {
+      await _api.deleteCommunityThread(detail.item.id);
+      return !_disposed;
+    } catch (error) {
+      if (_disposed || isCancellation(error)) return false;
+      state = _withNotice(
+        state.copyWith(deletingThread: false),
+        describeCommunityError(error, fallback: '无法删除帖子。'),
+      );
+      return false;
+    }
+  }
+
   /// 乐观更新：先本地翻转，服务端返回后用真实计数覆盖，失败回滚并提示。
   /// `busyKey` 为空表示帖子级动作，否则占用回复级忙碌位。
   Future<void> _optimistic<R>({
@@ -328,6 +363,7 @@ CommunityThreadDetail _withCounts(
   item: detail.item.copyWith(likes: likes, favorites: favorites),
   liked: detail.liked,
   favorited: detail.favorited,
+  canEdit: detail.canEdit,
   bodyHtml: detail.bodyHtml,
   repliesPage: detail.repliesPage,
   replyItems: detail.replyItems,

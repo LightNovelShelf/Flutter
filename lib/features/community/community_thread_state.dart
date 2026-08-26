@@ -13,6 +13,7 @@ class CommunityThreadState {
     this.loadingMore = false,
     this.error,
     this.loadMoreError,
+    this.deletingThread = false,
     this.threadActionBusy = false,
     this.replyActionId,
     this.notice,
@@ -26,6 +27,7 @@ class CommunityThreadState {
   final bool loadingMore;
   final String? error;
   final String? loadMoreError;
+  final bool deletingThread;
 
   /// 帖子级动作（点赞/收藏）的忙碌位，与回复级动作分开，避免互相禁用。
   final bool threadActionBusy;
@@ -58,6 +60,7 @@ class CommunityThreadState {
     bool? loadingMore,
     Object? error = _keep,
     Object? loadMoreError = _keep,
+    bool? deletingThread,
     bool? threadActionBusy,
     Object? replyActionId = _keep,
     String? notice,
@@ -75,6 +78,7 @@ class CommunityThreadState {
       loadMoreError: identical(loadMoreError, _keep)
           ? this.loadMoreError
           : loadMoreError as String?,
+      deletingThread: deletingThread ?? this.deletingThread,
       threadActionBusy: threadActionBusy ?? this.threadActionBusy,
       replyActionId: identical(replyActionId, _keep)
           ? this.replyActionId

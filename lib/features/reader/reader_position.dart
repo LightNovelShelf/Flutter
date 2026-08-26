@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import '../../data/api/models.dart';
 import '../../data/repositories/read_position_cache.dart';
-import 'reader_html_blocks.dart';
+import '../../shared/widgets/html/html_source.dart';
 import 'reader_open_position.dart';
 
 /// 阅读定位：章节序号换算、续读位置取舍与 locator 查找，两个阅读器共用一套语义。
@@ -98,10 +98,10 @@ String cleanReaderLocator(String locator) => locator
     .replaceAll(_locatorEdgeSlashPattern, '');
 
 /// 定位失配时逐级回退父路径，落到最近的段落。
-int findReaderBlockIndex(List<NovelReaderBlock> blocks, String? locator) {
+int findReaderBlockIndex(List<ReaderBlock> blocks, String? locator) {
   if (locator == null || locator.isEmpty) return 0;
   final exact = blocks.indexWhere(
-    (block) => block.locator == locator || block.id == locator,
+    (block) => block.locator == locator || 'block:${block.locator}' == locator,
   );
   if (exact >= 0) return exact;
 

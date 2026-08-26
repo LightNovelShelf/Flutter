@@ -270,6 +270,7 @@ class ReaderSettingsContent extends ConsumerWidget {
                 description: '阅读时在角落常驻显示章节与页码',
                 icon: Icons.pin_outlined,
                 value: reader.statusPillsEnabled,
+                enabled: reader.viewMode == ReaderViewMode.paged,
                 onChanged: (value) => updateReader(
                   (reader) => reader.copyWith(statusPillsEnabled: value),
                 ),
@@ -299,7 +300,7 @@ class ReaderSettingsContent extends ConsumerWidget {
               if (readerImmersiveSupported)
                 SettingsToggleRow(
                   title: '沉浸式阅读',
-                  description: '阅读书籍时隐藏状态栏和导航栏',
+                  description: '阅读时隐藏状态栏和导航栏',
                   icon: Icons.fullscreen,
                   value: reader.immersiveEnabled,
                   onChanged: (value) => updateReader(
