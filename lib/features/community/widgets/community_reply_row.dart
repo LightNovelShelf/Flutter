@@ -16,6 +16,7 @@ class CommunityReplyRow extends StatelessWidget {
     required this.busy,
     required this.onLike,
     required this.onReply,
+    required this.onDelete,
   });
 
   final CommunityThreadReply reply;
@@ -25,6 +26,7 @@ class CommunityReplyRow extends StatelessWidget {
   final bool busy;
   final VoidCallback onLike;
   final VoidCallback onReply;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +71,16 @@ class CommunityReplyRow extends StatelessWidget {
           iconSize: iconSize,
           onPressed: canReply && !busy ? onReply : null,
         ),
+        if (reply.canDelete) ...[
+          const SizedBox(width: 8),
+          ThreadRowIconButton(
+            icon: Icons.delete_outline,
+            tooltip: '删除',
+            iconSize: iconSize,
+            color: Theme.of(context).colorScheme.error,
+            onPressed: busy ? null : onDelete,
+          ),
+        ],
       ],
     );
   }

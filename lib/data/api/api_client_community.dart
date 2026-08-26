@@ -84,6 +84,12 @@ extension ApiClientCommunity on ApiClient {
         'ReplyId': replyId,
       }, CommunityLikeToggleResult.decode);
 
+  Future<void> deleteCommunityReply(int replyId) async {
+    await invoke('DeleteCommunityReply', <String, Object?>{
+      'ReplyId': replyId,
+    }, (_) {});
+  }
+
   Future<CommunityReplyChildrenPayload> getCommunityReplyChildren({
     required int threadId,
     required int parentReplyId,

@@ -381,6 +381,7 @@ class CommunityThreadReply {
     required this.replyTo,
     required this.childReplies,
     required this.childPage,
+    required this.canDelete,
   });
 
   final int id;
@@ -396,11 +397,15 @@ class CommunityThreadReply {
   final List<CommunityThreadReply> childReplies;
   final CommunityPagination childPage;
 
+  /// 服务端下发的删除权限（作者本人或有社区编辑权限）。
+  final bool canDelete;
+
   CommunityThreadReply copyWith({
     int? likes,
     bool? liked,
     List<CommunityThreadReply>? childReplies,
     CommunityPagination? childPage,
+    bool? canDelete,
   }) => CommunityThreadReply(
     id: id,
     authorName: authorName,
@@ -414,6 +419,7 @@ class CommunityThreadReply {
     replyTo: replyTo,
     childReplies: childReplies ?? this.childReplies,
     childPage: childPage ?? this.childPage,
+    canDelete: canDelete ?? this.canDelete,
   );
 
   static CommunityThreadReply decode(Object? value) {
@@ -426,6 +432,7 @@ class CommunityThreadReply {
       authorBadge: asNullableString(reply['AuthorBadge']),
       authorAvatar: asStringOrEmpty(reply['AuthorAvatar']),
       publishedAt: asNullableDate(reply['PublishedAt']),
+      canDelete: asBool(reply['CanDelete'], false),
       content: asStringOrEmpty(reply['Content']),
       likes: asCount(reply['Likes']),
       liked: asBool(reply['Liked'], false),

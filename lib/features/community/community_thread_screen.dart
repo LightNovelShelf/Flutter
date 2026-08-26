@@ -272,6 +272,18 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
   /// 头部的回复回调走方法撕取，闭包每次 build 都是新对象，头部就永远比不相等。
   Future<void> _openComposerFromHeader() => _openComposer();
 
+  Future<void> _deleteReply(int replyId) async {
+    final confirmed = await showAppConfirm(
+      context: context,
+      title: '删除回复',
+      message: '此操作无法撤销。',
+      confirmLabel: '删除',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    await ref.read(_provider.notifier).deleteReply(replyId);
+  }
+
   Widget _buildRow(CommunityThreadState state, CommunityThreadRow row) {
     final busy = state.replyActionId != null;
 
@@ -317,6 +329,7 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
         busy: busy,
         onLike: () => ref.read(_provider.notifier).toggleReplyLike(reply),
         onReply: () => _openComposer(target: reply),
+        onDelete: () => _deleteReply(reply.id),
       ),
     );
   }
