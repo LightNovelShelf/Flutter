@@ -34,13 +34,15 @@ ContentImageMetadata contentImageMetadata(String url) {
 }
 
 /// 正文里的图片地址常是站内相对路径，预览前补全成绝对地址。
-String? resolvePreviewImageUrl(String source) {
+String? resolvePreviewImageUrl(String source, {Uri? baseUrl}) {
   final trimmed = source.replaceAll('&amp;', '&').trim();
   if (trimmed.isEmpty) return null;
   final uri = Uri.tryParse(trimmed);
   if (uri == null) return null;
   if (uri.hasScheme) return uri.scheme == 'data' ? null : uri.toString();
-  return Uri.parse(ServiceEndpoints.apiOrigin).resolveUri(uri).toString();
+  return (baseUrl ?? Uri.parse(ServiceEndpoints.apiOrigin))
+      .resolveUri(uri)
+      .toString();
 }
 
 /// 简介、公告和脚注等轻量 HTML 的图片点击预览。
@@ -72,6 +74,7 @@ class ContentImage extends StatelessWidget {
     this.bordered = false,
     this.trigger = ImagePreviewTrigger.longPress,
     this.requestSizedVariant = true,
+    this.onPreview,
   });
 
   final String url;
@@ -86,6 +89,7 @@ class ContentImage extends StatelessWidget {
   final bool bordered;
   final ImagePreviewTrigger trigger;
   final bool requestSizedVariant;
+  final VoidCallback? onPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -132,13 +136,21 @@ class ContentImage extends StatelessWidget {
     }
     return Builder(
       builder: (sourceContext) {
-        void preview() => unawaited(
-          showImagePreview(
-            sourceContext,
-            url: requestUrl,
-            sourceRect: globalRectOf(sourceContext),
-          ),
-        );
+        void preview() {
+          final onPreview = this.onPreview;
+          if (onPreview != null) {
+            onPreview();
+            return;
+          }
+          unawaited(
+            showImagePreview(
+              sourceContext,
+              url: requestUrl,
+              sourceRect: globalRectOf(sourceContext),
+            ),
+          );
+        }
+
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: trigger == ImagePreviewTrigger.tap ? preview : null,

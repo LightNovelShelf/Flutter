@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:html/dom.dart' as dom;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit, RenderParagraph;
@@ -5,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:lightnovel/shared/widgets/html_content.dart';
 import 'package:lightnovel/shared/widgets/html/html_source.dart';
+import 'package:lightnovel/shared/widgets/blurhash_image.dart';
+import 'package:lightnovel/shared/widgets/image_preview.dart';
 
 void main() {
   test('compact source removes scripts and images but preserves blocks', () {
@@ -40,6 +44,57 @@ void main() {
     expect(widget.textStyle?.fontFamily, 'NovelFont');
     expect(widget.onTapImage, isNotNull);
     expect(widget.textStyle?.height, 1.5);
+  });
+
+  testWidgets('官方图床图片按 URL 元数据预留尺寸并显示 BlurHash', (tester) async {
+    const hash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj';
+    debugBlurHashPixelDecoder = (_, {required width, required height}) =>
+        Uint8List.fromList(List<int>.filled(width * height * 4, 255));
+    addTearDown(() => debugBlurHashPixelDecoder = null);
+    ImageMetadata? tapped;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 200,
+            child: HtmlContentTheme(
+              data: HtmlContentThemeData(
+                onTapImage: (metadata) => tapped = metadata,
+              ),
+              child: const HtmlContent(
+                html:
+                    '<img src="https://img.lightnovel.life/file/post.webp'
+                    '?size=400x600&amp;placeholder=$hash" alt="插图">',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final image = tester.widget<ContentImage>(find.byType(ContentImage));
+    expect(image.url, contains('size=400x600&placeholder=$hash'));
+    expect(image.blurHash, hash);
+    expect(image.width, 200);
+    expect(image.height, 300);
+    expect(image.trigger, ImagePreviewTrigger.tap);
+    expect(tester.getSize(find.byType(ContentImage)), const Size(200, 300));
+
+    await tester.tap(find.byType(ContentImage));
+    expect(tapped?.alt, '插图');
+    expect(tapped?.sources.single.url, image.url);
+  });
+
+  testWidgets('没有图床元数据的图片继续交给 HTML 渲染器', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: HtmlContent(html: '<img src="https://example.com/post.webp">'),
+      ),
+    );
+
+    expect(find.byType(ContentImage), findsNothing);
+    expect(find.byType(HtmlWidget), findsOneWidget);
   });
 
   testWidgets('default renderer removes metadata and hidden nodes', (
