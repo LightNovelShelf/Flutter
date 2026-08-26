@@ -1,11 +1,19 @@
 package app.lightnovel.shelf
 
+import android.os.Bundle
+
 import android.view.KeyEvent
+import androidx.core.view.WindowCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        super.onCreate(savedInstanceState)
+    }
+
     private companion object {
         const val READER_VOLUME_KEY_CHANNEL = "app.lightnovel.shelf/reader_volume_keys"
     }

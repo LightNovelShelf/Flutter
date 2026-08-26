@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/platform/app_system_ui.dart';
 import '../../../shared/widgets/state_views.dart';
 import 'reader_paper_texture.dart';
 
@@ -54,9 +55,9 @@ class ReaderShell extends StatelessWidget {
     }
     // 自定义背景可以是任意颜色，状态栏与导航栏图标得跟着底色的明暗走，否则会看不见。
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: ThemeData.estimateBrightnessForColor(background) == Brightness.dark
-          ? SystemUiOverlayStyle.light
-          : SystemUiOverlayStyle.dark,
+      value: AppSystemUi.defaultOverlayStyle(
+        ThemeData.estimateBrightnessForColor(background),
+      ),
       child: Scaffold(
         backgroundColor: background,
         body: Stack(

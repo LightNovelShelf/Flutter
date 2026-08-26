@@ -10,6 +10,7 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'app/router.dart';
 import 'app/theme/app_theme.dart';
+import 'core/platform/app_system_ui.dart';
 import 'data/app_runtime.dart';
 import 'data/providers.dart';
 import 'data/retry_policy.dart';
@@ -21,8 +22,9 @@ const String _injectedRefreshToken = String.fromEnvironment('REFRESH_TOKEN');
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // 定下全局的系统栏基线。
-  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  await AppSystemUi.restoreDefault(
+    WidgetsBinding.instance.platformDispatcher.platformBrightness,
+  );
   await initializeDateFormatting('zh_CN');
   final runtime = await AppRuntime.bootstrap();
   if (_injectedRefreshToken.isNotEmpty) {
@@ -68,6 +70,12 @@ class LightNovelShelfApp extends ConsumerWidget {
           child: MaterialApp.router(
             title: '轻书架',
             debugShowCheckedModeBanner: false,
+            builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+              value: AppSystemUi.defaultOverlayStyle(
+                Theme.of(context).brightness,
+              ),
+              child: child ?? const SizedBox.shrink(),
+            ),
             routerConfig: router,
             theme: buildAppThemeFor(
               brightness: Brightness.light,
