@@ -6,6 +6,7 @@ import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/settings_rows.dart';
 
 const String officialWebsiteUrl = 'https://www.lightnovel.app';
+const String officialGroupUrl = 'https://t.me/+J5xdTWVGOJMyOWRl';
 const String sponsorUrl = 'https://www.ifdian.net/a/wuyu8512';
 const String githubUrl = 'https://github.com/LightNovelShelf/Flutter';
 
@@ -70,6 +71,12 @@ class _AboutSettingsScreenState extends State<AboutSettingsScreen> {
               description: 'www.lightnovel.app',
               icon: Icons.public,
               onTap: () => _openExternalUrl(officialWebsiteUrl),
+            ),
+            SettingsNavigationRow(
+              title: '官方群组',
+              description: 'Telegram',
+              icon: Icons.forum_outlined,
+              onTap: () => _openExternalUrl(officialGroupUrl),
             ),
             SettingsNavigationRow(
               title: '赞助本站',
