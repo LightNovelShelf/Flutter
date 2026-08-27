@@ -6,6 +6,8 @@ import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/settings_rows.dart';
 
 const String officialWebsiteUrl = 'https://www.lightnovel.app';
+const String sponsorUrl = 'https://www.ifdian.net/a/wuyu8512';
+const String githubUrl = 'https://github.com/LightNovelShelf/Flutter';
 
 class AboutSettingsScreen extends StatefulWidget {
   const AboutSettingsScreen({super.key});
@@ -35,11 +37,11 @@ class _AboutSettingsScreenState extends State<AboutSettingsScreen> {
     });
   }
 
-  Future<void> _openWebsite() async {
+  Future<void> _openExternalUrl(String url) async {
     var opened = false;
     try {
       opened = await launchUrl(
-        Uri.parse(officialWebsiteUrl),
+        Uri.parse(url),
         mode: LaunchMode.externalApplication,
       );
     } catch (_) {
@@ -67,7 +69,19 @@ class _AboutSettingsScreenState extends State<AboutSettingsScreen> {
               title: '轻书架',
               description: 'www.lightnovel.app',
               icon: Icons.public,
-              onTap: _openWebsite,
+              onTap: () => _openExternalUrl(officialWebsiteUrl),
+            ),
+            SettingsNavigationRow(
+              title: '赞助本站',
+              description: 'ifdian.net/a/wuyu8512',
+              icon: Icons.favorite_border,
+              onTap: () => _openExternalUrl(sponsorUrl),
+            ),
+            SettingsNavigationRow(
+              title: 'GitHub',
+              description: 'github.com/LightNovelShelf/Flutter',
+              icon: Icons.code,
+              onTap: () => _openExternalUrl(githubUrl),
             ),
           ],
         ),
