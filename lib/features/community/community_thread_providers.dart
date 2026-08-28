@@ -15,11 +15,16 @@ import 'community_thread_state.dart';
 const int communityReplyPageSize = 5;
 const int communityChildReplyPageSize = 3;
 
+/// 帖子详情的 provider 参数。锚点参与缓存键，深链进入与普通进入互不复用。
+typedef CommunityThreadArgs = ({int threadId, int focusReplyId});
+
 /// 帖子详情的分页与乐观互动状态，滚动、高亮等 UI 状态留在页面。
 class CommunityThreadController extends Notifier<CommunityThreadState> {
-  CommunityThreadController(this.threadId);
+  CommunityThreadController(this.args);
 
-  final int threadId;
+  final CommunityThreadArgs args;
+
+  int get threadId => args.threadId;
 
   /// 世代号，用于丢弃过期请求的响应。
   int _operation = 0;
@@ -63,6 +68,8 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
         threadId: threadId,
         replyPage: 1,
         replySize: communityReplyPageSize,
+        // 刷新也带锚点，发布/删除回复后仍停在目标楼层。
+        focusReplyId: args.focusReplyId,
         trackView: !_viewTracked,
       );
       if (_isStale(token)) return;
@@ -98,6 +105,7 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
         threadId: threadId,
         replyPage: detail.repliesPage.page + 1,
         replySize: size,
+        focusReplyId: args.focusReplyId,
         trackView: false,
       );
       if (_isStale(token)) return;
@@ -345,13 +353,13 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
 final NotifierProviderFamily<
   CommunityThreadController,
   CommunityThreadState,
-  int
+  CommunityThreadArgs
 >
 communityThreadProvider =
     NotifierProvider.family<
       CommunityThreadController,
       CommunityThreadState,
-      int
+      CommunityThreadArgs
     >(CommunityThreadController.new, isAutoDispose: true);
 
 /// 复制帖子并替换互动计数。
@@ -368,4 +376,5 @@ CommunityThreadDetail _withCounts(
   repliesPage: detail.repliesPage,
   replyItems: detail.replyItems,
   relatedThreads: detail.relatedThreads,
+  focus: detail.focus,
 );

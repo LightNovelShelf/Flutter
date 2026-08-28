@@ -163,7 +163,7 @@ class _MyCommunityScreenState extends ConsumerState<MyCommunityScreen> {
           padding: const EdgeInsets.only(bottom: 12),
           child: _MyReplyCard(
             reply: reply,
-            // 深链带 replyId，帖子页会翻页定位并高亮这条回复。
+            // 深链带 replyId，服务端把它所在主楼置顶，帖子页直接高亮定位。
             onTap: () => context.push(
               '/community/thread/${reply.threadId}?replyId=${reply.id}',
             ),

@@ -132,17 +132,11 @@ String? notificationRoute(AppNotificationItem item) {
   switch (item.objectType) {
     case AppNotificationObjectType.communityThread:
       if (id <= 0) return null;
-      final query = <String, String>{
-        if (item.extra.parentReplyId != null)
-          'parentReplyId': '${item.extra.parentReplyId}',
-        if (item.extra.replyId != null) 'replyId': '${item.extra.replyId}',
-      };
-      return query.isEmpty
+      final replyId = item.extra.replyId;
+      // 只带 replyId，服务端会定位它所在的主楼
+      return replyId == null
           ? '/community/thread/$id'
-          : Uri(
-              path: '/community/thread/$id',
-              queryParameters: query,
-            ).toString();
+          : '/community/thread/$id?replyId=$replyId';
     case AppNotificationObjectType.book:
       if (id <= 0) return null;
       final title = item.extra.objectTitle.trim();

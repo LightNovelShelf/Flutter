@@ -453,6 +453,19 @@ class CommunityThreadReply {
   }
 }
 
+/// 服务端定位成功的锚点回复，为空表示目标回复不存在。
+class CommunityReplyFocus {
+  const CommunityReplyFocus({required this.replyId});
+
+  final int replyId;
+
+  static CommunityReplyFocus? decodeNullable(Object? value) {
+    final replyId = asNullableInt(asRecordOrEmpty(value)['ReplyId']);
+    if (replyId == null || replyId <= 0) return null;
+    return CommunityReplyFocus(replyId: replyId);
+  }
+}
+
 class CommunityThreadDetail {
   const CommunityThreadDetail({
     required this.item,
@@ -463,6 +476,7 @@ class CommunityThreadDetail {
     required this.repliesPage,
     required this.replyItems,
     required this.relatedThreads,
+    this.focus,
   });
 
   final CommunityFeedItem item;
@@ -473,6 +487,9 @@ class CommunityThreadDetail {
   final CommunityPagination repliesPage;
   final List<CommunityThreadReply> replyItems;
   final List<CommunityFeedItem> relatedThreads;
+
+  /// 深链锚点，只有请求带 `FocusReplyId` 且服务端定位成功时非空。
+  final CommunityReplyFocus? focus;
 
   CommunityThreadDetail copyWith({
     bool? liked,
@@ -488,6 +505,7 @@ class CommunityThreadDetail {
     repliesPage: repliesPage ?? this.repliesPage,
     replyItems: replyItems ?? this.replyItems,
     relatedThreads: relatedThreads,
+    focus: focus,
   );
 
   static CommunityThreadDetail decodeRequired(Object? value) {
@@ -509,6 +527,7 @@ class CommunityThreadDetail {
         '相关帖子',
         CommunityFeedItem.decode,
       ),
+      focus: CommunityReplyFocus.decodeNullable(response['Focus']),
     );
   }
 

@@ -25,12 +25,10 @@ class CommunityThreadScreen extends ConsumerStatefulWidget {
   const CommunityThreadScreen({
     super.key,
     required this.threadId,
-    this.parentReplyId,
     this.replyId,
   });
 
   final int threadId;
-  final int? parentReplyId;
   final int? replyId;
 
   @override
@@ -48,7 +46,10 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
   int? _highlightedReplyId;
   Timer? _highlightTimer;
 
-  late final _provider = communityThreadProvider(widget.threadId);
+  late final _provider = communityThreadProvider((
+    threadId: widget.threadId,
+    focusReplyId: widget.replyId ?? 0,
+  ));
 
   @override
   void initState() {
@@ -59,9 +60,7 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
     final replyId = widget.replyId;
     if (replyId != null && replyId > 0) {
       _targetRowKey = GlobalKey();
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _bootstrapFocus(replyId),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrapFocus());
     }
   }
 
@@ -72,42 +71,13 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
     super.dispose();
   }
 
-  /// 等首屏加载完成再定位，否则回复树为空，翻页找不到锚点。
-  Future<void> _bootstrapFocus(int replyId) async {
+  /// 等首屏加载完成再定位：服务端已把锚点主楼置顶、楼中楼快进到目标那一页，这里只负责高亮和滚动。
+  Future<void> _bootstrapFocus() async {
     await ref.read(_provider.notifier).initialLoad;
     if (!mounted) return;
-    await _focusReply(replyId, widget.parentReplyId);
-  }
-
-  /// 深链定位：翻页直到找到目标回复，高亮 1200ms 后滚动过去。
-  Future<void> _focusReply(int replyId, int? parentReplyId) async {
-    final controller = ref.read(_provider.notifier);
-    final anchorId = parentReplyId ?? replyId;
-    for (int attempt = 0; attempt < 20; attempt += 1) {
-      if (!mounted) return;
-      final state = ref.read(_provider);
-      final detail = state.thread;
-      if (detail == null) return;
-      if (state.findReply(anchorId) != null) break;
-      if (!detail.repliesPage.hasMore) return;
-      await controller.loadMore();
-    }
-    if (parentReplyId != null) {
-      for (int attempt = 0; attempt < 20; attempt += 1) {
-        if (!mounted) return;
-        final state = ref.read(_provider);
-        if (state.thread == null) return;
-        if (state.findReply(replyId) != null) break;
-        final parent = state.findReply(parentReplyId);
-        if (parent == null || !parent.childPage.hasMore) break;
-        await controller.loadChildren(parent);
-      }
-    }
-    if (!mounted) return;
-    final state = ref.read(_provider);
-    if (state.thread == null) return;
-    if (state.findReply(replyId) == null) return;
-    setState(() => _highlightedReplyId = replyId);
+    final focus = ref.read(_provider).thread?.focus;
+    if (focus == null) return;
+    setState(() => _highlightedReplyId = focus.replyId);
     _highlightTimer?.cancel();
     _highlightTimer = Timer(const Duration(milliseconds: 1200), () {
       if (mounted) setState(() => _highlightedReplyId = null);
@@ -117,26 +87,16 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
 
   /// 目标行就是 `widget.replyId` 那一行，它独占 [_targetRowKey]。
   Future<void> _scrollToReply() async {
-    for (int attempt = 0; attempt < 6; attempt += 1) {
-      await Future<void>.delayed(
-        Duration(milliseconds: attempt == 0 ? 100 : 200),
-      );
-      if (!mounted) return;
-      final target = _targetRowKey?.currentContext;
-      if (target != null && target.mounted) {
-        await Scrollable.ensureVisible(
-          target,
-          alignment: 0.2,
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeOut,
-        );
-        return;
-      }
-      // 目标行尚未构建，先滚到底部撑开列表再重试。
-      if (_controller.hasClients) {
-        _controller.jumpTo(_controller.position.maxScrollExtent);
-      }
-    }
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    final target = _targetRowKey?.currentContext;
+    if (target == null || !target.mounted) return;
+    await Scrollable.ensureVisible(
+      target,
+      alignment: 0.2,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOut,
+    );
   }
 
   Future<void> _openComposer({CommunityThreadReply? target}) async {
@@ -150,7 +110,7 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
       hintText: replyToName == null ? '回复讨论' : '回复 $replyToName',
       maxHeight: 220,
       onSubmit: (content) => ref
-          .read(communityThreadProvider(widget.threadId).notifier)
+          .read(_provider.notifier)
           .postReply(content: content, replyToId: replyToId),
       describeError: _describeReplyError,
     );

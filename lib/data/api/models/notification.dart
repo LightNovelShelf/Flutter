@@ -52,7 +52,6 @@ class AppNotificationExtra {
     required this.seriesTitle,
     required this.preview,
     required this.replyId,
-    required this.parentReplyId,
     required this.replyToReplyId,
     required this.replyPreview,
   });
@@ -62,7 +61,6 @@ class AppNotificationExtra {
   final String? seriesTitle;
   final String preview;
   final int? replyId;
-  final int? parentReplyId;
   final int? replyToReplyId;
   final String? replyPreview;
 }
@@ -123,7 +121,6 @@ class AppNotificationItem {
         seriesTitle: asNullableString(extra['series_title']),
         preview: asStringOrEmpty(extra['preview']),
         replyId: asNullableInt(extra['reply_id']),
-        parentReplyId: asNullableInt(extra['parent_reply_id']),
         replyToReplyId: asNullableInt(extra['reply_to_reply_id']),
         replyPreview: asNullableString(extra['reply_preview']),
       ),

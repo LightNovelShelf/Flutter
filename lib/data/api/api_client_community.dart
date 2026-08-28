@@ -28,6 +28,7 @@ extension ApiClientCommunity on ApiClient {
     required int threadId,
     int replyPage = 1,
     int replySize = 5,
+    int focusReplyId = 0,
     bool? trackView,
     CancelToken? cancelToken,
   }) {
@@ -40,6 +41,8 @@ extension ApiClientCommunity on ApiClient {
         'ReplySize': ApiClient.atLeastOne(replySize),
         // 只有第一页计入浏览量，翻页不重复累加。
         'TrackView': trackView ?? page == 1,
+        // 每页都带锚点：服务端把目标回复所在主楼置顶在第一页、后续页跳过它
+        'FocusReplyId': focusReplyId,
       },
       CommunityThreadDetail.decodeNullable,
       cancelToken: cancelToken,

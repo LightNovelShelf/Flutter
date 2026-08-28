@@ -267,11 +267,9 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/community/thread/:id',
+        // 只带 replyId，服务端会定位它所在的主楼
         builder: (_, state) => CommunityThreadScreen(
           threadId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
-          parentReplyId: int.tryParse(
-            state.uri.queryParameters['parentReplyId'] ?? '',
-          ),
           replyId: int.tryParse(state.uri.queryParameters['replyId'] ?? ''),
         ),
       ),
