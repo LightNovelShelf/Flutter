@@ -147,6 +147,8 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
         parentReplyId: parent.id,
         page: page,
         size: size,
+        // 锚点窗口不对齐页网格，拿已加载的最后一条当游标才不会重复或断档
+        afterReplyId: parent.childReplies.isEmpty ? 0 : parent.childReplies.last.id,
       );
       if (_disposed) return;
       final detail = state.thread;

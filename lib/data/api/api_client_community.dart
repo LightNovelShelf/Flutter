@@ -104,6 +104,7 @@ extension ApiClientCommunity on ApiClient {
     required int parentReplyId,
     int page = 1,
     int size = 3,
+    int afterReplyId = 0,
     CancelToken? cancelToken,
   }) => invoke(
     'GetCommunityReplyChildren',
@@ -112,6 +113,7 @@ extension ApiClientCommunity on ApiClient {
       'ParentReplyId': parentReplyId,
       'Page': ApiClient.atLeastOne(page),
       'Size': ApiClient.atLeastOne(size),
+      'AfterReplyId': afterReplyId < 0 ? 0 : afterReplyId,
     },
     CommunityReplyChildrenPayload.decode,
     cancelToken: cancelToken,
