@@ -190,6 +190,7 @@ class AppSettings {
     this.homeRankType = HomeRankType.weekly,
     this.ignoreAI = false,
     this.ignoreJapanese = false,
+    this.imageSaveToOwnFolder = false,
     this.language = LanguageSetting.system,
     this.oledBlack = false,
     this.novelReader = const ReaderPreferences(),
@@ -220,6 +221,7 @@ class AppSettings {
   final HomeRankType homeRankType;
   final bool ignoreAI;
   final bool ignoreJapanese;
+  final bool imageSaveToOwnFolder;
   final LanguageSetting language;
   final bool oledBlack;
   final ReaderPreferences novelReader;
@@ -250,6 +252,7 @@ class AppSettings {
     HomeRankType? homeRankType,
     bool? ignoreAI,
     bool? ignoreJapanese,
+    bool? imageSaveToOwnFolder,
     LanguageSetting? language,
     bool? oledBlack,
     ReaderPreferences? novelReader,
@@ -281,6 +284,7 @@ class AppSettings {
     homeRankType: homeRankType ?? this.homeRankType,
     ignoreAI: ignoreAI ?? this.ignoreAI,
     ignoreJapanese: ignoreJapanese ?? this.ignoreJapanese,
+    imageSaveToOwnFolder: imageSaveToOwnFolder ?? this.imageSaveToOwnFolder,
     language: language ?? this.language,
     oledBlack: oledBlack ?? this.oledBlack,
     novelReader: novelReader ?? this.novelReader,
@@ -336,6 +340,7 @@ class AppSettings {
       ),
       ignoreAI: _bool(raw['ignoreAI'], false),
       ignoreJapanese: _bool(raw['ignoreJapanese'], false),
+      imageSaveToOwnFolder: _bool(raw['imageSaveToOwnFolder'], false),
       language: _languageWire[raw['language']] ?? LanguageSetting.system,
       oledBlack: _bool(raw['oledBlack'], false),
       novelReader: ReaderPreferences.decode(raw['novelReader']),
@@ -386,6 +391,7 @@ class AppSettings {
     'homeRankType': homeRankType.name,
     'ignoreAI': ignoreAI,
     'ignoreJapanese': ignoreJapanese,
+    'imageSaveToOwnFolder': imageSaveToOwnFolder,
     'language': language.wire,
     'oledBlack': oledBlack,
     'novelReader': novelReader.encode(),
@@ -419,6 +425,7 @@ class AppSettings {
       other.homeRankType == homeRankType &&
       other.ignoreAI == ignoreAI &&
       other.ignoreJapanese == ignoreJapanese &&
+      other.imageSaveToOwnFolder == imageSaveToOwnFolder &&
       other.language == language &&
       other.oledBlack == oledBlack &&
       other.novelReader == novelReader &&
@@ -448,6 +455,7 @@ class AppSettings {
     homeRankType,
     ignoreAI,
     ignoreJapanese,
+    imageSaveToOwnFolder,
     language,
     oledBlack,
     novelReader,

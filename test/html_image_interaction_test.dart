@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -98,6 +99,29 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(_previewUrl(tester), displayed.url);
+  });
+
+  testWidgets('预览旋转 90° 后按短边重新贴合，缩放下限跟着换', (tester) async {
+    await _pumpBlock(tester);
+    await tester.longPress(find.byType(BookImage));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    double minScale() =>
+        tester.widget<PhotoView>(find.byType(PhotoView)).minScale! as double;
+    // 测试窗口 800x600、原图 40x60：竖着按高度贴合，横过来按宽度贴合。
+    expect(minScale(), closeTo(10, 0.001));
+
+    await tester.tap(find.byTooltip('向右旋转'));
+    await tester.pump();
+    expect(minScale(), closeTo(800 / 60, 0.001));
+
+    await tester.pump(const Duration(milliseconds: 300));
+    final controller = tester
+        .widget<PhotoView>(find.byType(PhotoView))
+        .controller!;
+    expect(controller.rotation, closeTo(math.pi / 2, 0.001));
+    expect(controller.scale, closeTo(800 / 60, 0.001));
   });
 
   testWidgets('裸图片成块，段落内图片保持行内布局', (tester) async {

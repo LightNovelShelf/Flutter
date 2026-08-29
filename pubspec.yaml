@@ -32,6 +32,8 @@ dependencies:
   # 直接用它配置纯 Dart 的缓存元数据仓库，避开 sqflite platform channel
   flutter_cache_manager: ^3.4.1
   photo_view: ^0.15.0
+  # 预览里的「保存到相册」。原生侧自己处理权限，不必再引 permission_handler。
+  gal: ^2.3.3
   # 封面取色。palette_generator 已被官方 discontinued，直接用 Flutter 自己
   # 依赖的这套 Material 3 量化/打分算法；版本必须与 flutter SDK 的 pin 一致。
   material_color_utilities: 0.13.0
@@ -46,6 +48,7 @@ dependencies:
   dynamic_color: ^1.7.0
   package_info_plus: ^10.2.1
   url_launcher: ^6.3.1
+  share_plus: ^13.3.0
   ffi: ^2.1.4
   code_assets: ^2.0.0
   hooks: ^2.0.2

@@ -61,6 +61,21 @@ class ContentSettingsScreen extends ConsumerWidget {
             ],
           ),
           SettingsSection(
+            title: '图片',
+            children: <Widget>[
+              SettingsToggleRow(
+                title: '图片保存到专属目录',
+                description:
+                    '保存的图片放进「轻书架」相册，而不是系统默认位置；开启后系统会要求完整的相册权限',
+                icon: Icons.folder_special_outlined,
+                value: settings.imageSaveToOwnFolder,
+                onChanged: (value) => controller.update(
+                  (settings) => settings.copyWith(imageSaveToOwnFolder: value),
+                ),
+              ),
+            ],
+          ),
+          SettingsSection(
             title: '搜索',
             children: <Widget>[
               SettingsPickerRow<SeriesSearchMode>(
