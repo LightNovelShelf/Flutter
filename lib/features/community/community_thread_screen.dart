@@ -117,6 +117,15 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
     if (posted && mounted) await ref.read(_provider.notifier).refresh();
   }
 
+  Future<void> _editThread() async {
+    final detail = ref.read(_provider).thread;
+    if (detail == null || !detail.canEdit) return;
+    final saved = await context.push<bool>(
+      '/community/compose?threadId=${detail.item.id}',
+    );
+    if (saved == true && mounted) await ref.read(_provider.notifier).refresh();
+  }
+
   Future<void> _deleteThread() async {
     final state = ref.read(_provider);
     if (state.thread?.canEdit != true || state.deletingThread) return;
@@ -156,7 +165,7 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
         actions: <Widget>[
           if (detail?.canEdit ?? false) ...<Widget>[
             IconButton(
-              onPressed: null,
+              onPressed: state.deletingThread ? null : _editThread,
               tooltip: '编辑',
               icon: const Icon(Icons.edit_outlined),
             ),

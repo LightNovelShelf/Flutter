@@ -472,7 +472,7 @@ class CommunityThreadDetail {
     required this.liked,
     required this.favorited,
     required this.canEdit,
-    required this.bodyHtml,
+    required this.content,
     required this.repliesPage,
     required this.replyItems,
     required this.relatedThreads,
@@ -483,7 +483,7 @@ class CommunityThreadDetail {
   final bool liked;
   final bool favorited;
   final bool canEdit;
-  final String bodyHtml;
+  final String content;
   final CommunityPagination repliesPage;
   final List<CommunityThreadReply> replyItems;
   final List<CommunityFeedItem> relatedThreads;
@@ -501,7 +501,7 @@ class CommunityThreadDetail {
     liked: liked ?? this.liked,
     favorited: favorited ?? this.favorited,
     canEdit: canEdit,
-    bodyHtml: bodyHtml,
+    content: content,
     repliesPage: repliesPage ?? this.repliesPage,
     replyItems: replyItems ?? this.replyItems,
     relatedThreads: relatedThreads,
@@ -515,7 +515,7 @@ class CommunityThreadDetail {
       liked: asBool(response['Liked'], false),
       favorited: asBool(response['Favorited'], false),
       canEdit: asBool(response['CanEdit'], false),
-      bodyHtml: asStringOrEmpty(response['BodyHtml']),
+      content: asStringOrEmpty(response['Content']),
       repliesPage: CommunityPagination.decode(response['RepliesPage']),
       replyItems: decodeOptionalList(
         response['ReplyItems'],
@@ -536,6 +536,39 @@ class CommunityThreadDetail {
     final record = asRecordOrNull(value);
     if (record != null && record.isEmpty) return null;
     return decodeRequired(value);
+  }
+}
+
+/// GetCommunityThreadEditInfo 的响应：只有编辑器要填的字段。
+class CommunityThreadEditInfo {
+  const CommunityThreadEditInfo({
+    required this.id,
+    required this.boardKey,
+    required this.subCategoryKey,
+    required this.title,
+    required this.content,
+    required this.format,
+  });
+
+  final int id;
+  final String boardKey;
+  final String subCategoryKey;
+  final String title;
+
+  /// 正文，格式由 [format] 说明（请求 Format=markdown 时是 Markdown）。
+  final String content;
+  final String format;
+
+  static CommunityThreadEditInfo decode(Object? value) {
+    final response = asRecord(value, '帖子编辑信息响应');
+    return CommunityThreadEditInfo(
+      id: asInt(response['Id']),
+      boardKey: asString(response['BoardKey']),
+      subCategoryKey: asStringOrEmpty(response['SubCategoryKey']),
+      title: asStringOrEmpty(response['Title']),
+      content: asStringOrEmpty(response['Content']),
+      format: asStringOrEmpty(response['Format']),
+    );
   }
 }
 

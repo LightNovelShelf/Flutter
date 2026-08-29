@@ -374,7 +374,7 @@ CommunityThreadDetail _withCounts(
   liked: detail.liked,
   favorited: detail.favorited,
   canEdit: detail.canEdit,
-  bodyHtml: detail.bodyHtml,
+  content: detail.content,
   repliesPage: detail.repliesPage,
   replyItems: detail.replyItems,
   relatedThreads: detail.relatedThreads,

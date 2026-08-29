@@ -275,7 +275,9 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/community/compose',
+        // 带 threadId 即编辑已有帖子
         builder: (_, state) => CommunityComposeScreen(
+          threadId: int.tryParse(state.uri.queryParameters['threadId'] ?? ''),
           boardKey: state.uri.queryParameters['boardKey'],
           subCategoryKey: state.uri.queryParameters['subCategoryKey'],
         ),

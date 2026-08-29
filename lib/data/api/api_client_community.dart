@@ -49,6 +49,18 @@ extension ApiClientCommunity on ApiClient {
     );
   }
 
+  /// 编辑帖子用：只取编辑器需要的字段，`format: 'markdown'` 让服务端把正文转成 Markdown。
+  Future<CommunityThreadEditInfo> getCommunityThreadEditInfo({
+    required int threadId,
+    String format = 'html',
+    CancelToken? cancelToken,
+  }) => invoke(
+    'GetCommunityThreadEditInfo',
+    <String, Object?>{'ThreadId': threadId, 'Format': format},
+    CommunityThreadEditInfo.decode,
+    cancelToken: cancelToken,
+  );
+
   Future<CommunityThreadDetail> createCommunityThread({
     required String boardKey,
     String subCategoryKey = '',
@@ -60,6 +72,22 @@ extension ApiClientCommunity on ApiClient {
     'Title': title,
     'ContentHtml': contentHtml,
   }, CommunityThreadDetail.decodeRequired);
+
+  Future<void> updateCommunityThread({
+    required int threadId,
+    required String boardKey,
+    String subCategoryKey = '',
+    required String title,
+    required String contentHtml,
+  }) async {
+    await invoke('UpdateCommunityThread', <String, Object?>{
+      'ThreadId': threadId,
+      'BoardKey': boardKey,
+      'SubCategoryKey': subCategoryKey,
+      'Title': title,
+      'ContentHtml': contentHtml,
+    }, (_) {});
+  }
 
   Future<void> deleteCommunityThread(int threadId) async {
     await invoke('DeleteCommunityThread', <String, Object?>{

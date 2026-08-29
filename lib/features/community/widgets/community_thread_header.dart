@@ -112,7 +112,7 @@ class CommunityThreadHeader extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 19),
-                    HtmlContent(html: detail.bodyHtml),
+                    HtmlContent(html: detail.content),
                   ],
                 ),
               ),

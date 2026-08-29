@@ -31,8 +31,15 @@ String communityPlainText(String text) {
 }
 
 class CommunityComposeScreen extends ConsumerStatefulWidget {
-  const CommunityComposeScreen({super.key, this.boardKey, this.subCategoryKey});
+  const CommunityComposeScreen({
+    super.key,
+    this.threadId,
+    this.boardKey,
+    this.subCategoryKey,
+  });
 
+  /// 非空即编辑已有帖子：正文向服务端要 Markdown，保存走 UpdateCommunityThread。
+  final int? threadId;
   final String? boardKey;
   final String? subCategoryKey;
 
@@ -76,6 +83,11 @@ class _CommunityComposeScreenState
 
   void _onTextChanged() => setState(() {});
 
+  bool get _editing => widget.threadId != null;
+
+  bool get _needsPrepareRetry =>
+      _boards.isEmpty || (_editing && _body.text.isEmpty);
+
   CommunityCatalogBoard? get _selectedBoard {
     for (final CommunityCatalogBoard board in _boards) {
       if (board.key == _boardKey) return board;
@@ -117,12 +129,31 @@ class _CommunityComposeScreenState
       final boards = catalog
           .where((board) => board.key != communityAllBoardKey)
           .toList(growable: false);
-      final accepted = await ref.read(communityPostNoticeProvider).isAccepted();
+      // 社区须知是发布前的提示，编辑已有帖子不再拦。
+      final accepted =
+          _editing || await ref.read(communityPostNoticeProvider).isAccepted();
+
+      CommunityThreadEditInfo? thread;
+      if (_editing) {
+        // 正文要 Markdown：本页编辑器是 Markdown 的，服务端按 Web 编辑器同一套规则转
+        thread = await ref.read(apiClientProvider).getCommunityThreadEditInfo(
+          threadId: widget.threadId!,
+          format: 'markdown',
+        );
+        if (!mounted) return;
+        _title.text = thread.title;
+        _body.text = thread.content;
+      }
+
       if (!mounted) return;
       setState(() {
         _boards = boards;
         _preparing = false;
         _noticeAccepted = accepted;
+        if (thread != null) {
+          _boardKey = thread.boardKey;
+          _subCategoryKey = thread.subCategoryKey;
+        }
         if (_boardKey.isEmpty ||
             !boards.any((board) => board.key == _boardKey)) {
           _boardKey = boards.isEmpty ? '' : boards.first.key;
@@ -134,7 +165,10 @@ class _CommunityComposeScreenState
       if (!mounted) return;
       setState(() {
         _preparing = false;
-        _error = describeCommunityError(error, fallback: '无法准备编辑器。');
+        _error = describeCommunityError(
+          error,
+          fallback: _editing ? '无法读取帖子内容。' : '无法准备编辑器。',
+        );
       });
     }
   }
@@ -184,21 +218,36 @@ class _CommunityComposeScreenState
       _error = null;
     });
     try {
-      final detail = await ref
-          .read(apiClientProvider)
-          .createCommunityThread(
-            boardKey: _boardKey,
-            subCategoryKey: _subCategoryKey,
-            title: _title.text.trim(),
-            contentHtml: buildCommunityContentHtml(_body.text.trim()),
-          );
+      final api = ref.read(apiClientProvider);
+      if (_editing) {
+        await api.updateCommunityThread(
+          threadId: widget.threadId!,
+          boardKey: _boardKey,
+          subCategoryKey: _subCategoryKey,
+          title: _title.text.trim(),
+          contentHtml: buildCommunityContentHtml(_body.text.trim()),
+        );
+        if (!mounted) return;
+        // 交给帖子页刷新，避免回退后还显示旧正文
+        context.pop(true);
+        return;
+      }
+      final detail = await api.createCommunityThread(
+        boardKey: _boardKey,
+        subCategoryKey: _subCategoryKey,
+        title: _title.text.trim(),
+        contentHtml: buildCommunityContentHtml(_body.text.trim()),
+      );
       if (!mounted) return;
       context.pushReplacement('/community/thread/${detail.item.id}');
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _publishing = false;
-        _error = describeCommunityError(error, fallback: '无法发布讨论。');
+        _error = describeCommunityError(
+          error,
+          fallback: _editing ? '无法保存修改。' : '无法发布讨论。',
+        );
       });
     }
   }
@@ -257,11 +306,11 @@ class _CommunityComposeScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('发布帖子'),
+        title: Text(_editing ? '编辑帖子' : '发布帖子'),
         actions: <Widget>[
           IconButton(
             onPressed: _canPublish ? _publish : null,
-            tooltip: '发布',
+            tooltip: _editing ? '保存' : '发布',
             icon: _publishing
                 ? const SizedBox(
                     width: 20,
@@ -279,10 +328,13 @@ class _CommunityComposeScreenState
               children: <Widget>[
                 if (_error != null) ...<Widget>[
                   CommunityStateCard(
-                    title: _boards.isEmpty ? '无法准备编辑器' : '无法发布',
+                    // 编辑器还没准备好（版面为空、或编辑态没取到正文）才给重试
+                    title: _needsPrepareRetry
+                        ? '无法准备编辑器'
+                        : (_editing ? '无法保存' : '无法发布'),
                     description: _error!,
                     isError: true,
-                    onRetry: _boards.isEmpty ? _prepare : null,
+                    onRetry: _needsPrepareRetry ? _prepare : null,
                   ),
                   const SizedBox(height: 20),
                 ],
