@@ -14,7 +14,6 @@ import '../../shared/format.dart';
 import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/book_image.dart';
 import '../../shared/widgets/state_views.dart';
-import '../settings/point_log_sheet.dart';
 import '../settings/sign_in_sheet.dart';
 
 class ShopScreen extends ConsumerStatefulWidget {
@@ -108,16 +107,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('商城'),
-      actions: <Widget>[
-        IconButton(
-          tooltip: '金币流水',
-          onPressed: () => showPointLogSheet(context, kind: PointLogKind.coin),
-          icon: const Icon(Icons.history),
-        ),
-      ],
-    ),
+    appBar: AppBar(title: const Text('商城')),
     body: _buildBody(),
   );
 
