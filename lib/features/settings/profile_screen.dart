@@ -13,6 +13,7 @@ import '../../shared/format.dart';
 import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/settings_rows.dart';
 import '../../shared/widgets/user_avatar.dart';
+import 'point_log_sheet.dart';
 
 /// 个人资料：账号信息、成长记录、每日签到与退出登录。
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -193,15 +194,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             icon: Icons.military_tech_outlined,
             value: '${growth.level} 级',
           ),
-          SettingsValueRow(
+          SettingsNavigationRow(
             title: '经验值',
             icon: Icons.show_chart,
             value: formatCount(growth.experience),
+            onTap: () =>
+                showPointLogSheet(context, kind: PointLogKind.experience),
           ),
-          SettingsValueRow(
+          SettingsNavigationRow(
             title: '金币',
             icon: Icons.paid_outlined,
             value: formatCount(growth.coin),
+            onTap: () => showPointLogSheet(context, kind: PointLogKind.coin),
           ),
           SettingsValueRow(
             title: _checkingIn ? '正在签到…' : '每日签到',

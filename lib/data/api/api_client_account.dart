@@ -51,6 +51,18 @@ extension ApiClientAccount on ApiClient {
   Future<DailyCheckInResult> checkIn() =>
       invoke('SignIn', <String, Object?>{}, DailyCheckInResult.decode);
 
+  Future<PointLogPage> getPointLog({int page = 1, int size = 20}) => invoke(
+    'GetPointLog',
+    <String, Object?>{'Page': ApiClient.atLeastOne(page), 'Size': size},
+    PointLogPage.decode,
+  );
+
+  Future<PointLogPage> getCoinLog({int page = 1, int size = 20}) => invoke(
+    'GetCoinLog',
+    <String, Object?>{'Page': ApiClient.atLeastOne(page), 'Size': size},
+    PointLogPage.decode,
+  );
+
   Future<SessionTokens> login({
     required String email,
     required String passwordHash,
