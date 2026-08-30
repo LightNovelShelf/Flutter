@@ -29,6 +29,7 @@ dependencies:
 
   # 图片
   cached_network_image: ^3.4.1
+  flutter_svg: ^2.2.3
   # 直接用它配置纯 Dart 的缓存元数据仓库，避开 sqflite platform channel
   flutter_cache_manager: ^3.4.1
   photo_view: ^0.15.0

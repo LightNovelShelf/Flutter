@@ -14,6 +14,7 @@ export 'api_client_account.dart';
 export 'api_client_catalog.dart';
 export 'api_client_comments.dart';
 export 'api_client_community.dart';
+export 'api_client_shop.dart';
 export 'requests.dart';
 
 /// 401 时调用以刷新令牌，返回 false 表示刷新失败。

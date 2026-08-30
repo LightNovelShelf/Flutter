@@ -51,6 +51,14 @@ extension ApiClientAccount on ApiClient {
   Future<DailyCheckInResult> checkIn() =>
       invoke('SignIn', <String, Object?>{}, DailyCheckInResult.decode);
 
+  Future<SignInCalendar> getSignInCalendar({
+    required int year,
+    required int month,
+  }) => invoke('GetSignInCalendar', <String, Object?>{
+    'Year': year,
+    'Month': month,
+  }, SignInCalendar.decode);
+
   Future<PointLogPage> getPointLog({int page = 1, int size = 20}) => invoke(
     'GetPointLog',
     <String, Object?>{'Page': ApiClient.atLeastOne(page), 'Size': size},

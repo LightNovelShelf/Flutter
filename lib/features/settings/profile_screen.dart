@@ -14,6 +14,7 @@ import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/settings_rows.dart';
 import '../../shared/widgets/user_avatar.dart';
 import 'point_log_sheet.dart';
+import 'sign_in_sheet.dart';
 
 /// 个人资料：账号信息、成长记录、每日签到与退出登录。
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -28,7 +29,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   String? _copiedRowId;
   Timer? _copyTimer;
-  bool _checkingIn = false;
   bool _signingOut = false;
 
   @override
@@ -62,28 +62,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _copyTimer = Timer(_copyFeedbackDuration, () {
       if (mounted) setState(() => _copiedRowId = null);
     });
-  }
-
-  Future<void> _checkIn() async {
-    setState(() => _checkingIn = true);
-    try {
-      final result = await ref.read(profileProvider.notifier).checkIn();
-      if (!mounted) return;
-      await showAppAlert(
-        context: context,
-        title: '签到成功',
-        message: '连续第 ${result.streak} 天 · 经验值 +${result.reward}',
-      );
-    } catch (error) {
-      if (!mounted) return;
-      await showAppAlert(
-        context: context,
-        title: '无法签到',
-        message: _errorMessage(error, '请重试。'),
-      );
-    } finally {
-      if (mounted) setState(() => _checkingIn = false);
-    }
   }
 
   Future<void> _signOut() async {
@@ -201,21 +179,43 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             onTap: () =>
                 showPointLogSheet(context, kind: PointLogKind.experience),
           ),
-          SettingsNavigationRow(
+          SettingsRow(
             title: '金币',
             icon: Icons.paid_outlined,
-            value: formatCount(growth.coin),
             onTap: () => showPointLogSheet(context, kind: PointLogKind.coin),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                TextButton(
+                  onPressed: () => context.push('/shop'),
+                  child: const Text('商城'),
+                ),
+                Text(
+                  formatCount(growth.coin),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ),
           ),
-          SettingsValueRow(
-            title: _checkingIn ? '正在签到…' : '每日签到',
+          SettingsNavigationRow(
+            title: '每日签到',
             description: growth.signedToday
                 ? '连续 ${growth.signInStreak} 天 · 今日已签到'
                 : '连续 ${growth.signInStreak} 天 · 签到可获得经验值',
             icon: Icons.event_available_outlined,
             value: growth.signedToday ? '已完成' : '签到',
-            enabled: !growth.signedToday && !_checkingIn,
-            onTap: _checkIn,
+            onTap: () async {
+              await showSignInSheet(context);
+              if (mounted) ref.read(profileProvider.notifier).reload();
+            },
           ),
         ],
       ),

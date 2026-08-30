@@ -10,4 +10,5 @@ export 'models/novel_series.dart';
 export 'models/read_position.dart';
 export 'models/point_log.dart';
 export 'models/shelf.dart';
+export 'models/shop.dart';
 export 'models/user.dart';

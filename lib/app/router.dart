@@ -37,6 +37,7 @@ import '../features/reader/novel_reader_screen.dart';
 import '../features/reader/reader_open_position.dart';
 import '../features/reader/widgets/reader_theme.dart';
 import '../features/search/search_screen.dart';
+import '../features/shop/shop_screen.dart';
 import '../features/settings/about_settings_screen.dart';
 import '../features/settings/appearance_settings_screen.dart';
 import '../features/settings/avatar_settings_screen.dart';
@@ -294,6 +295,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         path: '/community/rankings',
         builder: (_, _) => const CommunityRankingsScreen(),
       ),
+      GoRoute(path: '/shop', builder: (_, _) => const ShopScreen()),
       GoRoute(
         path: '/settings',
         builder: (_, _) => const SettingsScreen(),
