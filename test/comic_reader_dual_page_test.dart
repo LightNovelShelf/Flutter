@@ -118,6 +118,7 @@ class _MemoryStore implements KeyValueStore {
 Future<void> _open(
   WidgetTester tester, {
   bool dualPage = true,
+  bool offsetFirstPage = false,
   bool statusPills = true,
   ReaderViewMode viewMode = ReaderViewMode.paged,
   ComicPagedDirection direction = ComicPagedDirection.ltr,
@@ -134,6 +135,7 @@ Future<void> _open(
     AppSettings(
       comicReader: ReaderPreferences(
         dualPageEnabled: dualPage,
+        dualPageOffsetEnabled: offsetFirstPage,
         statusPillsEnabled: statusPills,
         viewMode: viewMode,
       ),
@@ -187,6 +189,17 @@ void main() {
     // 两页各占半屏，等比缩放后仍是原来的高宽比。
     expect(left.height / left.width, closeTo(1.5, 0.01));
     expect(_page(2), findsNothing);
+  });
+
+  testWidgets('错位双页先单独显示封面，后续再并排', (tester) async {
+    await _open(tester, offsetFirstPage: true);
+
+    expect(_page(0), findsOneWidget);
+    expect(_page(1), findsNothing);
+
+    await _swipeForward(tester);
+    expect(_page(1), findsOneWidget);
+    expect(_page(2), findsOneWidget);
   });
 
   testWidgets('右起时第一页摆在右边', (tester) async {

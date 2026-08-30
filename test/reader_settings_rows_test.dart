@@ -95,12 +95,23 @@ void main() {
     expect(find.text('字号'), findsNothing);
     expect(find.text('章节标题'), findsNothing);
     expect(find.text('预渲染前后章节'), findsNothing);
+    expect(find.text('错位双页'), findsNothing);
 
     await tester.ensureVisible(find.text('双页模式'));
     await tester.tap(find.text('双页模式'));
     await tester.pump();
     expect(controller.settings.comicReader.dualPageEnabled, isTrue);
     expect(controller.settings.novelReader.dualPageEnabled, isFalse);
+    expect(find.text('错位双页'), findsOneWidget);
+    await tester.ensureVisible(find.text('错位双页'));
+    await tester.tap(find.text('错位双页'));
+    await tester.pump();
+    expect(controller.settings.comicReader.dualPageOffsetEnabled, isTrue);
+
+    await tester.ensureVisible(find.text('双页模式'));
+    await tester.tap(find.text('双页模式'));
+    await tester.pump();
+    expect(find.text('错位双页'), findsNothing);
   });
 
   testWidgets('漫画滚动模式下禁用页码胶囊', (tester) async {

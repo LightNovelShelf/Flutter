@@ -297,6 +297,17 @@ class ReaderSettingsContent extends ConsumerWidget {
                   (reader) => reader.copyWith(dualPageEnabled: value),
                 ),
               ),
+              if (comic && reader.dualPageEnabled)
+                SettingsToggleRow(
+                  title: '错位双页',
+                  description: '第一页作为封面单独显示，后续页面双页并排',
+                  icon: Icons.menu_book_outlined,
+                  value: reader.dualPageOffsetEnabled,
+                  enabled: reader.viewMode == ReaderViewMode.paged,
+                  onChanged: (value) => updateReader(
+                    (reader) => reader.copyWith(dualPageOffsetEnabled: value),
+                  ),
+                ),
               if (readerImmersiveSupported)
                 SettingsToggleRow(
                   title: '沉浸式阅读',

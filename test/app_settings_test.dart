@@ -64,6 +64,7 @@ void main() {
       ),
       comicReader: const ReaderPreferences(
         dualPageEnabled: true,
+        dualPageOffsetEnabled: true,
         statusPillsEnabled: false,
       ),
     );
@@ -74,6 +75,7 @@ void main() {
     expect(restored.novelReader.dualPageEnabled, isFalse);
     expect(restored.comicReader.viewMode, ReaderViewMode.paged);
     expect(restored.comicReader.dualPageEnabled, isTrue);
+    expect(restored.comicReader.dualPageOffsetEnabled, isTrue);
     expect(restored.comicReader.statusPillsEnabled, isFalse);
   });
 

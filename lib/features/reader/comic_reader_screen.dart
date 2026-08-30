@@ -80,6 +80,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
   /// 每页落在第几屏，与 [_spreads] 同批重建。
   List<int> _spreadOfPage = const <int>[];
   bool _dual = false;
+  bool _offsetFirstPage = false;
 
   /// 当前页只驱动页码指示器和工具栏，连续模式下滚动换页不重建整屏。
   final ValueNotifier<int> _pageNotifier = ValueNotifier<int>(0);
@@ -129,21 +130,24 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       );
     }
     // 旋转屏幕会让分屏在开合之间切换，当前页所在的那一屏要重新对准。
-    if (_syncDual(ref.read(appSettingsProvider).comicReader.dualPageEnabled) &&
+    final reader = ref.read(appSettingsProvider).comicReader;
+    if (_syncDual(reader.dualPageEnabled, reader.dualPageOffsetEnabled) &&
         !loading) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _syncToPage());
     }
   }
 
   /// 按设置与屏幕尺寸决定分不分屏，变了就重建分屏表并返回 true。
-  bool _syncDual(bool enabled) {
+  bool _syncDual(bool enabled, bool offsetFirstPage) {
     final dual = readerFixedLayoutSpread(
       dualPage: enabled,
       width: _screenSize.width,
       height: _screenSize.height,
     );
-    if (dual == _dual) return false;
+    final offset = dual && offsetFirstPage;
+    if (dual == _dual && offset == _offsetFirstPage) return false;
     _dual = dual;
+    _offsetFirstPage = offset;
     _rebuildSpreads();
     return true;
   }
@@ -172,7 +176,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     }
     _spreads = createComicSpreads(<double>[
       for (var index = 0; index < _slots.length; index++) _aspect(index),
-    ]);
+    ], offsetFirstPage: _offsetFirstPage);
     _spreadOfPage = createComicSpreadIndex(_spreads, _slots.length);
   }
 
@@ -792,6 +796,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       :volumeKeyPagingEnabled,
       :immersiveEnabled,
       :dualPageEnabled,
+      :dualPageOffsetEnabled,
       :statusPillsEnabled,
     ) = ref.watch(
       appSettingsProvider.select(
@@ -804,6 +809,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
           volumeKeyPagingEnabled: settings.comicReader.volumeKeyPagingEnabled,
           immersiveEnabled: settings.comicReader.immersiveEnabled,
           dualPageEnabled: settings.comicReader.dualPageEnabled,
+          dualPageOffsetEnabled: settings.comicReader.dualPageOffsetEnabled,
           statusPillsEnabled: settings.comicReader.statusPillsEnabled,
         ),
       ),
@@ -817,7 +823,8 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     // 阅读模式与分屏都会换掉翻页条的页序，落定后要把当前页重新对准。
     // 用 `|` 不用 `||`：`_syncDual` 要在这一帧就把分屏表建好，供下面的 body 取用，
     // 短路掉就会拿旧表画一帧。
-    final relaid = _syncDual(dualPageEnabled) | (_mode != viewMode);
+    final relaid =
+        _syncDual(dualPageEnabled, dualPageOffsetEnabled) | (_mode != viewMode);
     _mode = viewMode;
     if (relaid && !loading) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _syncToPage());

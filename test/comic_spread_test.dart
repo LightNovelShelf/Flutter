@@ -20,6 +20,22 @@ void main() {
       ],
     );
   });
+  test('错位双页让第一页独占一屏，后续从第二页配对', () {
+    expect(
+      createComicSpreads(const <double>[
+        _portrait,
+        _portrait,
+        _portrait,
+        _portrait,
+        _portrait,
+      ], offsetFirstPage: true),
+      <List<int>>[
+        <int>[0],
+        <int>[1, 2],
+        <int>[3, 4],
+      ],
+    );
+  });
 
   test('页数为奇数时最后一页落单', () {
     expect(

@@ -54,11 +54,19 @@ List<int> createComicPrefetchPlan(int current, int total, int direction) {
 
 /// 双页模式的分屏：竖版页两两成对，横跨两页的宽图（[aspects] < 1）独占一屏。
 ///
+/// [offsetFirstPage] 开启时，第一页作为封面独占一屏，其余页面再从第二页开始配对。
 /// [aspects] 是每页的高宽比，尚未取到图的页按竖版算，取到真实比例后重排一次。
 /// 宽图会把后面的配对整体错开一位，这正是原书的跨页关系。
-List<List<int>> createComicSpreads(List<double> aspects) {
+List<List<int>> createComicSpreads(
+  List<double> aspects, {
+  bool offsetFirstPage = false,
+}) {
   final spreads = <List<int>>[];
   var index = 0;
+  if (offsetFirstPage && aspects.isNotEmpty) {
+    spreads.add(<int>[0]);
+    index = 1;
+  }
   while (index < aspects.length) {
     final pairable = aspects[index] >= 1 && index + 1 < aspects.length;
     if (pairable && aspects[index + 1] >= 1) {
