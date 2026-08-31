@@ -9,6 +9,7 @@ import '../../shared/widgets/state_views.dart';
 import '../announcement/announcement_providers.dart';
 
 final RegExp _htmlTagPattern = RegExp('<[^>]*>');
+final RegExp _danglingTagPattern = RegExp(r'<[^>]*$');
 final RegExp _whitespacePattern = RegExp(r'\s+');
 
 const Map<String, String> _htmlEntities = <String, String>{
@@ -32,12 +33,28 @@ String announcementSummary(String contentHtml) {
   return _summaryCache[contentHtml] = _buildSummary(contentHtml);
 }
 
-String _buildSummary(String contentHtml) {
-  var text = contentHtml.replaceAll(_htmlTagPattern, ' ');
+String _stripTags(String value) => value
+    .replaceAll(_htmlTagPattern, ' ')
+    .replaceAll(_danglingTagPattern, ' ');
+
+String _decodeEntities(String value) {
+  var text = value;
   for (final entry in _htmlEntities.entries) {
     text = text.replaceAll(entry.key, entry.value);
   }
-  text = text.replaceAll(_whitespacePattern, ' ').trim();
+  return text;
+}
+
+String _buildSummary(String contentHtml) {
+  // 正文里可能出现被转义过的标签（如 `&lt;a href=...&gt;`），解码实体后会重新
+  // 变成尖括号，所以要反复去标签 + 解码直到收敛，否则预览会漏出 HTML 片段。
+  var text = contentHtml;
+  for (var pass = 0; pass < 4; pass += 1) {
+    final next = _decodeEntities(_stripTags(text));
+    if (next == text) break;
+    text = next;
+  }
+  text = _stripTags(text).replaceAll(_whitespacePattern, ' ').trim();
   // 数到第 81 个 rune 即可判断是否需要截断。
   final RuneIterator runes = text.runes.iterator;
   var count = 0;
