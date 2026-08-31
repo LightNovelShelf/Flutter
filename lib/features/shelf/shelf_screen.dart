@@ -11,7 +11,9 @@ import '../../shared/paging/identity_child_delegate.dart';
 import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/book_grid_slivers.dart';
 import '../../shared/widgets/state_views.dart';
+import '../discover/widgets/novel_series_tile.dart';
 import 'shelf_editor_controller.dart';
+import 'shelf_series_books_screen.dart';
 import 'widgets/shelf_manage_sheet.dart';
 import 'widgets/shelf_tile.dart';
 
@@ -27,6 +29,7 @@ class ShelfScreen extends ConsumerStatefulWidget {
 }
 
 class _ShelfScreenState extends ConsumerState<ShelfScreen> {
+  bool _seriesView = false;
   List<String> get _parents => widget.parents;
 
   String get _editorKey => shelfEditorKey(_parents);
@@ -237,6 +240,21 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
     context.push('/book/${book.id}?type=Novel');
   }
 
+  void _openShelfSeries(String name, List<BookListItem> books) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ShelfSeriesBooksScreen(
+          seriesName: name,
+          books: books,
+          onOpen: (pageContext, book) {
+            Navigator.of(pageContext).pop();
+            _openBook(book);
+          },
+        ),
+      ),
+    );
+  }
+
   Widget _banner(
     String message, {
     required VoidCallback onAction,
@@ -336,6 +354,16 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
         appBar: AppBar(
           title: Text(title),
           actions: <Widget>[
+            if (snapshot != null && editor.mode == ShelfMode.browse)
+              IconButton(
+                tooltip: _seriesView ? '按单本显示' : '按系列显示',
+                onPressed: () => setState(() => _seriesView = !_seriesView),
+                icon: Icon(
+                  _seriesView
+                      ? Icons.grid_view_outlined
+                      : Icons.folder_copy_outlined,
+                ),
+              ),
             if (dirty && !editor.saving)
               TextButton(onPressed: () => _discard(), child: const Text('取消')),
             if (dirty)
@@ -485,6 +513,8 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
                   : '把书籍移动到这个文件夹后会显示在这里。',
             ),
           )
+        else if (_seriesView && editor.mode == ShelfMode.browse)
+          _seriesGrid(level, layout)
         else
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(
@@ -517,6 +547,80 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _seriesGrid(ShelfLevel level, BookGridLayout layout) {
+    final grouped = <String, List<BookListItem>>{};
+    final entries = <Object>[];
+    for (final item in level.siblings) {
+      if (!item.isBook) {
+        entries.add(item);
+        continue;
+      }
+      final book = level.bookById[item.bookId];
+      final name = book?.type == BookType.novel
+          ? book?.seriesTitle?.trim()
+          : null;
+      if (book == null || name == null || name.isEmpty) {
+        entries.add(item);
+        continue;
+      }
+      final books = grouped.putIfAbsent(name, () {
+        entries.add(name);
+        return <BookListItem>[];
+      });
+      books.add(book);
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(
+        BookGridLayout.horizontalPadding,
+        0,
+        BookGridLayout.horizontalPadding,
+        32,
+      ),
+      sliver: SliverGrid(
+        gridDelegate: layout.tileGridDelegate(),
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final entry = entries[index];
+            if (entry is String) {
+              final books = grouped[entry]!;
+              final latest = books.reduce(
+                (left, right) =>
+                    left.lastUpdatedAt.isAfter(right.lastUpdatedAt)
+                    ? left
+                    : right,
+              );
+              return NovelSeriesTile(
+                series: NovelSeriesListItem(
+                  name: entry,
+                  coverUrl: latest.coverUrl,
+                  coverPlaceholder: latest.coverPlaceholder,
+                  bookCount: books.length,
+                  lastUpdatedAt: latest.lastUpdatedAt,
+                ),
+                coverHeight: layout.coverHeight,
+                onTap: () => _openShelfSeries(entry, books),
+              );
+            }
+            final item = entry as ShelfItem;
+            return ShelfTile(
+              editorKey: _editorKey,
+              item: item,
+              index: level.siblings.indexOf(item),
+              siblings: level.siblings,
+              book: item.isBook ? level.bookById[item.bookId] : null,
+              folder: item.isBook ? null : level.folderPreviews[item.folderId],
+              tileWidth: layout.tileWidth,
+              onOpenBook: _openBook,
+              onOpenFolder: _openFolder,
+            );
+          },
+          childCount: entries.length,
+        ),
+      ),
     );
   }
 }
