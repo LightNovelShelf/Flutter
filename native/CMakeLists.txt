@@ -7,6 +7,8 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
+set(CMAKE_C_VISIBILITY_PRESET hidden)
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
 FetchContent_Declare(
   brotli
@@ -77,6 +79,16 @@ if(WIN32)
       target_link_options(${target} PRIVATE -static-libgcc -static-libstdc++)
     endforeach()
   endif()
+endif()
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+  foreach(target lightnovel_native woff2_decoder)
+    if(APPLE)
+      target_link_options(${target} PRIVATE -Wl,-S,-x)
+    elseif(NOT MSVC)
+      target_link_options(${target} PRIVATE -Wl,--strip-all)
+    endif()
+  endforeach()
 endif()
 
 if(DEFINED LN_OUTPUT_DIR)
