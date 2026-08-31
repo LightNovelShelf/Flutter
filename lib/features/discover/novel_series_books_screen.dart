@@ -130,6 +130,7 @@ class _NovelSeriesBooksScreenState
         ],
       ),
       body: PagedGrid<BookListItem>(
+        revision: (_selected.length, Object.hashAllUnordered(_selected)),
         header: NovelOrderSelector(
           order: _order,
           onChanged: (order) => setState(() => _order = order),
