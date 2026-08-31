@@ -105,5 +105,13 @@ abstract class PagedListController<T, Arg> extends Notifier<PagedList<T>> {
     }
   }
 
+  /// 连续加载剩余页。批量选择里的“全选”覆盖完整结果，而不只是当前已显示页。
+  Future<void> loadAll() async {
+    if (state.loading || state.refreshing || state.loadingMore) return;
+    while (state.hasMore && state.loadMoreError == null && !_disposed) {
+      await loadMore();
+    }
+  }
+
   bool _isStale(int generation) => _disposed || generation != _generation;
 }
