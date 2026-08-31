@@ -137,6 +137,36 @@ class ShelfController extends AsyncNotifier<ShelfSnapshot?> {
     await save(ShelfDraft(items: items, version: shelf.version));
     return !isInShelf;
   }
+
+  /// 一次把多本书加入根目录；已在书架中的条目保持原位置且不会重复。
+  Future<int> addBooks(Iterable<int> bookIds) async {
+    final ids = bookIds.where((id) => id > 0).toSet();
+    if (ids.isEmpty) return 0;
+    final shelf = await _api.getBookShelf();
+    final existing = shelf.items
+        .where((item) => item.isBook)
+        .map((item) => item.bookId!)
+        .toSet();
+    final missing = ids.difference(existing);
+    if (missing.isEmpty) return 0;
+    final now = DateTime.now().toUtc().toIso8601String();
+    await save(
+      ShelfDraft(
+        items: <ShelfItem>[
+          for (final id in missing)
+            ShelfItem.book(
+              id: id,
+              index: -1,
+              parents: const <String>[],
+              updatedAt: now,
+            ),
+          ...shelf.items,
+        ],
+        version: shelf.version,
+      ),
+    );
+    return missing.length;
+  }
 }
 
 final AsyncNotifierProvider<ShelfController, ShelfSnapshot?> shelfProvider =
