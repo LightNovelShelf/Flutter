@@ -26,6 +26,7 @@ class PagedGrid<T> extends StatelessWidget {
     this.emptyIcon = Icons.menu_book_outlined,
     this.emptyTitle = '暂无内容',
     this.emptyDescription,
+    this.revision,
   });
 
   /// 目录与榜单共用的书籍网格。
@@ -87,6 +88,9 @@ class PagedGrid<T> extends StatelessWidget {
   final IconData emptyIcon;
   final String emptyTitle;
   final String? emptyDescription;
+
+  /// 影响卡片外观但不改变 [items] 的状态；变化时强制网格重建可见卡片。
+  final Object? revision;
 
   static const EdgeInsets _gridPadding = EdgeInsets.fromLTRB(20, 12, 20, 0);
 
@@ -155,7 +159,7 @@ class PagedGrid<T> extends StatelessWidget {
           gridDelegate: layout.tileGridDelegate(),
           delegate: IdentityChildDelegate<T>(
             items: items,
-            revision: (layout.coverHeight,),
+            revision: (layout.coverHeight, revision),
             itemBuilder: (context, item, index) =>
                 itemBuilder(item, index, layout.coverHeight),
           ),
