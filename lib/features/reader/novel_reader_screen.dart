@@ -518,6 +518,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
                         totalChapters: _totalChapters,
                         failedChapters: _failedChapters,
                         paged: paged,
+                        pageTurnAnimation: reader.pageTurnAnimation,
                         dualPage: reader.dualPageEnabled,
                         padding: _contentPadding(settings),
                         restoreLocator: _restoreLocator,

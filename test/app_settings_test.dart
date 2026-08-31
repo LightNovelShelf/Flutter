@@ -79,6 +79,33 @@ void main() {
     expect(restored.comicReader.statusPillsEnabled, isFalse);
   });
 
+  test('小说和漫画分别保存翻页动画', () {
+    final settings = const AppSettings().copyWith(
+      novelReader: const ReaderPreferences(
+        pageTurnAnimation: ReaderPageTurnAnimation.slide,
+      ),
+      comicReader: const ReaderPreferences(
+        pageTurnAnimation: ReaderPageTurnAnimation.none,
+      ),
+    );
+
+    final restored = AppSettings.decode(settings.encode());
+    expect(
+      restored.novelReader.pageTurnAnimation,
+      ReaderPageTurnAnimation.slide,
+    );
+    expect(
+      restored.comicReader.pageTurnAnimation,
+      ReaderPageTurnAnimation.none,
+    );
+    expect(
+      ReaderPreferences.decode(const <String, dynamic>{
+        'pageTurnAnimation': 'fade',
+      }).pageTurnAnimation,
+      ReaderPageTurnAnimation.none,
+    );
+  });
+
   test('阅读背景只接受 #RRGGBB', () {
     final restored = AppSettings.decode(const <String, dynamic>{
       'novelReader': <String, dynamic>{

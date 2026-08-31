@@ -22,6 +22,7 @@ import '../../shared/widgets/image_preview.dart';
 import '../../shared/widgets/state_views.dart';
 import 'reader_comic_paging.dart';
 import 'reader_open_position.dart';
+import 'reader_page_turn.dart';
 import 'reader_pagination.dart';
 import 'reader_position.dart';
 import 'reader_progress_controller.dart';
@@ -530,7 +531,11 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       final current = _spreadIndexOf(_page);
       final target = (current + delta).clamp(0, _spreads.length - 1).toInt();
       if (target == current) return;
-      pageController.jumpToPage(target);
+      turnReaderPage(
+        pageController,
+        target,
+        ref.read(appSettingsProvider).comicReader.pageTurnAnimation,
+      );
       return;
     }
     final target = (_page + delta)
@@ -538,7 +543,11 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
         .toInt();
     if (target == _page) return;
     if (pageController != null && pageController.hasClients) {
-      pageController.jumpToPage(target);
+      turnReaderPage(
+        pageController,
+        target,
+        ref.read(appSettingsProvider).comicReader.pageTurnAnimation,
+      );
       return;
     }
     final scrollController = _scrollController;

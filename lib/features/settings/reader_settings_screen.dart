@@ -50,6 +50,9 @@ class ReaderSettingsContent extends ConsumerWidget {
     final controller = ref.read(settingsControllerProvider);
     final comic = type == BookType.comic;
     final reader = comic ? settings.comicReader : settings.novelReader;
+    final customBackground =
+        reader.backgroundMode == ReaderBackgroundMode.custom;
+    final paged = reader.viewMode == ReaderViewMode.paged;
     final scopes = settings.cleanChapterTitleScopes;
 
     void updateReader(
@@ -84,28 +87,31 @@ class ReaderSettingsContent extends ConsumerWidget {
                   (reader) => reader.copyWith(backgroundMode: value),
                 ),
               ),
-              if (reader.backgroundMode == ReaderBackgroundMode.custom)
-                SettingsRow(
-                  title: '背景颜色',
-                  description: reader.backgroundColorValue,
-                  icon: Icons.colorize_outlined,
-                  onTap: () async {
-                    final picked = await showColorPickerSheet(
-                      context,
-                      initial: reader.backgroundColorValue,
-                      title: '背景颜色',
-                      presets: _readerBackgroundPresets,
-                    );
-                    if (picked == null) return;
-                    updateReader(
-                      (reader) => reader.copyWith(backgroundColorValue: picked),
-                    );
-                  },
-                  trailing: _ColorSwatch(
-                    color: parseSeedColor(reader.backgroundColorValue),
-                  ),
+              SettingsRow(
+                title: '背景颜色',
+                description: reader.backgroundColorValue,
+                icon: Icons.colorize_outlined,
+                enabled: customBackground,
+                onTap: customBackground
+                    ? () async {
+                        final picked = await showColorPickerSheet(
+                          context,
+                          initial: reader.backgroundColorValue,
+                          title: '背景颜色',
+                          presets: _readerBackgroundPresets,
+                        );
+                        if (picked == null) return;
+                        updateReader(
+                          (reader) =>
+                              reader.copyWith(backgroundColorValue: picked),
+                        );
+                      }
+                    : null,
+                trailing: _ColorSwatch(
+                  color: parseSeedColor(reader.backgroundColorValue),
                 ),
-              if (reader.backgroundMode == ReaderBackgroundMode.custom)
+              ),
+              if (customBackground)
                 SettingsValueRow(
                   title: '阅读主题',
                   description: '自定义背景色的亮暗由底色决定',
@@ -287,23 +293,37 @@ class ReaderSettingsContent extends ConsumerWidget {
                 onChanged: (value) =>
                     updateReader((reader) => reader.copyWith(viewMode: value)),
               ),
+              SettingsPickerRow<ReaderPageTurnAnimation>(
+                title: '翻页动画',
+                description: '点击或音量键翻页时的过渡效果',
+                icon: Icons.animation_outlined,
+                value: reader.pageTurnAnimation,
+                options: const <(ReaderPageTurnAnimation, String)>[
+                  (ReaderPageTurnAnimation.none, '无动画'),
+                  (ReaderPageTurnAnimation.slide, '平滑滑动'),
+                ],
+                enabled: paged,
+                onChanged: (value) => updateReader(
+                  (reader) => reader.copyWith(pageTurnAnimation: value),
+                ),
+              ),
               SettingsToggleRow(
                 title: '双页模式',
                 description: '横屏且屏幕够宽时并排显示两栏，仅翻页模式生效',
                 icon: Icons.auto_stories,
                 value: reader.dualPageEnabled,
-                enabled: reader.viewMode == ReaderViewMode.paged,
+                enabled: paged,
                 onChanged: (value) => updateReader(
                   (reader) => reader.copyWith(dualPageEnabled: value),
                 ),
               ),
-              if (comic && reader.dualPageEnabled)
+              if (comic)
                 SettingsToggleRow(
                   title: '错位双页',
                   description: '第一页作为封面单独显示，后续页面双页并排',
                   icon: Icons.menu_book_outlined,
                   value: reader.dualPageOffsetEnabled,
-                  enabled: reader.viewMode == ReaderViewMode.paged,
+                  enabled: paged && reader.dualPageEnabled,
                   onChanged: (value) => updateReader(
                     (reader) => reader.copyWith(dualPageOffsetEnabled: value),
                   ),

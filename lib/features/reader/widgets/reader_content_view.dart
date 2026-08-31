@@ -3,11 +3,13 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../data/settings/app_settings.dart';
 import '../../../shared/widgets/html/reader_content_style.dart';
 import '../../../shared/widgets/html/html_source.dart';
 import '../../../shared/widgets/reader_html_block.dart';
 import '../reader_block_markup.dart';
 import '../reader_pagination.dart';
+import '../reader_page_turn.dart';
 import '../reader_position.dart';
 import 'reader_measure_box.dart';
 import 'reader_page_body.dart';
@@ -113,6 +115,7 @@ class ReaderContentView extends StatefulWidget {
     this.totalChapters = 0,
     this.failedChapters = const <int>{},
     this.controller,
+    this.pageTurnAnimation = ReaderPageTurnAnimation.none,
   });
 
   final ReaderContentController? controller;
@@ -133,6 +136,9 @@ class ReaderContentView extends StatefulWidget {
   final Set<int> failedChapters;
 
   final bool paged;
+
+  /// 点击或外部控制器触发翻页时使用的动画；手势拖动仍由 [PageView] 处理。
+  final ReaderPageTurnAnimation pageTurnAnimation;
 
   /// 翻页模式下是否把一屏拆成两栏，只在大屏横屏时真的分栏。
   final bool dualPage;
@@ -954,12 +960,9 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       widget.onBoundary(next);
       return;
     }
-    // 直接跳页而非动画。动画期间 PageView 的拖拽识别器会抢走下一次点按（该点按用于停住
-    // 惯性滚动），连点翻页会丢一次。滑动翻页仍走 PageView 自己的动画。
     _applyPage(target);
     if (controller.hasClients) {
-      // jumpTo 自带 start/end 通知，落定处理走 _onPageScroll。
-      controller.jumpToPage(target);
+      turnReaderPage(controller, target, widget.pageTurnAnimation);
       return;
     }
     // 重排刚换过控制器、PageView 还没挂载时调 `jumpToPage` 会触发 assert，

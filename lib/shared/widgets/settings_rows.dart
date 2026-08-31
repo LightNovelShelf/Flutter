@@ -214,6 +214,7 @@ class SettingsPickerRow<T> extends StatelessWidget {
     required this.value,
     required this.options,
     required this.onChanged,
+    this.enabled = true,
   });
 
   final String title;
@@ -222,6 +223,7 @@ class SettingsPickerRow<T> extends StatelessWidget {
   final T value;
   final List<(T value, String label)> options;
   final ValueChanged<T> onChanged;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -233,36 +235,42 @@ class SettingsPickerRow<T> extends StatelessWidget {
       title: title,
       description: description,
       icon: icon,
-      onTap: () async {
-        final selected = await showModalBottomSheet<T>(
-          context: context,
-          builder: (context) => SafeArea(
-            child: RadioGroup<T>(
-              groupValue: value,
-              onChanged: (next) => Navigator.of(context).pop(next),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        title,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
+      enabled: enabled,
+      onTap: enabled
+          ? () async {
+              final selected = await showModalBottomSheet<T>(
+                context: context,
+                builder: (context) => SafeArea(
+                  child: RadioGroup<T>(
+                    groupValue: value,
+                    onChanged: (next) => Navigator.of(context).pop(next),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              title,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                        ),
+                        for (final option in options)
+                          RadioListTile<T>(
+                            value: option.$1,
+                            title: Text(option.$2),
+                          ),
+                        const SizedBox(height: 8),
+                      ],
                     ),
                   ),
-                  for (final option in options)
-                    RadioListTile<T>(value: option.$1, title: Text(option.$2)),
-                  const SizedBox(height: 8),
-                ],
-              ),
-            ),
-          ),
-        );
-        if (selected != null) onChanged(selected);
-      },
+                ),
+              );
+              if (selected != null) onChanged(selected);
+            }
+          : null,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[

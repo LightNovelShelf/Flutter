@@ -18,6 +18,8 @@ enum ConvertType { none, t2s, s2t }
 
 enum ReaderViewMode { paged, scroll }
 
+enum ReaderPageTurnAnimation { none, slide }
+
 enum ReaderBackgroundMode { auto, paper, custom }
 
 /// 阅读页单独的亮暗，默认跟随全局主题。
@@ -70,6 +72,7 @@ class ReaderPreferences {
     this.dualPageEnabled = false,
     this.dualPageOffsetEnabled = false,
     this.immersiveEnabled = false,
+    this.pageTurnAnimation = ReaderPageTurnAnimation.none,
     this.statusPillsEnabled = true,
     this.theme = ReaderThemeSetting.followApp,
     this.volumeKeyPagingEnabled = false,
@@ -81,6 +84,7 @@ class ReaderPreferences {
   final bool dualPageEnabled;
   final bool dualPageOffsetEnabled;
   final bool immersiveEnabled;
+  final ReaderPageTurnAnimation pageTurnAnimation;
   final bool statusPillsEnabled;
   final ReaderThemeSetting theme;
   final bool volumeKeyPagingEnabled;
@@ -92,6 +96,7 @@ class ReaderPreferences {
     bool? dualPageEnabled,
     bool? dualPageOffsetEnabled,
     bool? immersiveEnabled,
+    ReaderPageTurnAnimation? pageTurnAnimation,
     bool? statusPillsEnabled,
     ReaderThemeSetting? theme,
     bool? volumeKeyPagingEnabled,
@@ -102,6 +107,7 @@ class ReaderPreferences {
     dualPageEnabled: dualPageEnabled ?? this.dualPageEnabled,
     dualPageOffsetEnabled: dualPageOffsetEnabled ?? this.dualPageOffsetEnabled,
     immersiveEnabled: immersiveEnabled ?? this.immersiveEnabled,
+    pageTurnAnimation: pageTurnAnimation ?? this.pageTurnAnimation,
     statusPillsEnabled: statusPillsEnabled ?? this.statusPillsEnabled,
     theme: theme ?? this.theme,
     volumeKeyPagingEnabled:
@@ -128,6 +134,11 @@ class ReaderPreferences {
       dualPageEnabled: _bool(values['dualPageEnabled'], false),
       dualPageOffsetEnabled: _bool(values['dualPageOffsetEnabled'], false),
       immersiveEnabled: _bool(values['immersiveEnabled'], false),
+      pageTurnAnimation: _enumFromName(
+        ReaderPageTurnAnimation.values,
+        values['pageTurnAnimation'],
+        ReaderPageTurnAnimation.none,
+      ),
       statusPillsEnabled: _bool(values['statusPillsEnabled'], true),
       theme: _enumFromName(
         ReaderThemeSetting.values,
@@ -149,6 +160,7 @@ class ReaderPreferences {
     'dualPageEnabled': dualPageEnabled,
     'dualPageOffsetEnabled': dualPageOffsetEnabled,
     'immersiveEnabled': immersiveEnabled,
+    'pageTurnAnimation': pageTurnAnimation.name,
     'statusPillsEnabled': statusPillsEnabled,
     'theme': theme.name,
     'volumeKeyPagingEnabled': volumeKeyPagingEnabled,
@@ -163,6 +175,7 @@ class ReaderPreferences {
       other.dualPageEnabled == dualPageEnabled &&
       other.dualPageOffsetEnabled == dualPageOffsetEnabled &&
       other.immersiveEnabled == immersiveEnabled &&
+      other.pageTurnAnimation == pageTurnAnimation &&
       other.statusPillsEnabled == statusPillsEnabled &&
       other.theme == theme &&
       other.volumeKeyPagingEnabled == volumeKeyPagingEnabled &&
@@ -175,6 +188,7 @@ class ReaderPreferences {
     dualPageEnabled,
     dualPageOffsetEnabled,
     immersiveEnabled,
+    pageTurnAnimation,
     statusPillsEnabled,
     theme,
     volumeKeyPagingEnabled,
