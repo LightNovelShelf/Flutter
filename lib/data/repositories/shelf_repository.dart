@@ -167,6 +167,26 @@ class ShelfController extends AsyncNotifier<ShelfSnapshot?> {
     );
     return missing.length;
   }
+
+  /// 一次从书架移出多本书，文件夹和其余条目的位置保持不变。
+  Future<int> removeBooks(Iterable<int> bookIds) async {
+    final ids = bookIds.where((id) => id > 0).toSet();
+    if (ids.isEmpty) return 0;
+    final shelf = await _api.getBookShelf();
+    final removed = shelf.items
+        .where((item) => item.isBook && ids.contains(item.bookId))
+        .length;
+    if (removed == 0) return 0;
+    await save(
+      ShelfDraft(
+        items: shelf.items
+            .where((item) => !item.isBook || !ids.contains(item.bookId))
+            .toList(),
+        version: shelf.version,
+      ),
+    );
+    return removed;
+  }
 }
 
 final AsyncNotifierProvider<ShelfController, ShelfSnapshot?> shelfProvider =
