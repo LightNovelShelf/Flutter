@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:romanize/romanize.dart';
 
 import '../../data/api/models.dart';
 import '../../data/providers.dart';
@@ -17,6 +20,15 @@ import 'shelf_series_books_screen.dart';
 import 'widgets/shelf_manage_sheet.dart';
 import 'widgets/shelf_tile.dart';
 
+enum ShelfSortMode {
+  manual,
+  titleAscending,
+  titleDescending,
+  updatedNewest,
+  updatedOldest,
+  addedNewest,
+}
+
 /// 书架页：根目录（`parents` 为空）与任意层级文件夹共用同一个界面。
 class ShelfScreen extends ConsumerStatefulWidget {
   const ShelfScreen({super.key, this.parents = const <String>[]});
@@ -30,6 +42,33 @@ class ShelfScreen extends ConsumerStatefulWidget {
 
 class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   bool _seriesView = false;
+  ShelfSortMode _sort = ShelfSortMode.manual;
+  bool _romanizerReady = false;
+  bool _romanizerLoading = false;
+  final Map<String, String> _sortKeyCache = <String, String>{};
+
+  void _setSort(ShelfSortMode value) {
+    setState(() {
+      _sort = value;
+      _sortKeyCache.clear();
+    });
+    final needsRomanizer =
+        value == ShelfSortMode.titleAscending ||
+        value == ShelfSortMode.titleDescending;
+    if (!needsRomanizer || _romanizerReady || _romanizerLoading) return;
+    _romanizerLoading = true;
+    unawaited(
+      TextRomanizer.ensureInitialized().then((_) {
+        if (!mounted) return;
+        setState(() {
+          _romanizerReady = true;
+          _romanizerLoading = false;
+          _sortKeyCache.clear();
+        });
+      }),
+    );
+  }
+
   List<String> get _parents => widget.parents;
 
   String get _editorKey => shelfEditorKey(_parents);
@@ -38,6 +77,50 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
       ref.read(shelfEditorProvider(_editorKey).notifier);
 
   ShelfEditorState get _state => ref.read(shelfEditorProvider(_editorKey));
+
+  String _titleSortKey(String title) => _sortKeyCache.putIfAbsent(title, () {
+    final normalized = title.trim().toLowerCase();
+    if (!_romanizerReady || normalized.isEmpty) return normalized;
+    return TextRomanizer.romanize(normalized).toLowerCase();
+  });
+
+  String _itemTitle(ShelfItem item, ShelfLevel level) =>
+      item.isBook ? level.bookById[item.bookId]?.title ?? '' : item.title;
+
+  DateTime _addedAt(ShelfItem item) =>
+      DateTime.tryParse(item.updatedAt) ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+
+  DateTime _updatedAt(ShelfItem item, ShelfLevel level) => item.isBook
+      ? level.bookById[item.bookId]?.lastUpdatedAt ?? _addedAt(item)
+      : _addedAt(item);
+
+  int _compareShelfItems(ShelfItem left, ShelfItem right, ShelfLevel level) {
+    if (left.isBook != right.isBook) return left.isBook ? 1 : -1;
+    final titleOrder = _titleSortKey(_itemTitle(left, level))
+        .compareTo(_titleSortKey(_itemTitle(right, level)));
+    final order = switch (_sort) {
+      ShelfSortMode.manual => left.index.compareTo(right.index),
+      ShelfSortMode.titleAscending => titleOrder,
+      ShelfSortMode.titleDescending => -titleOrder,
+      ShelfSortMode.updatedNewest => _updatedAt(
+        right,
+        level,
+      ).compareTo(_updatedAt(left, level)),
+      ShelfSortMode.updatedOldest => _updatedAt(
+        left,
+        level,
+      ).compareTo(_updatedAt(right, level)),
+      ShelfSortMode.addedNewest => _addedAt(right).compareTo(_addedAt(left)),
+    };
+    return order != 0 ? order : titleOrder;
+  }
+
+  List<ShelfItem> _sortedSiblings(ShelfLevel level) {
+    if (_sort == ShelfSortMode.manual) return level.siblings;
+    return List<ShelfItem>.of(level.siblings)
+      ..sort((left, right) => _compareShelfItems(left, right, level));
+  }
 
   Future<void> _save() async {
     final messenger = ScaffoldMessenger.of(context);
@@ -355,6 +438,8 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
           title: Text(title),
           actions: <Widget>[
             if (snapshot != null && editor.mode == ShelfMode.browse)
+              _ShelfSortMenu(value: _sort, onChanged: _setSort),
+            if (snapshot != null && editor.mode == ShelfMode.browse)
               IconButton(
                 tooltip: _seriesView ? '按单本显示' : '按系列显示',
                 onPressed: () => setState(() => _seriesView = !_seriesView),
@@ -444,7 +529,9 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
     }
 
     final level = _editor.level(snapshot, draft);
-    final siblings = level.siblings;
+    final siblings = editor.mode == ShelfMode.browse
+        ? _sortedSiblings(level)
+        : level.siblings;
     final refreshError = async.hasError
         ? describeShelfError(async.error!)
         : null;
@@ -514,7 +601,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
             ),
           )
         else if (_seriesView && editor.mode == ShelfMode.browse)
-          _seriesGrid(level, layout)
+          _seriesGrid(level, layout, siblings)
         else
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(
@@ -528,13 +615,13 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
                 mainAxisSpacing: editor.mode == ShelfMode.drag ? 18 : null,
               ),
               delegate: IdentityChildDelegate<ShelfItem>(
-                items: level.siblings,
+                items: siblings,
                 revision: (level, layout.tileWidth),
                 itemBuilder: (_, item, index) => ShelfTile(
                   editorKey: _editorKey,
                   item: item,
                   index: index,
-                  siblings: level.siblings,
+                  siblings: siblings,
                   book: item.isBook ? level.bookById[item.bookId] : null,
                   folder: item.isBook
                       ? null
@@ -550,10 +637,14 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
     );
   }
 
-  Widget _seriesGrid(ShelfLevel level, BookGridLayout layout) {
+  Widget _seriesGrid(
+    ShelfLevel level,
+    BookGridLayout layout,
+    List<ShelfItem> siblings,
+  ) {
     final grouped = <String, List<BookListItem>>{};
     final entries = <Object>[];
-    for (final item in level.siblings) {
+    for (final item in siblings) {
       if (!item.isBook) {
         entries.add(item);
         continue;
@@ -573,6 +664,46 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
       books.add(book);
     }
 
+    if (_sort != ShelfSortMode.manual) {
+      String titleOf(Object entry) =>
+          entry is String ? entry : _itemTitle(entry as ShelfItem, level);
+      DateTime addedAt(Object entry) => entry is String
+          ? grouped[entry]!
+                .map(
+                  (book) => siblings.firstWhere(
+                    (item) => item.isBook && item.bookId == book.id,
+                  ),
+                )
+                .map(_addedAt)
+                .reduce((left, right) => left.isAfter(right) ? left : right)
+          : _addedAt(entry as ShelfItem);
+      DateTime updatedAt(Object entry) => entry is String
+          ? grouped[entry]!
+                .map((book) => book.lastUpdatedAt)
+                .reduce((left, right) => left.isAfter(right) ? left : right)
+          : _updatedAt(entry as ShelfItem, level);
+      entries.sort((left, right) {
+        final leftFolder = left is ShelfItem && !left.isBook;
+        final rightFolder = right is ShelfItem && !right.isBook;
+        if (leftFolder != rightFolder) return leftFolder ? -1 : 1;
+        final titleOrder = _titleSortKey(titleOf(left))
+            .compareTo(_titleSortKey(titleOf(right)));
+        final order = switch (_sort) {
+          ShelfSortMode.manual => 0,
+          ShelfSortMode.titleAscending => titleOrder,
+          ShelfSortMode.titleDescending => -titleOrder,
+          ShelfSortMode.updatedNewest => updatedAt(
+            right,
+          ).compareTo(updatedAt(left)),
+          ShelfSortMode.updatedOldest => updatedAt(
+            left,
+          ).compareTo(updatedAt(right)),
+          ShelfSortMode.addedNewest => addedAt(right).compareTo(addedAt(left)),
+        };
+        return order != 0 ? order : titleOrder;
+      });
+    }
+
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(
         BookGridLayout.horizontalPadding,
@@ -582,45 +713,77 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
       ),
       sliver: SliverGrid(
         gridDelegate: layout.tileGridDelegate(),
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final entry = entries[index];
-            if (entry is String) {
-              final books = grouped[entry]!;
-              final latest = books.reduce(
-                (left, right) =>
-                    left.lastUpdatedAt.isAfter(right.lastUpdatedAt)
-                    ? left
-                    : right,
-              );
-              return NovelSeriesTile(
-                series: NovelSeriesListItem(
-                  name: entry,
-                  coverUrl: latest.coverUrl,
-                  coverPlaceholder: latest.coverPlaceholder,
-                  bookCount: books.length,
-                  lastUpdatedAt: latest.lastUpdatedAt,
-                ),
-                coverHeight: layout.coverHeight,
-                onTap: () => _openShelfSeries(entry, books),
-              );
-            }
-            final item = entry as ShelfItem;
-            return ShelfTile(
-              editorKey: _editorKey,
-              item: item,
-              index: level.siblings.indexOf(item),
-              siblings: level.siblings,
-              book: item.isBook ? level.bookById[item.bookId] : null,
-              folder: item.isBook ? null : level.folderPreviews[item.folderId],
-              tileWidth: layout.tileWidth,
-              onOpenBook: _openBook,
-              onOpenFolder: _openFolder,
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final entry = entries[index];
+          if (entry is String) {
+            final books = grouped[entry]!;
+            final latest = books.reduce(
+              (left, right) => left.lastUpdatedAt.isAfter(right.lastUpdatedAt)
+                  ? left
+                  : right,
             );
-          },
-          childCount: entries.length,
-        ),
+            return NovelSeriesTile(
+              series: NovelSeriesListItem(
+                name: entry,
+                coverUrl: latest.coverUrl,
+                coverPlaceholder: latest.coverPlaceholder,
+                bookCount: books.length,
+                lastUpdatedAt: latest.lastUpdatedAt,
+              ),
+              coverHeight: layout.coverHeight,
+              onTap: () => _openShelfSeries(entry, books),
+            );
+          }
+          final item = entry as ShelfItem;
+          return ShelfTile(
+            editorKey: _editorKey,
+            item: item,
+            index: level.siblings.indexOf(item),
+            siblings: level.siblings,
+            book: item.isBook ? level.bookById[item.bookId] : null,
+            folder: item.isBook ? null : level.folderPreviews[item.folderId],
+            tileWidth: layout.tileWidth,
+            onOpenBook: _openBook,
+            onOpenFolder: _openFolder,
+          );
+        }, childCount: entries.length),
       ),
     );
   }
+}
+
+class _ShelfSortMenu extends StatelessWidget {
+  const _ShelfSortMenu({required this.value, required this.onChanged});
+
+  final ShelfSortMode value;
+  final ValueChanged<ShelfSortMode> onChanged;
+
+  static const Map<ShelfSortMode, String> _labels = <ShelfSortMode, String>{
+    ShelfSortMode.manual: '手动顺序',
+    ShelfSortMode.titleAscending: '标题 A–Z（拼音/罗马字）',
+    ShelfSortMode.titleDescending: '标题 Z–A（拼音/罗马字）',
+    ShelfSortMode.updatedNewest: '最近更新',
+    ShelfSortMode.updatedOldest: '最早更新',
+    ShelfSortMode.addedNewest: '最近加入',
+  };
+
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<ShelfSortMode>(
+    tooltip: '书架排序',
+    icon: const Icon(Icons.sort),
+    position: PopupMenuPosition.under,
+    onSelected: onChanged,
+    itemBuilder: (_) => <PopupMenuEntry<ShelfSortMode>>[
+      for (final entry in _labels.entries)
+        PopupMenuItem<ShelfSortMode>(
+          value: entry.key,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: Text(entry.value),
+            trailing: entry.key == value ? const Icon(Icons.check) : null,
+          ),
+        ),
+    ],
+  );
 }
