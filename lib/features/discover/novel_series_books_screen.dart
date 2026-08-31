@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/api/api_client.dart';
+import '../../data/api/models.dart';
 import '../../data/providers.dart';
 import '../../data/repositories/shelf_repository.dart';
 import '../../shared/widgets/book_cover_grid_item.dart';
