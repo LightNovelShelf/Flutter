@@ -36,7 +36,7 @@ import 'widgets/reader_status_pills.dart';
 import 'widgets/reader_tap_zone.dart';
 import 'widgets/reader_theme.dart';
 
-/// 漫画阅读器：整页图片，按 12 页一批向服务端取图。
+/// 漫画阅读器：整页图片，按 6 页一批向服务端取图。
 class ComicReaderScreen extends ConsumerStatefulWidget {
   const ComicReaderScreen({
     super.key,
@@ -53,7 +53,7 @@ class ComicReaderScreen extends ConsumerStatefulWidget {
 
 class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     with ReaderLoadState<ComicReaderScreen> {
-  static const int _batchSize = 12;
+  static const int _batchSize = 6;
 
   /// 尺寸未知时先按常见竖版单页占位。
   static const double _unknownAspect = 1.5;
@@ -86,7 +86,6 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
   /// 当前页只驱动页码指示器和工具栏，连续模式下滚动换页不重建整屏。
   final ValueNotifier<int> _pageNotifier = ValueNotifier<int>(0);
   int get _page => _pageNotifier.value;
-  int _direction = 1;
 
   final Set<int> _loadingBatches = <int>{};
   final Set<int> _failedBatches = <int>{};
@@ -262,7 +261,6 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
             content.chapter.images,
           ),
         );
-        _direction = 1;
         loading = false;
       });
       // 分屏表随 _setSlots 建好，落位的页要退回所在屏的屏首。
@@ -397,9 +395,10 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     );
   }
 
-  /// 当前页两侧优先取图，再沿阅读方向预取。
+  /// 当前页按需取图，只预取后续 4 页。
   Future<void> _prefetch() async {
-    final plan = createComicPrefetchPlan(_page, _slots.length, _direction);
+    await _ensureBatch(_page);
+    final plan = createComicPrefetchPlan(_page, _slots.length);
     for (final index in plan) {
       await _ensureBatch(index);
     }
@@ -442,7 +441,6 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
 
   void _onPageChanged(int page) {
     if (page == _page) return;
-    _direction = page > _page ? 1 : -1;
     _pageNotifier.value = page;
     _stage(page);
     _schedulePrefetch();
@@ -518,7 +516,6 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     if (controller == null || !controller.hasClients || _slots.isEmpty) return;
     final page = _pageAtOffset(controller.offset);
     if (page == _page) return;
-    _direction = page > _page ? 1 : -1;
     _pageNotifier.value = page;
     _stage(page);
     _schedulePrefetch();
@@ -591,8 +588,10 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
 
   void _toggleChrome() => _chromeVisible.value = !_chromeVisible.value;
 
-  /// 构建期只登记缺图的批次，帧末再发请求：build 里不能有网络副作用和 setState。
-  void _requestBatch(int skip) {
+  /// 构建期只登记当前页和后续页的缺图批次，帧末统一发请求。
+  void _requestBatch(int page) {
+    if (page < _page || page > _page + comicPrefetchCount) return;
+    final skip = getComicPageBatchStart(page, _slots.length, _batchSize);
     if (_loadingBatches.contains(skip)) return;
     if (!_pendingBatches.add(skip) || _batchFlushScheduled) return;
     _batchFlushScheduled = true;
@@ -619,7 +618,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
           onRetry: () => unawaited(_ensureBatch(index, retry: true)),
         );
       }
-      _requestBatch(skip);
+      _requestBatch(index);
       return SizedBox(
         width: width,
         height: height,

@@ -135,7 +135,7 @@ extension ApiClientCatalog on ApiClient {
   Future<ComicContent> getComicContent({
     required int chapterId,
     int skip = 0,
-    int take = 12,
+    int take = 6,
     RequestPriority priority = RequestPriority.interactive,
   }) => invoke(
     'GetComicContent',

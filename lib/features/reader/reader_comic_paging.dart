@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import '../../data/api/models.dart';
 
+const int comicPrefetchCount = 4;
+
 /// 漫画整页的取图与排布：纯数据变换，翻页/连续两种模式共用。
 
 class ComicPageSlot {
@@ -35,19 +37,13 @@ int getComicPageBatchStart(int index, int total, int batchSize) {
   return (clamped ~/ batchSize) * batchSize;
 }
 
-/// 当前页两侧优先，再沿阅读方向多取 4 页。
-List<int> createComicPrefetchPlan(int current, int total, int direction) {
+/// 只预取当前页之后的 4 页。
+List<int> createComicPrefetchPlan(int current, int total) {
   final plan = <int>[];
-  void add(int index) {
-    if (index < 0 || index >= total || plan.contains(index)) return;
-    plan.add(index);
-  }
-
-  add(current);
-  add(current + 1);
-  add(current - 1);
-  for (var offset = 0; offset < 4; offset++) {
-    add(current + direction * (offset + 2));
+  for (var offset = 1; offset <= comicPrefetchCount; offset++) {
+    final index = current + offset;
+    if (index >= total) break;
+    if (index >= 0) plan.add(index);
   }
   return plan;
 }

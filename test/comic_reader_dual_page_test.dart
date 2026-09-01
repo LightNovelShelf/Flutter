@@ -76,6 +76,7 @@ class _FakeApi extends ApiClient {
       case 'GetComicContent':
         final skip = args['Skip']! as int;
         final take = args['Take']! as int;
+        expect(take, 6);
         return decode(<String, Object?>{
           'Chapter': <String, Object?>{
             'Id': _chapterId,

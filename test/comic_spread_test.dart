@@ -6,6 +6,12 @@ const double _portrait = 1.5;
 const double _wide = 0.625;
 
 void main() {
+  test('漫画只预加载后续四页', () {
+    expect(createComicPrefetchPlan(3, 20), <int>[4, 5, 6, 7]);
+    expect(createComicPrefetchPlan(3, 7), <int>[4, 5, 6]);
+    expect(createComicPrefetchPlan(6, 7), isEmpty);
+  });
+
   test('竖版页两两成对', () {
     expect(
       createComicSpreads(const <double>[
