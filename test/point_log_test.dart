@@ -35,6 +35,7 @@ void main() {
     expect(pointLogSourceLabel('PublishNovel', 10), '发布小说');
     expect(pointLogSourceLabel('PublishNovel', -10), '发布小说回收');
     expect(pointLogSourceLabel('ShopPurchase', -10), '商店购买');
+    expect(pointLogSourceLabel('ComicRead', -5), '漫画阅读');
     expect(pointLogSourceLabel('FutureSource', 10), 'FutureSource');
   });
 }

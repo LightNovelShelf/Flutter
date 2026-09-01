@@ -25,6 +25,7 @@ const Map<String, String> _sourceLabels = <String, String>{
   'Invite': '邀请注册',
   'DownloadNovel': '下载小说',
   'DownloadComic': '下载漫画',
+  'ComicRead': '漫画阅读',
   'ShareNovel': '小说下载分成',
   'ShareComic': '漫画下载分成',
   'ShopPurchase': '商店购买',
@@ -34,6 +35,7 @@ const Map<String, String> _sourceLabels = <String, String>{
 const Set<String> _spendSources = <String>{
   'DownloadNovel',
   'DownloadComic',
+  'ComicRead',
   'ShopPurchase',
 };
 
