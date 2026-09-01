@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightnovel/data/api/models.dart';
-import 'package:lightnovel/features/settings/point_log_sheet.dart';
 
 void main() {
   test('decodes point log page and entries', () {
