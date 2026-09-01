@@ -14,36 +14,6 @@ import '../../shared/widgets/state_views.dart';
 
 enum PointLogKind { experience, coin }
 
-const Map<String, String> _sourceLabels = <String, String>{
-  'SignIn': '签到',
-  'Read': '阅读',
-  'PublishNovel': '发布小说',
-  'PublishComic': '发布漫画',
-  'Thread': '发帖',
-  'Reply': '回复',
-  'BookComment': '评论',
-  'Invite': '邀请注册',
-  'DownloadNovel': '下载小说',
-  'DownloadComic': '下载漫画',
-  'ComicRead': '漫画阅读',
-  'ShareNovel': '小说下载分成',
-  'ShareComic': '漫画下载分成',
-  'ShopPurchase': '商店购买',
-  'Admin': '系统',
-};
-
-const Set<String> _spendSources = <String>{
-  'DownloadNovel',
-  'DownloadComic',
-  'ComicRead',
-  'ShopPurchase',
-};
-
-String pointLogSourceLabel(String source, int amount) {
-  final label = _sourceLabels[source] ?? source;
-  return amount < 0 && !_spendSources.contains(source) ? '$label回收' : label;
-}
-
 Future<void> showPointLogSheet(
   BuildContext context, {
   required PointLogKind kind,
@@ -190,7 +160,7 @@ class _PointLogTile extends StatelessWidget {
         '${entry.amount >= 0 ? '+' : ''}${formatCount(entry.amount)}';
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      title: Text(pointLogSourceLabel(entry.source, entry.amount)),
+      title: Text(entry.sourceLabel),
       subtitle: Text(formatRelativeTime(entry.occurredAt)),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,

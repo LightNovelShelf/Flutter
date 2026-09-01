@@ -3,6 +3,7 @@ import '../decode.dart';
 class PointLogEntry {
   const PointLogEntry({
     required this.source,
+    required this.sourceLabel,
     required this.amount,
     required this.balance,
     required this.referenceId,
@@ -10,6 +11,7 @@ class PointLogEntry {
   });
 
   final String source;
+  final String sourceLabel;
   final int amount;
   final int balance;
   final int? referenceId;
@@ -19,6 +21,7 @@ class PointLogEntry {
     final record = asRecord(value, '流水记录');
     return PointLogEntry(
       source: asString(record['Source']),
+      sourceLabel: asString(record['SourceLabel']),
       amount: asInt(record['Amount']),
       balance: asInt(record['Balance']),
       referenceId: asNullableInt(record['RefId']),
