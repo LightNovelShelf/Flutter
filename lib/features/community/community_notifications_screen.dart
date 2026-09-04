@@ -96,7 +96,7 @@ class _CommunityNotificationsScreenState
               )
             : const CommunityStateCard(
                 title: '没有通知',
-                description: '讨论回复和评论动态会显示在这里。',
+                description: '系统消息、评论和社区回复会显示在这里。',
                 icon: Icons.notifications_none,
               ),
       );
@@ -126,39 +126,80 @@ class _CommunityNotificationsScreenState
   );
 }
 
-/// 通知对应的目标路由，无法定位时返回 null。
+/// 通知动作对应的目标路由；空动作、未知动作或参数错误都不跳转。
 String? notificationRoute(AppNotificationItem item) {
-  final id = item.extra.objectId > 0 ? item.extra.objectId : item.objectId;
-  switch (item.objectType) {
-    case AppNotificationObjectType.communityThread:
-      if (id <= 0) return null;
-      final replyId = item.extra.replyId;
-      // 只带 replyId，服务端会定位它所在的主楼
-      return replyId == null
-          ? '/community/thread/$id'
-          : '/community/thread/$id?replyId=$replyId';
-    case AppNotificationObjectType.book:
-      if (id <= 0) return null;
-      final title = item.extra.objectTitle.trim();
+  final action = item.action;
+  if (action == null) return null;
+  final data = action.data;
+
+  switch (action.type) {
+    case 'open_book':
+      final bookId = _positiveInt(data['book_id']);
+      return bookId == null ? null : '/book/$bookId';
+    case 'open_announcement':
+      final announcementId = _positiveInt(data['announcement_id']);
+      return announcementId == null ? null : '/announcement/$announcementId';
+    case 'open_community_thread':
+      final threadId = _positiveInt(data['thread_id']);
+      if (threadId == null) return null;
+      final replyId = _positiveInt(data['reply_id']);
       return Uri(
-        path: '/book/$id/comments',
-        queryParameters: <String, String>{if (title.isNotEmpty) 'title': title},
+        path: '/community/thread/$threadId',
+        queryParameters: <String, String>{
+          if (replyId != null) 'replyId': '$replyId',
+        },
       ).toString();
-    case AppNotificationObjectType.announcement:
-      if (id <= 0) return null;
-      return '/announcement/$id';
-    case AppNotificationObjectType.series:
-      // 系列通知没有实体对象，只能按系列标题定位评论。
-      final seriesTitle = (item.extra.seriesTitle ?? '').trim();
-      if (seriesTitle.isEmpty) return null;
-      return Uri(
-        path: '/books/series/comments',
-        queryParameters: <String, String>{'name': seriesTitle},
-      ).toString();
-    case AppNotificationObjectType.unknown:
+    default:
       return null;
   }
 }
+
+int? _positiveInt(Object? value) {
+  final parsed = switch (value) {
+    int number => number,
+    num number when number.isFinite => number.toInt(),
+    String text => int.tryParse(text),
+    _ => null,
+  };
+  return parsed != null && parsed > 0 ? parsed : null;
+}
+
+typedef _TonePresentation = ({
+  IconData icon,
+  Color foreground,
+  Color background,
+});
+
+_TonePresentation _tonePresentation(
+  ColorScheme colors,
+  AppNotificationTone tone,
+) => switch (tone) {
+  AppNotificationTone.info => (
+    icon: Icons.info_outline,
+    foreground: colors.primary,
+    background: colors.primaryContainer.withValues(alpha: 0.45),
+  ),
+  AppNotificationTone.success => (
+    icon: Icons.check_circle_outline,
+    foreground: colors.tertiary,
+    background: colors.tertiaryContainer.withValues(alpha: 0.45),
+  ),
+  AppNotificationTone.warning => (
+    icon: Icons.warning_amber_rounded,
+    foreground: const Color(0xFFF59E0B),
+    background: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+  ),
+  AppNotificationTone.danger => (
+    icon: Icons.error_outline,
+    foreground: colors.error,
+    background: colors.errorContainer.withValues(alpha: 0.45),
+  ),
+  AppNotificationTone.neutral => (
+    icon: Icons.notifications_none,
+    foreground: colors.onSurfaceVariant,
+    background: colors.surfaceContainerHighest,
+  ),
+};
 
 class _NotificationCard extends StatelessWidget {
   const _NotificationCard({required this.item, required this.onTap});
@@ -170,99 +211,92 @@ class _NotificationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final unread = !item.isRead;
-    final actorName = item.actor?.userName.trim().isNotEmpty ?? false
-        ? item.actor!.userName.trim()
-        : '轻书架';
-    final preview = item.extra.replyPreview?.trim().isNotEmpty ?? false
-        ? item.extra.replyPreview!.trim()
-        : item.extra.preview.trim();
+    final actor = item.actor;
+    final actorName = actor?.userName.trim().isNotEmpty ?? false
+        ? actor!.userName.trim()
+        : '系统';
+    final presentation = _tonePresentation(colors, item.tone);
+    final route = notificationRoute(item);
 
     return CommunityCard(
       radius: 18,
-      onTap: onTap,
-      background: unread ? colors.surfaceContainerHighest : null,
-      borderColor: unread ? colors.primary : null,
+      onTap: unread || route != null ? onTap : null,
+      background: unread ? presentation.background : null,
+      borderColor: unread ? presentation.foreground : null,
       padding: const EdgeInsets.all(15),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Row(
             children: <Widget>[
-              UserAvatar(
-                url: item.actor?.avatar ?? '',
-                name: actorName,
-                size: 38,
-              ),
+              if (actor == null)
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: presentation.background,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    presentation.icon,
+                    size: 21,
+                    color: presentation.foreground,
+                  ),
+                )
+              else
+                UserAvatar(url: actor.avatar, name: actorName, size: 38),
               const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Flexible(
-                          child: Text(
-                            actorName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: colors.onSurface,
-                            ),
-                          ),
+                    Flexible(
+                      child: Text(
+                        actorName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: colors.onSurface,
                         ),
-                        if (unread) ...<Widget>[
-                          const SizedBox(width: 7),
-                          Container(
-                            width: 7,
-                            height: 7,
-                            decoration: BoxDecoration(
-                              color: colors.primary,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _actionLabel(item.type),
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: colors.onSurfaceVariant,
                       ),
                     ),
+                    if (unread) ...<Widget>[
+                      const SizedBox(width: 7),
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: presentation.foreground,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
               const SizedBox(width: 10),
-              Icon(
-                _typeIcon(item.objectType),
-                size: 20,
-                color: colors.onSurfaceVariant,
+              Text(
+                formatRelativeTimeFine(item.createdAt),
+                style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
               ),
             ],
           ),
-          if (item.extra.objectTitle.trim().isNotEmpty) ...<Widget>[
-            const SizedBox(height: 10),
-            Text(
-              item.extra.objectTitle.trim(),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: colors.onSurface,
-              ),
+          const SizedBox(height: 12),
+          Text(
+            item.title,
+            style: TextStyle(
+              fontSize: 15,
+              height: 21 / 15,
+              fontWeight: FontWeight.w700,
+              color: colors.onSurface,
             ),
-          ],
-          if (preview.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 10),
+          ),
+          if (item.body.trim().isNotEmpty) ...<Widget>[
+            const SizedBox(height: 7),
             Text(
-              preview,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+              item.body,
               style: TextStyle(
                 fontSize: 14,
                 height: 20 / 14,
@@ -270,54 +304,19 @@ class _NotificationCard extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 10),
-          Row(
-            children: <Widget>[
-              CommunityTagPill(
-                label: _objectLabel(item.objectType),
-                tone: CommunityTagTone.neutral,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  formatRelativeTimeFine(item.createdAt),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              Icon(
+          if (route != null) ...<Widget>[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Icon(
                 Icons.chevron_right,
-                size: 17,
+                size: 18,
                 color: colors.onSurfaceVariant,
               ),
-            ],
-          ),
+            ),
+          ],
         ],
       ),
     );
   }
-
-  static String _actionLabel(AppNotificationType type) => switch (type) {
-    AppNotificationType.comment => '评论了你的内容',
-    AppNotificationType.commentReply => '回复了你的评论',
-    AppNotificationType.communityThreadReply => '回复了你的讨论',
-    AppNotificationType.communityThreadChildReply => '回复了你的社区回复',
-    AppNotificationType.unknown => '向你发送了一条通知',
-  };
-
-  static String _objectLabel(AppNotificationObjectType type) => switch (type) {
-    AppNotificationObjectType.communityThread => '社区',
-    AppNotificationObjectType.book => '书籍',
-    AppNotificationObjectType.announcement => '公告',
-    AppNotificationObjectType.series => '系列',
-    AppNotificationObjectType.unknown => '通知',
-  };
-
-  static IconData _typeIcon(AppNotificationObjectType type) => switch (type) {
-    AppNotificationObjectType.book => Icons.menu_book_outlined,
-    AppNotificationObjectType.announcement => Icons.campaign_outlined,
-    _ => Icons.mode_comment_outlined,
-  };
 }

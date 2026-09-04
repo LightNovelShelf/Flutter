@@ -1,37 +1,14 @@
 import '../decode.dart';
 
-enum AppNotificationType {
-  comment,
-  commentReply,
-  communityThreadReply,
-  communityThreadChildReply,
-  unknown,
-}
+enum AppNotificationTone { neutral, info, success, warning, danger }
 
-AppNotificationType _decodeNotificationType(Object? value) => switch (value) {
-  'Comment' => AppNotificationType.comment,
-  'CommentReply' => AppNotificationType.commentReply,
-  'CommunityThreadReply' => AppNotificationType.communityThreadReply,
-  'CommunityThreadChildReply' => AppNotificationType.communityThreadChildReply,
-  _ => AppNotificationType.unknown,
+AppNotificationTone _decodeNotificationTone(Object? value) => switch (value) {
+  'info' => AppNotificationTone.info,
+  'success' => AppNotificationTone.success,
+  'warning' => AppNotificationTone.warning,
+  'danger' => AppNotificationTone.danger,
+  _ => AppNotificationTone.neutral,
 };
-
-enum AppNotificationObjectType {
-  book,
-  announcement,
-  communityThread,
-  series,
-  unknown,
-}
-
-AppNotificationObjectType _decodeNotificationObjectType(Object? value) =>
-    switch (value) {
-      'Book' => AppNotificationObjectType.book,
-      'Announcement' => AppNotificationObjectType.announcement,
-      'CommunityThread' => AppNotificationObjectType.communityThread,
-      'Series' => AppNotificationObjectType.series,
-      _ => AppNotificationObjectType.unknown,
-    };
 
 class AppNotificationActor {
   const AppNotificationActor({
@@ -43,87 +20,96 @@ class AppNotificationActor {
   final int id;
   final String userName;
   final String avatar;
+
+  static AppNotificationActor? decode(Object? value) {
+    final actor = asRecordOrNull(value);
+    if (actor == null) return null;
+    return AppNotificationActor(
+      id: asInt(actor['Id']),
+      userName: asStringOrEmpty(actor['UserName']),
+      avatar: asStringOrEmpty(actor['Avatar']),
+    );
+  }
 }
 
-class AppNotificationExtra {
-  const AppNotificationExtra({
-    required this.objectId,
-    required this.objectTitle,
-    required this.seriesTitle,
-    required this.preview,
-    required this.replyId,
-    required this.replyToReplyId,
-    required this.replyPreview,
-  });
+class AppNotificationAction {
+  const AppNotificationAction({required this.type, required this.data});
 
-  final int objectId;
-  final String objectTitle;
-  final String? seriesTitle;
-  final String preview;
-  final int? replyId;
-  final int? replyToReplyId;
-  final String? replyPreview;
+  final String type;
+  final Map<String, dynamic> data;
+
+  static AppNotificationAction? decode(Object? value) {
+    final action = asRecordOrNull(value);
+    if (action == null) return null;
+    final type = asStringOrEmpty(action['Type']);
+    if (type.isEmpty) return null;
+    return AppNotificationAction(
+      type: type,
+      data: asRecordOrEmpty(action['Data']),
+    );
+  }
 }
 
 class AppNotificationItem {
   const AppNotificationItem({
     required this.id,
     required this.actor,
-    required this.type,
-    required this.objectType,
-    required this.objectId,
+    required this.kind,
+    required this.schemaVersion,
+    required this.title,
+    required this.body,
+    required this.tone,
+    required this.action,
+    required this.data,
     required this.isRead,
+    required this.readAt,
     required this.createdAt,
-    required this.extra,
   });
 
   final int id;
   final AppNotificationActor? actor;
-  final AppNotificationType type;
-  final AppNotificationObjectType objectType;
-  final int objectId;
+  final String kind;
+  final int schemaVersion;
+  final String title;
+  final String body;
+  final AppNotificationTone tone;
+  final AppNotificationAction? action;
+  final Map<String, dynamic> data;
   final bool isRead;
+  final DateTime? readAt;
   final DateTime? createdAt;
-  final AppNotificationExtra extra;
 
-  AppNotificationItem copyWith({bool? isRead}) => AppNotificationItem(
-    id: id,
-    actor: actor,
-    type: type,
-    objectType: objectType,
-    objectId: objectId,
-    isRead: isRead ?? this.isRead,
-    createdAt: createdAt,
-    extra: extra,
-  );
+  AppNotificationItem copyWith({bool? isRead, DateTime? readAt}) =>
+      AppNotificationItem(
+        id: id,
+        actor: actor,
+        kind: kind,
+        schemaVersion: schemaVersion,
+        title: title,
+        body: body,
+        tone: tone,
+        action: action,
+        data: data,
+        isRead: isRead ?? this.isRead,
+        readAt: readAt ?? this.readAt,
+        createdAt: createdAt,
+      );
 
   static AppNotificationItem decode(Object? value) {
     final item = asRecord(value, '通知');
-    final actor = asRecordOrNull(item['Actor']);
-    final extra = asRecordOrEmpty(item['Extra']);
     return AppNotificationItem(
       id: asInt(item['Id']),
-      actor: actor == null
-          ? null
-          : AppNotificationActor(
-              id: asInt(actor['Id']),
-              userName: asStringOrEmpty(actor['UserName']),
-              avatar: asStringOrEmpty(actor['Avatar']),
-            ),
-      type: _decodeNotificationType(item['Type']),
-      objectType: _decodeNotificationObjectType(item['ObjectType']),
-      objectId: asInt(item['ObjectId'], 0),
+      actor: AppNotificationActor.decode(item['Actor']),
+      kind: asStringOrEmpty(item['Kind']),
+      schemaVersion: asInt(item['SchemaVersion'], 1),
+      title: asStringOrEmpty(item['Title']),
+      body: asStringOrEmpty(item['Body']),
+      tone: _decodeNotificationTone(item['Tone']),
+      action: AppNotificationAction.decode(item['Action']),
+      data: asRecordOrEmpty(item['Data']),
       isRead: asBool(item['IsRead'], false),
+      readAt: asNullableDate(item['ReadAt']),
       createdAt: asNullableDate(item['CreatedAt']),
-      extra: AppNotificationExtra(
-        objectId: asInt(extra['object_id'], 0),
-        objectTitle: asStringOrEmpty(extra['object_title']),
-        seriesTitle: asNullableString(extra['series_title']),
-        preview: asStringOrEmpty(extra['preview']),
-        replyId: asNullableInt(extra['reply_id']),
-        replyToReplyId: asNullableInt(extra['reply_to_reply_id']),
-        replyPreview: asNullableString(extra['reply_preview']),
-      ),
     );
   }
 }
