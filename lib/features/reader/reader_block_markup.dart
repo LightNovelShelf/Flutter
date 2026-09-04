@@ -21,22 +21,25 @@ final RegExp _classAttributePattern = RegExp(
 );
 final RegExp _whitespacePattern = RegExp(r'\s+');
 
-/// 按全章顺序给脚注标记编号，逐块产出可渲染 HTML。
+/// 按全章首次出现顺序给脚注编号，重复引用复用编号，逐块产出可渲染 HTML。
 ///
-/// 编号跨块连续，所以只能顺序取。阅读器按测量分片逐段调用，避免打开章节时
+/// 编号状态跨块连续，所以只能顺序取。阅读器按测量分片逐段调用，避免打开章节时
 /// 一次性把整章扫完。
 class ReaderBlockMarkupBuilder {
   ReaderBlockMarkupBuilder(this.style);
 
   final ReaderContentStyle style;
-  int _footnote = 0;
+  final Map<String, int> _footnoteNumbers = <String, int>{};
 
   String next(ReaderBlock block) {
     final html = block.html.replaceAllMapped(_footnoteMarkerPattern, (match) {
-      _footnote++;
       final id = _unescapeHtmlAttribute(match[1] ?? '');
+      final number = _footnoteNumbers.putIfAbsent(
+        id,
+        () => _footnoteNumbers.length + 1,
+      );
       final href = '$readerFootnoteScheme:${Uri.encodeComponent(id)}';
-      return '<a href="$href"><sup>[$_footnote]</sup></a>';
+      return '<a href="$href"><sup>[$number]</sup></a>';
     });
     return _indentBlock(html, style);
   }

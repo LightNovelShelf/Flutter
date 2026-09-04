@@ -124,6 +124,27 @@ void main() {
       expect(result.html, isNot(contains('<ol')));
     });
 
+    test('前端规范脚注 HTML 可摘取且重复引用共用注文', () {
+      const id = 'ln-fn-1';
+      const html =
+          '<p>甲<a class="duokan-footnote" data-footnote-id="$id" href="#$id" '
+          'role="doc-noteref"><sup>[1]</sup></a>乙'
+          '<a class="duokan-footnote" data-footnote-id="$id" href="#$id" '
+          'role="doc-noteref"><sup>[1]</sup></a></p>'
+          '<section class="footnotes">'
+          '<aside id="$id" data-footnote-label="note-a"><p>注文</p></aside>'
+          '</section>';
+
+      final result = processNovelFootnotes(html);
+
+      expect(result.notesById, <String, String>{id: '<p>注文</p>'});
+      expect(
+        RegExp('data-reader-footnote-id="$id"').allMatches(result.html).length,
+        2,
+      );
+      expect(result.html, isNot(contains('class="footnotes"')));
+    });
+
     test('路径失配时逐级回退到父级块', () {
       final blocks = _blocks(_html);
 

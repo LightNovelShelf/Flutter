@@ -31,6 +31,20 @@ void main() {
       expect(markup.join(), isNot(contains('data-reader-footnote-id')));
     });
 
+    test('同一脚注重复引用复用首次编号', () {
+      final blocks = _blocks(
+        '<p>甲<a data-reader-footnote-id="n1">*</a></p>'
+        '<p>乙<a data-reader-footnote-id="n2">*</a></p>'
+        '<p>丙<a data-reader-footnote-id="n1">*</a></p>',
+      );
+      final builder = ReaderBlockMarkupBuilder(_style());
+      final markup = <String>[for (final block in blocks) builder.next(block)];
+
+      expect(markup[0], contains('<sup>[1]</sup>'));
+      expect(markup[1], contains('<sup>[2]</sup>'));
+      expect(markup[2], contains('<sup>[1]</sup>'));
+    });
+
     test('转义过的 id 还原成 processNovelFootnotes 交出的原值', () {
       final block = _blocks(
         '<p>甲<a data-reader-footnote-id="a&amp;b">*</a></p>',
