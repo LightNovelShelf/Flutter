@@ -4,7 +4,7 @@ import 'package:lightnovel/features/settings/sign_in_sheet.dart';
 import 'package:lightnovel/features/shop/shop_screen.dart';
 
 void main() {
-  test('decodes shop catalog and clamps remaining monthly purchases', () {
+  test('decodes limited and unlimited shop purchase rules', () {
     final catalog = ShopCatalog.decode(<String, Object?>{
       'Coin': 120,
       'Items': <Object?>[
@@ -18,17 +18,31 @@ void main() {
           'MonthlyLimit': 2,
           'MonthlyPurchased': 3,
         },
+        <String, Object?>{
+          'Key': comicQuotaItemKey,
+          'Name': '漫画额度 ×50',
+          'Description': '使用后获得 50 点漫画额度',
+          'Image': '/img/shop/comic-quota.svg',
+          'Price': 100,
+          'Owned': 2,
+          'MonthlyPurchased': 4,
+        },
       ],
     });
 
+    final limited = catalog.items.first;
+    final unlimited = catalog.items.last;
     expect(catalog.coin, 120);
-    expect(catalog.items.single.key, signMakeupItemKey);
-    expect(catalog.items.single.price, 30);
-    expect(catalog.items.single.owned, 1);
-    expect(catalog.items.single.remaining, 0);
+    expect(limited.key, signMakeupItemKey);
+    expect(limited.remaining, 0);
+    expect(limited.canPurchase, isFalse);
+    expect(unlimited.key, comicQuotaItemKey);
+    expect(unlimited.monthlyLimit, isNull);
+    expect(unlimited.remaining, isNull);
+    expect(unlimited.canPurchase, isTrue);
   });
 
-  test('decodes inventory, calendar, purchase, and makeup responses', () {
+  test('decodes inventory, purchase, makeup, and quota use responses', () {
     final inventory = OwnedShopItems.decode(<String, Object?>{
       'Items': <Object?>[
         <String, Object?>{
@@ -61,12 +75,32 @@ void main() {
       'CoinReward': 2,
       'Owned': 1,
     });
+    final quota = ComicQuotaUseResult.decode(<String, Object?>{
+      'Key': comicQuotaItemKey,
+      'Granted': 50,
+      'Quota': 125,
+      'Owned': 1,
+    });
 
     expect(inventory.items.single.quantity, 2);
     expect(calendar.days.single.day, 9);
     expect(purchase.coin, 90);
     expect(makeup.streak, 4);
     expect(makeup.owned, 1);
+    expect(quota.key, comicQuotaItemKey);
+    expect(quota.granted, 50);
+    expect(quota.quota, 125);
+    expect(quota.owned, 1);
+  });
+
+  test('decodes permanent and daily comic quota balances', () {
+    final profile = UserProfile.decode(<String, Object?>{
+      'Id': 1,
+      'Growth': <String, Object?>{'ComicQuota': 125, 'ComicQuotaToday': 20},
+    });
+
+    expect(profile.growth.comicQuota, 125);
+    expect(profile.growth.comicQuotaToday, 20);
   });
 
   test('makeup eligibility uses the inclusive 30-day UTC window', () {

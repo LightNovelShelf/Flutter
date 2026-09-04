@@ -28,6 +28,8 @@ class UserGrowth {
   const UserGrowth({
     required this.experience,
     required this.coin,
+    required this.comicQuota,
+    required this.comicQuotaToday,
     required this.level,
     required this.growthLevel,
     required this.currentLevelExperience,
@@ -38,6 +40,8 @@ class UserGrowth {
 
   final int experience;
   final int coin;
+  final int comicQuota;
+  final int comicQuotaToday;
   final int level;
   final int growthLevel;
   final int currentLevelExperience;
@@ -85,6 +89,8 @@ class UserProfile {
       growth: UserGrowth(
         experience: asInt(growth['Exp'], 0),
         coin: asInt(growth['Coin'], 0),
+        comicQuota: asInt(growth['ComicQuota'], 0),
+        comicQuotaToday: asInt(growth['ComicQuotaToday'], 0),
         level: asInt(growth['Level'], 0),
         growthLevel: asInt(growth['GrowthLevel'], 0),
         currentLevelExperience: asInt(growth['CurrentLevelExp'], 0),

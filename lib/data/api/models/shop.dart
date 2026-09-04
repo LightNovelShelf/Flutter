@@ -1,6 +1,7 @@
 import '../decode.dart';
 
 const String signMakeupItemKey = 'sign_makeup';
+const String comicQuotaItemKey = 'comic_quota_50';
 
 class ShopItem {
   const ShopItem({
@@ -22,10 +23,13 @@ class ShopItem {
   final String? imagePlaceholder;
   final int price;
   final int owned;
-  final int monthlyLimit;
+  final int? monthlyLimit;
   final int monthlyPurchased;
 
-  int get remaining => (monthlyLimit - monthlyPurchased).clamp(0, monthlyLimit);
+  int? get remaining => monthlyLimit == null
+      ? null
+      : (monthlyLimit! - monthlyPurchased).clamp(0, monthlyLimit!);
+  bool get canPurchase => monthlyLimit == null || remaining! > 0;
 
   static ShopItem decode(Object? value) {
     final record = asRecord(value, '商城道具');
@@ -38,7 +42,7 @@ class ShopItem {
       imagePlaceholder: image.placeholder,
       price: asCount(record['Price']),
       owned: asCount(record['Owned']),
-      monthlyLimit: asCount(record['MonthlyLimit']),
+      monthlyLimit: asNullableInt(record['MonthlyLimit']),
       monthlyPurchased: asCount(record['MonthlyPurchased']),
     );
   }
@@ -129,6 +133,30 @@ class ShopPurchaseResult {
       coin: asCount(record['Coin']),
       cost: asCount(record['Cost']),
       monthlyPurchased: asCount(record['MonthlyPurchased']),
+    );
+  }
+}
+
+class ComicQuotaUseResult {
+  const ComicQuotaUseResult({
+    required this.key,
+    required this.granted,
+    required this.quota,
+    required this.owned,
+  });
+
+  final String key;
+  final int granted;
+  final int quota;
+  final int owned;
+
+  static ComicQuotaUseResult decode(Object? value) {
+    final record = asRecord(value, '漫画额度卡使用响应');
+    return ComicQuotaUseResult(
+      key: asString(record['Key']),
+      granted: asCount(record['Granted']),
+      quota: asCount(record['Quota']),
+      owned: asCount(record['Owned']),
     );
   }
 }

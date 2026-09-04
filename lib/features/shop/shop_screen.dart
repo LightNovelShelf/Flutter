@@ -28,6 +28,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
   OwnedShopItems? _owned;
   bool _loading = true;
   String? _buyingKey;
+  bool _usingComicQuota = false;
   String? _error;
 
   @override
@@ -64,7 +65,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
   }
 
   Future<void> _buy(ShopItem item) async {
-    if (_buyingKey != null) return;
+    if (_buyingKey != null || _usingComicQuota) return;
     final confirmed = await showAppConfirm(
       context: context,
       title: '确认购买',
@@ -86,6 +87,30 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
       if (mounted) _showMessage(describeApiError(error), error: true);
     } finally {
       if (mounted) setState(() => _buyingKey = null);
+    }
+  }
+
+  Future<void> _useComicQuotaCard() async {
+    if (_usingComicQuota || _buyingKey != null) return;
+    final confirmed = await showAppConfirm(
+      context: context,
+      title: '使用漫画额度卡',
+      message: '使用后立即获得 50 点漫画额度，永不过期。',
+      confirmLabel: '使用',
+    );
+    if (!confirmed || !mounted) return;
+
+    setState(() => _usingComicQuota = true);
+    try {
+      final result = await ref.read(apiClientProvider).useComicQuotaCard();
+      await ref.read(profileProvider.notifier).reload();
+      await _load(showLoading: false);
+      if (!mounted) return;
+      _showMessage('已发放 ${result.granted} 点漫画额度，当前余额 ${result.quota} 点');
+    } catch (error) {
+      if (mounted) _showMessage(describeApiError(error), error: true);
+    } finally {
+      if (mounted) setState(() => _usingComicQuota = false);
     }
   }
 
@@ -157,7 +182,12 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
           if (owned.isEmpty)
             const _EmptyItemsCard(message: '还没有任何道具')
           else
-            _OwnedItemsCard(items: owned, onMakeUp: _openSignIn),
+            _OwnedItemsCard(
+              items: owned,
+              onMakeUp: _openSignIn,
+              onUseComicQuota: _useComicQuotaCard,
+              usingComicQuota: _usingComicQuota,
+            ),
           if (_error != null) ...<Widget>[
             const SizedBox(height: 16),
             Text(
@@ -268,7 +298,7 @@ class _ShopItemCard extends StatelessWidget {
                       ),
                       const Spacer(),
                       FilledButton(
-                        onPressed: item.remaining > 0 && !buying ? onBuy : null,
+                        onPressed: item.canPurchase && !buying ? onBuy : null,
                         child: buying
                             ? const SizedBox.square(
                                 dimension: 18,
@@ -276,13 +306,21 @@ class _ShopItemCard extends StatelessWidget {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : Text(item.remaining > 0 ? '购买' : '本月已达上限'),
+                            : Text(
+                                item.canPurchase
+                                    ? '购买'
+                                    : item.monthlyLimit == 0
+                                    ? '不可购买'
+                                    : '本月已达上限',
+                              ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '持有 ${item.owned} · 本月还可买 ${item.remaining}/${item.monthlyLimit}',
+                    item.monthlyLimit == null
+                        ? '持有 ${item.owned} · 不限购'
+                        : '持有 ${item.owned} · 本月还可买 ${item.remaining}/${item.monthlyLimit}',
                     style: Theme.of(context).textTheme.bodySmall
                         ?.copyWith(color: colors.onSurfaceVariant),
                   ),
@@ -297,10 +335,17 @@ class _ShopItemCard extends StatelessWidget {
 }
 
 class _OwnedItemsCard extends StatelessWidget {
-  const _OwnedItemsCard({required this.items, required this.onMakeUp});
+  const _OwnedItemsCard({
+    required this.items,
+    required this.onMakeUp,
+    required this.onUseComicQuota,
+    required this.usingComicQuota,
+  });
 
   final List<OwnedShopItem> items;
   final VoidCallback onMakeUp;
+  final VoidCallback onUseComicQuota;
+  final bool usingComicQuota;
 
   @override
   Widget build(BuildContext context) {
@@ -335,6 +380,18 @@ class _OwnedItemsCard extends StatelessWidget {
                     OutlinedButton(
                       onPressed: onMakeUp,
                       child: const Text('去补签'),
+                    ),
+                  ],
+                  if (items[index].key == comicQuotaItemKey) ...<Widget>[
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      onPressed: usingComicQuota ? null : onUseComicQuota,
+                      child: usingComicQuota
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('使用'),
                     ),
                   ],
                 ],

@@ -16,6 +16,12 @@ extension ApiClientShop on ApiClient {
     'Quantity': quantity,
   }, ShopPurchaseResult.decode);
 
+  Future<ComicQuotaUseResult> useComicQuotaCard() => invoke(
+    'UseComicQuotaCard',
+    <String, Object?>{},
+    ComicQuotaUseResult.decode,
+  );
+
   Future<SignMakeupResult> useSignMakeupCard({required String date}) => invoke(
     'UseSignMakeupCard',
     <String, Object?>{'Date': date},

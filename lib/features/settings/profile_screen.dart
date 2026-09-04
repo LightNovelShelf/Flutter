@@ -205,6 +205,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ],
             ),
           ),
+          SettingsValueRow(
+            title: '漫画额度',
+            description: '今日剩余 ${formatCount(growth.comicQuotaToday)} 点',
+            icon: Icons.auto_stories_outlined,
+            value: '永久 ${formatCount(growth.comicQuota)} 点',
+          ),
           SettingsNavigationRow(
             title: '每日签到',
             description: growth.signedToday
