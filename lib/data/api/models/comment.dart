@@ -1,6 +1,6 @@
 import '../decode.dart';
 
-enum CommentTargetType { book, announcement, series }
+enum CommentTargetType { book, announcement }
 
 /// 枚举型参数按服务端枚举名发送（服务端已挂 `JsonStringEnumConverter`），
 /// 名字比序号更抗成员重排。
@@ -8,7 +8,6 @@ extension CommentTargetTypeWire on CommentTargetType {
   String get wire => switch (this) {
     CommentTargetType.book => 'Book',
     CommentTargetType.announcement => 'Announcement',
-    CommentTargetType.series => 'Series',
   };
 }
 

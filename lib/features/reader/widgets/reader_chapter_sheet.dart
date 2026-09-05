@@ -149,14 +149,14 @@ class _ReaderChapterSheetState extends ConsumerState<_ReaderChapterSheet> {
         Expanded(
           child: widget.comic
               ? ref
-                    .watch(readerComicInfoProvider(widget.bookId))
+                    .watch(readerBookDetailProvider(widget.bookId))
                     .when(
                       loading: () =>
                           const Center(child: CircularProgressIndicator()),
                       error: (error, _) => ErrorStateView(
                         message: '$error',
                         onRetry: () => ref.invalidate(
-                          readerComicInfoProvider(widget.bookId),
+                          readerBookDetailProvider(widget.bookId),
                         ),
                       ),
                       data: (data) => _list(<_ChapterEntry>[

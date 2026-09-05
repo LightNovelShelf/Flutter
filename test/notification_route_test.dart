@@ -138,11 +138,7 @@ void main() {
     expect(
       notificationRoute(
         AppNotificationItem.decode(
-          _notification(
-            action: _action('open_series', <String, Object?>{
-              'series_title': '某漫画系列',
-            }),
-          ),
+          _notification(action: _action('unknown_action', <String, Object?>{})),
         ),
       ),
       isNull,

@@ -26,9 +26,14 @@ class BookActionRow extends ConsumerWidget {
     final colors = Theme.of(context).colorScheme;
     final detail = bundle.detail;
     final hasChapters = detail.chapters.isNotEmpty;
-    final shelf = ref.watch(shelfToggleProvider(bookId));
+    final shelf = bundle.isComic
+        ? null
+        : ref.watch(shelfToggleProvider(bookId));
     final resolvedInShelf =
-        shelf.inShelf ?? ref.watch(bookInShelfProvider(bookId)).value ?? false;
+        shelf?.inShelf ??
+        (bundle.isComic
+            ? false
+            : ref.watch(bookInShelfProvider(bookId)).value ?? false);
     final continueTitle = currentIndex >= 0
         ? cleanChapterTitle(detail.chapters[currentIndex].title)
         : null;
@@ -53,7 +58,7 @@ class BookActionRow extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(16),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
-                    onTap: shelf.busy
+                    onTap: shelf!.busy
                         ? null
                         : () => ref
                               .read(shelfToggleProvider(bookId).notifier)
@@ -109,11 +114,11 @@ class BookActionRow extends ConsumerWidget {
             ),
           ],
         ),
-        if (shelf.error != null)
+        if (shelf?.error != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              shelf.error!,
+              shelf!.error!,
               style: TextStyle(fontSize: 13, height: 1.38, color: colors.error),
             ),
           ),

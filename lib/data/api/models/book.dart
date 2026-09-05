@@ -45,7 +45,6 @@ class BookListItem {
     required this.id,
     required this.type,
     required this.title,
-    required this.seriesTitle,
     required this.coverUrl,
     required this.coverPlaceholder,
     required this.authorName,
@@ -58,7 +57,6 @@ class BookListItem {
   final int id;
   final BookType? type;
   final String title;
-  final String? seriesTitle;
   final String coverUrl;
   final String? coverPlaceholder;
   final String? authorName;
@@ -75,7 +73,6 @@ class BookListItem {
       // 未知 Type 在列表里按小说渲染。
       type: _decodeBookType(book['Type']) ?? BookType.novel,
       title: asString(book['Title']),
-      seriesTitle: asNullableString(book['SeriesTitle']),
       coverUrl: cover.url,
       coverPlaceholder: cover.placeholder,
       authorName: asNullableString(book['UserName']),
@@ -123,10 +120,43 @@ List<BookListItem> decodeResolvableBookListItems(Object? value) =>
         .toList();
 
 class BookChapter {
-  const BookChapter({required this.id, required this.title});
+  const BookChapter({
+    required this.id,
+    required this.sortNum,
+    required this.title,
+    required this.pageCount,
+  });
+
+  final int id;
+  final int sortNum;
+  final String title;
+  final int pageCount;
+}
+
+class BookSeriesItem {
+  const BookSeriesItem({
+    required this.id,
+    required this.title,
+    required this.coverUrl,
+    required this.coverPlaceholder,
+  });
 
   final int id;
   final String title;
+  final String coverUrl;
+  final String? coverPlaceholder;
+
+  static List<BookSeriesItem> decodeList(Object? value) =>
+      decodeOptionalList(value, '系列书籍', (item) {
+        final book = asRecord(item, '系列书籍');
+        final cover = decodeCover(book['Cover']);
+        return BookSeriesItem(
+          id: asInt(book['Id']),
+          title: asString(book['Title']),
+          coverUrl: cover.url,
+          coverPlaceholder: cover.placeholder,
+        );
+      });
 }
 
 class BookClassification {
@@ -186,6 +216,8 @@ class BookDetailUser {
 
 class BookDetail {
   const BookDetail({
+    required this.seriesTitle,
+    required this.series,
     required this.id,
     required this.type,
     required this.coverUrl,
@@ -207,6 +239,8 @@ class BookDetail {
   });
 
   final int id;
+  final String seriesTitle;
+  final List<BookSeriesItem> series;
   final BookType? type;
   final String coverUrl;
   final String? coverPlaceholder;
@@ -230,7 +264,9 @@ class BookDetail {
         final chapter = asRecord(item, '书籍章节');
         return BookChapter(
           id: asInt(chapter['Id']),
+          sortNum: asInt(chapter['SortNum']),
           title: asString(chapter['Title']),
+          pageCount: asCount(chapter['PageCount']),
         );
       });
 
@@ -239,6 +275,8 @@ class BookDetail {
     final book = asRecord(response['Book'] ?? response, '书籍详情');
     final cover = decodeCover(book['Cover']);
     return BookDetail(
+      seriesTitle: asString(response['SeriesTitle']),
+      series: BookSeriesItem.decodeList(response['Series']),
       id: asInt(book['Id']),
       type: _decodeBookType(book['Type']),
       coverUrl: cover.url,
@@ -253,7 +291,7 @@ class BookDetail {
       favoriteCount: asInt(book['Favorite'], 0),
       viewCount: asInt(book['Views'], 0),
       canEdit: asBool(book['CanEdit'], false),
-      chapters: _decodeChapters(book['Chapter']),
+      chapters: _decodeChapters(book['Chapters']),
       user: BookDetailUser.decodeNullable(book['User']),
       classification: BookClassification.decode(book['Extra']),
       readPosition: BookReadPosition.decodeNullable(response['ReadPosition']),

@@ -121,17 +121,6 @@ extension ApiClientCatalog on ApiClient {
     cancelToken: cancelToken,
   );
 
-  Future<ComicInfo> getComicInfo(int id) =>
-      invoke('GetComicInfo', <String, Object?>{'Id': id}, ComicInfo.decode);
-
-  Future<ComicSeriesDetail> getComicSeriesInfo(
-    String seriesTitle, {
-    ComicOrder order = ComicOrder.latest,
-  }) => invoke('GetComicSeriesInfo', <String, Object?>{
-    'SeriesTitle': seriesTitle,
-    'Order': order.wire,
-  }, ComicSeriesDetail.decode);
-
   Future<ComicContent> getComicContent({
     required int chapterId,
     int skip = 0,

@@ -55,14 +55,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   void _openBook(BookListItem item) {
-    final isComic = item.type == BookType.comic;
-    final query = <String, String>{
-      'type': isComic ? 'Comic' : 'Novel',
-      if (isComic) 'seriesTitle': item.title,
-    };
-    context.push(
-      Uri(path: '/book/${item.id}', queryParameters: query).toString(),
-    );
+    context.push('/book/${item.id}');
   }
 
   void _useKeyword(String keyword) {

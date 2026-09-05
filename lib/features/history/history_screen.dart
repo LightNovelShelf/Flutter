@@ -27,13 +27,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   );
 
   void _openBook(BookListItem book) {
-    if (_tab == HistoryTab.comic) {
-      // 漫画历史返回的是系列条目，详情页需要系列标题才能拉分卷。
-      final title = Uri.encodeComponent(book.title);
-      context.push('/book/${book.id}?type=Comic&seriesTitle=$title');
-      return;
-    }
-    context.push('/book/${book.id}?type=Novel');
+    context.push('/book/${book.id}');
   }
 
   Future<void> _clear() async {

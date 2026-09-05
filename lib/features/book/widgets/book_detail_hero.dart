@@ -17,48 +17,21 @@ const double bookHeroHeight = 280;
 const double bookCoverDisplayHeight = 150;
 
 class BookHero extends StatelessWidget {
-  const BookHero({super.key, required this.detail, this.onTitleTap});
+  const BookHero({super.key, required this.detail});
 
   final BookDetail detail;
 
-  /// 点标题打开系列列表，为空时标题为普通文本。
-  final VoidCallback? onTitleTap;
-
   Widget _title(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final style = Theme.of(context).textTheme.titleLarge?.copyWith(
-      fontSize: 22,
-      height: 1.28,
-      fontWeight: FontWeight.w700,
-      color: colors.onSurface,
-    );
-    final text = Text(
+    return Text(
       detail.title,
       maxLines: 4,
       overflow: TextOverflow.ellipsis,
-      style: style,
-    );
-    if (onTitleTap == null) return text;
-    return Semantics(
-      button: true,
-      label: '查看《${detail.title}》所属系列',
-      child: InkWell(
-        onTap: onTitleTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Flexible(child: text),
-            Padding(
-              padding: const EdgeInsets.only(top: 3, left: 2),
-              child: Icon(
-                Icons.chevron_right,
-                size: 22,
-                color: colors.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
+      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+        fontSize: 22,
+        height: 1.28,
+        fontWeight: FontWeight.w700,
+        color: colors.onSurface,
       ),
     );
   }

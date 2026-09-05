@@ -9,7 +9,6 @@ import 'package:lightnovel/core/network/request_scheduler.dart';
 import 'package:lightnovel/core/platform/stores.dart';
 import 'package:lightnovel/core/network/signalr_connection.dart';
 import 'package:lightnovel/data/api/api_client.dart';
-import 'package:lightnovel/data/api/models.dart';
 import 'package:lightnovel/data/providers.dart';
 import 'package:lightnovel/data/retry_policy.dart';
 import 'package:lightnovel/data/settings/app_settings.dart';
@@ -17,17 +16,30 @@ import 'package:lightnovel/features/book/book_detail_screen.dart';
 import 'package:lightnovel/features/book/book_providers.dart';
 import 'package:lightnovel/features/discover/novel_series_books_screen.dart';
 
-/// 详情页标题进入系列列表，系列键与服务端 `SeriesTitle` 一致（中文名优先）。
+/// 详情页系列切换使用服务端返回的 `Series`。
 const int _bookId = 42;
 const String _bookTitle = '某本小说 第一卷';
 
 /// 服务端对无权访问的书籍返回业务错误，`ApiClient` 抛成 [ApiError]。
 const String _forbiddenMessage = '您没有权限访问这本书';
 
-Map<String, dynamic> _detailResponse() => <String, dynamic>{
+Map<String, dynamic> _detailResponse(String bookType) => <String, dynamic>{
+  'SeriesTitle': '中文系列',
+  'Series': <Object?>[
+    <String, Object?>{
+      'Id': _bookId,
+      'Title': _bookTitle,
+      'Cover': 'https://img.test/$_bookId.jpg',
+    },
+    <String, Object?>{
+      'Id': 43,
+      'Title': '某本小说 第二卷',
+      'Cover': 'https://img.test/43.jpg',
+    },
+  ],
   'Book': <String, dynamic>{
     'Id': _bookId,
-    'Type': 'Novel',
+    'Type': bookType,
     'Title': _bookTitle,
     'Cover': 'https://img.test/$_bookId.jpg',
     'Author': '作者',
@@ -37,8 +49,15 @@ Map<String, dynamic> _detailResponse() => <String, dynamic>{
     'Favorite': 1,
     'Views': 2,
     'CanEdit': false,
-    'Chapter': <Map<String, dynamic>>[
-      <String, dynamic>{'Id': 1, 'Title': '第一章'},
+    'Chapters': <Map<String, dynamic>>[
+      <String, dynamic>{
+        'Id': 1,
+        'SortNum': 1,
+        'Title': '第一章',
+        'CreatedAt': '2025-01-01T00:00:00Z',
+        'PageCount': 0,
+        'DownloadCost': 0,
+      },
     ],
     'Extra': <String, dynamic>{
       'classification': <String, dynamic>{
@@ -52,7 +71,7 @@ Map<String, dynamic> _detailResponse() => <String, dynamic>{
 };
 
 class _FakeApi extends ApiClient {
-  _FakeApi({this.forbidBookInfo = false})
+  _FakeApi({this.forbidBookInfo = false, this.bookType = 'Novel'})
     : super(
         signalR: SignalRConnection(
           endpoint: 'http://localhost/hub',
@@ -64,6 +83,7 @@ class _FakeApi extends ApiClient {
 
   /// 详情接口是否返回无权访问。
   final bool forbidBookInfo;
+  final String bookType;
 
   final List<(String, Map<String, Object?>)> calls =
       <(String, Map<String, Object?>)>[];
@@ -83,7 +103,7 @@ class _FakeApi extends ApiClient {
         if (forbidBookInfo) {
           throw const ApiError(_forbiddenMessage, ApiErrorCategory.server);
         }
-        return decode(_detailResponse());
+        return decode(_detailResponse(bookType));
       case 'GetBooksBySeries':
         return decode(<String, dynamic>{
           'Page': 1,
@@ -121,8 +141,9 @@ Future<({_FakeApi api, GoRouter router})> _open(
   WidgetTester tester, {
   String initialLocation = '/book/$_bookId',
   bool forbidBookInfo = false,
+  String bookType = 'Novel',
 }) async {
-  final api = _FakeApi(forbidBookInfo: forbidBookInfo);
+  final api = _FakeApi(forbidBookInfo: forbidBookInfo, bookType: bookType);
   final router = GoRouter(
     initialLocation: initialLocation,
     routes: <RouteBase>[
@@ -130,9 +151,6 @@ Future<({_FakeApi api, GoRouter router})> _open(
         path: '/book/:id',
         builder: (_, state) => BookDetailScreen(
           id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
-          type: BookType.novel,
-          seriesTitle: state.uri.queryParameters['seriesTitle'],
-          fromSeries: state.uri.queryParameters['fromSeries'],
         ),
       ),
       GoRoute(
@@ -167,53 +185,46 @@ Future<({_FakeApi api, GoRouter router})> _open(
 void main() {
   setUpAll(() => initializeDateFormatting('zh_CN'));
 
-  testWidgets('点小说标题进入所属系列，系列键取中文名', (tester) async {
+  testWidgets('点击小说标题不再跳转系列搜索', (tester) async {
     final opened = await _open(tester);
 
     await tester.tap(find.text(_bookTitle));
     await tester.pumpAndSettle();
 
-    expect(find.text('同系列的另一本'), findsOneWidget);
-    final request = opened.api.calls
-        .firstWhere((call) => call.$1 == 'GetBooksBySeries')
-        .$2;
-    expect(request['SeriesName'], '中文系列');
-    expect(request['Type'], 'Novel');
-  });
-
-  testWidgets('列表页带来的系列键优先于分类器字段', (tester) async {
-    final opened = await _open(
-      tester,
-      initialLocation:
-          '/book/$_bookId?seriesTitle=%E5%88%97%E8%A1%A8%E7%BB%99%E7%9A%84%E7%B3%BB%E5%88%97',
-    );
-
-    await tester.tap(find.text(_bookTitle));
-    await tester.pumpAndSettle();
-
-    final request = opened.api.calls
-        .firstWhere((call) => call.$1 == 'GetBooksBySeries')
-        .$2;
-    expect(request['SeriesName'], '列表给的系列');
-  });
-
-  testWidgets('从系列页点进详情再点标题，原路返回而不是叠一层', (tester) async {
-    final opened = await _open(
-      tester,
-      initialLocation: '/books/series?name=%E4%B8%AD%E6%96%87%E7%B3%BB%E5%88%97&order=latest',
-    );
-
-    await tester.tap(find.text('同系列的另一本'));
-    await tester.pumpAndSettle();
     expect(find.byType(BookDetailScreen), findsOneWidget);
+    expect(
+      opened.api.calls.where((call) => call.$1 == 'GetBooksBySeries'),
+      isEmpty,
+    );
+  });
 
-    await tester.tap(find.text(_bookTitle));
+  testWidgets('小说详情从菜单打开系列切换', (tester) async {
+    await _open(tester);
+    expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+
+    await tester.tap(find.byTooltip('更多'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('系列'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(BookDetailScreen), findsNothing);
-    expect(find.byType(NovelSeriesBooksScreen), findsOneWidget);
-    // 没有重复压入同名系列页。
-    expect(opened.router.canPop(), isFalse);
+    expect(find.text('当前书籍'), findsOneWidget);
+    expect(find.text('中文系列 · 2 本'), findsOneWidget);
+    expect(find.text('某本小说 第二卷'), findsOneWidget);
+  });
+
+  testWidgets('漫画复用详情组件且不显示收藏', (tester) async {
+    await _open(tester, bookType: 'Comic');
+
+    expect(find.byType(BookDetailScreen), findsOneWidget);
+    expect(find.byIcon(Icons.bookmark_border), findsNothing);
+
+    await tester.tap(find.byTooltip('更多'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('系列'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('中文系列 · 2 本'), findsOneWidget);
+    expect(find.text('某本小说 第二卷'), findsOneWidget);
   });
 
   /// 详情页正常态的返回按钮挂在 `_body` 的 `SliverAppBar` 上，取不到数据时那条

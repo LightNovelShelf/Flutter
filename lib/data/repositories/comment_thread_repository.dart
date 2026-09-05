@@ -8,39 +8,28 @@ import '../api/api_client.dart';
 import '../api/models.dart';
 import '../providers.dart';
 
-/// 评论目标。漫画按系列聚合，`id` 恒为 0，用 `seriesTitle` 定位；作为 family 键需要值相等。
+/// 评论目标。作为 family 键需要值相等。
 @immutable
 class CommentTarget {
-  const CommentTarget({required this.type, required this.id, this.seriesTitle});
+  const CommentTarget({required this.type, required this.id});
 
   const CommentTarget.book(int bookId)
     : type = CommentTargetType.book,
-      id = bookId,
-      seriesTitle = null;
-
-  const CommentTarget.series(String title)
-    : type = CommentTargetType.series,
-      id = 0,
-      seriesTitle = title;
+      id = bookId;
 
   const CommentTarget.announcement(int announcementId)
     : type = CommentTargetType.announcement,
-      id = announcementId,
-      seriesTitle = null;
+      id = announcementId;
 
   final CommentTargetType type;
   final int id;
-  final String? seriesTitle;
 
   @override
   bool operator ==(Object other) =>
-      other is CommentTarget &&
-      other.type == type &&
-      other.id == id &&
-      other.seriesTitle == seriesTitle;
+      other is CommentTarget && other.type == type && other.id == id;
 
   @override
-  int get hashCode => Object.hash(type, id, seriesTitle);
+  int get hashCode => Object.hash(type, id);
 }
 
 @immutable
@@ -93,12 +82,7 @@ class CommentThreadController extends AsyncNotifier<CommentThreadState> {
 
   Future<CommentPage> _fetch(int page) => ref
       .read(apiClientProvider)
-      .getComments(
-        type: arg.type,
-        id: arg.id,
-        page: page,
-        seriesTitle: arg.seriesTitle,
-      );
+      .getComments(type: arg.type, id: arg.id, page: page);
 
   @override
   Future<CommentThreadState> build() async {

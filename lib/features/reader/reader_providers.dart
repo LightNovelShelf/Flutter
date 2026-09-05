@@ -15,9 +15,3 @@ final FutureProviderFamily<BookDetail, int> readerBookDetailProvider =
       (ref, bookId) => ref.watch(apiClientProvider).getBookInfo(bookId),
       isAutoDispose: true,
     );
-
-final FutureProviderFamily<ComicInfo, int> readerComicInfoProvider =
-    FutureProvider.family<ComicInfo, int>(
-      (ref, bookId) => ref.watch(apiClientProvider).getComicInfo(bookId),
-      isAutoDispose: true,
-    );

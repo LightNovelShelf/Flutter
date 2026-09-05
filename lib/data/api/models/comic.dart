@@ -1,37 +1,5 @@
 import '../decode.dart';
-import 'book.dart';
 import 'read_position.dart';
-
-class ComicChapterSummary {
-  const ComicChapterSummary({
-    required this.id,
-    required this.sortNum,
-    required this.title,
-    required this.createdAt,
-    required this.updatedAt,
-    required this.pageCount,
-  });
-
-  final int id;
-  final int sortNum;
-  final String title;
-  final DateTime createdAt;
-  final DateTime? updatedAt;
-  final int pageCount;
-
-  static List<ComicChapterSummary> decodeList(Object? value) =>
-      decodeOptionalList(value, '漫画章节', (item) {
-        final chapter = asRecord(item, '漫画章节');
-        return ComicChapterSummary(
-          id: asInt(chapter['Id']),
-          sortNum: asInt(chapter['SortNum']),
-          title: asString(chapter['Title']),
-          createdAt: asDate(chapter['CreatedAt']),
-          updatedAt: asNullableDate(chapter['UpdatedAt']),
-          pageCount: asCount(chapter['PageCount']),
-        );
-      });
-}
 
 class ComicImage {
   const ComicImage({
@@ -55,90 +23,6 @@ class ComicImage {
       aspect: size == null ? null : size.height / size.width,
     );
   }
-}
-
-class ComicInfo {
-  const ComicInfo({
-    required this.id,
-    required this.coverUrl,
-    required this.coverPlaceholder,
-    required this.title,
-    required this.authorName,
-    required this.views,
-    required this.introduction,
-    required this.createdAt,
-    required this.lastUpdatedChapter,
-    required this.lastUpdatedAt,
-    required this.favoriteCount,
-    required this.user,
-    required this.classification,
-    required this.chapters,
-    required this.readPosition,
-  });
-
-  final int id;
-  final String coverUrl;
-  final String? coverPlaceholder;
-  final String title;
-  final String? authorName;
-  final int views;
-  final String introduction;
-  final DateTime createdAt;
-  final String? lastUpdatedChapter;
-  final DateTime lastUpdatedAt;
-  final int favoriteCount;
-  final BookDetailUser? user;
-  final BookClassification classification;
-  final List<ComicChapterSummary> chapters;
-  final BookReadPosition? readPosition;
-
-  static ComicInfo decode(Object? value) {
-    final response = asRecord(value, '漫画信息响应');
-    final book = asRecord(response['Book'] ?? response, '漫画信息');
-    final cover = decodeCover(book['Cover']);
-    return ComicInfo(
-      id: asInt(book['Id']),
-      coverUrl: cover.url,
-      coverPlaceholder: cover.placeholder,
-      title: asString(book['Title']),
-      authorName: asNullableString(book['Author']),
-      views: asInt(book['Views'], 0),
-      introduction: asStringOrEmpty(book['Introduction']),
-      createdAt: asDate(book['CreatedAt']),
-      lastUpdatedChapter: asNullableString(book['LastUpdatedChapter']),
-      lastUpdatedAt: asDate(book['LastUpdatedAt']),
-      favoriteCount: asInt(book['Favorite'], 0),
-      user: BookDetailUser.decodeNullable(book['User']),
-      classification: BookClassification.decode(book['Extra']),
-      chapters: ComicChapterSummary.decodeList(book['Chapters']),
-      readPosition: BookReadPosition.decodeNullable(response['ReadPosition']),
-    );
-  }
-
-  /// 归一化为 `BookDetail`，供详情页复用小说的 UI。
-  /// 漫画章节的排序号按章节顺序推导（1..N）。
-  BookDetail toBookDetail() => BookDetail(
-    id: id,
-    type: BookType.comic,
-    coverUrl: coverUrl,
-    coverPlaceholder: coverPlaceholder,
-    title: title,
-    authorName: authorName,
-    category: null,
-    introduction: introduction,
-    lastUpdatedChapter: lastUpdatedChapter,
-    lastUpdatedAt: lastUpdatedAt,
-    createdAt: createdAt,
-    favoriteCount: favoriteCount,
-    viewCount: views,
-    canEdit: false,
-    chapters: chapters
-        .map((chapter) => BookChapter(id: chapter.id, title: chapter.title))
-        .toList(),
-    user: user,
-    classification: classification,
-    readPosition: readPosition,
-  );
 }
 
 class ComicContentChapter {

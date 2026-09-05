@@ -19,61 +19,21 @@ import 'widgets/book_action_row.dart';
 import 'widgets/book_detail_hero.dart';
 import 'widgets/book_detail_skeleton.dart';
 import 'widgets/book_introduction_sheet.dart';
+import 'widgets/book_series_sheet.dart';
 import 'widgets/book_uploader_sheet.dart';
 import 'widgets/cover_palette_theme.dart';
 
 class BookDetailScreen extends ConsumerStatefulWidget {
-  const BookDetailScreen({
-    super.key,
-    required this.id,
-    this.type,
-    this.seriesTitle,
-    this.fromSeries,
-  });
+  const BookDetailScreen({super.key, required this.id});
 
   final int id;
-  final BookType? type;
-  final String? seriesTitle;
-
-  /// 从系列页进入时带的系列键，用于点标题时原路返回。
-  final String? fromSeries;
 
   @override
   ConsumerState<BookDetailScreen> createState() => _BookDetailScreenState();
 }
 
 class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
-  BookDetailRequest get _request => (id: widget.id, type: widget.type);
-
-  /// 系列键需与服务端 `SeriesTitle` 一致：中文名优先，为空回落原名，再为空回落书名。
-  /// 列表页传入的提示值即为该键，优先使用。
-  String _seriesTitleOf(BookDetailBundle bundle) {
-    final hinted = widget.seriesTitle?.trim();
-    if (hinted != null && hinted.isNotEmpty) return hinted;
-    final classification = bundle.detail.classification;
-    return classification.seriesNameCn ??
-        classification.seriesName ??
-        bundle.detail.title;
-  }
-
-  /// 小说详情页点标题打开同系列列表。
-  void _openSeries(BookDetailBundle bundle) {
-    final name = _seriesTitleOf(bundle);
-    // 从该系列进入的，返回而不是叠加重复页面。
-    if (widget.fromSeries == name && context.canPop()) {
-      context.pop();
-      return;
-    }
-    context.push(
-      Uri(
-        path: '/books/series',
-        queryParameters: <String, String>{
-          'name': name,
-          'order': BookListOrder.latest.wire,
-        },
-      ).toString(),
-    );
-  }
+  int get _request => widget.id;
 
   Future<void> _openReader(BookDetailBundle bundle, int sortNum) async {
     final isComic = bundle.isComic;
@@ -85,20 +45,11 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   }
 
   void _openComments(BookDetailBundle bundle) {
-    // 漫画评论挂在系列上，按系列标题定位；小说按书籍 id。
     context.push(
-      bundle.isComic
-          ? Uri(
-              path: '/books/series/comments',
-              queryParameters: <String, String>{
-                'name': _seriesTitleOf(bundle),
-                'title': bundle.detail.title,
-              },
-            ).toString()
-          : Uri(
-              path: '/book/${widget.id}/comments',
-              queryParameters: <String, String>{'title': bundle.detail.title},
-            ).toString(),
+      Uri(
+        path: '/book/${widget.id}/comments',
+        queryParameters: <String, String>{'title': bundle.detail.title},
+      ).toString(),
     );
   }
 
@@ -160,58 +111,40 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
               tooltip: '评论',
               onPressed: () => _openComments(bundle),
             ),
-            if (bundle.isComic)
-              PopupMenuButton<String>(
-                tooltip: '更多',
-                onSelected: (value) {
-                  if (value == 'versions') {
-                    context.push(
-                      Uri(
-                        path: '/book/${widget.id}/versions',
-                        queryParameters: <String, String>{
-                          'seriesTitle': _seriesTitleOf(bundle),
-                        },
-                      ).toString(),
-                    );
-                    return;
-                  }
-                  // 用 State 的 context，使弹窗沿用应用主题而非封面取色主题。
-                  showBookUploaderSheet(this.context, detail.user);
-                },
-                itemBuilder: (_) => const <PopupMenuEntry<String>>[
-                  PopupMenuItem<String>(
-                    value: 'versions',
-                    child: ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.library_books_outlined),
-                      title: Text('其它版本'),
-                    ),
+            PopupMenuButton<String>(
+              tooltip: '更多',
+              onSelected: (value) {
+                if (value == 'series') {
+                  showBookSeriesSheet(this.context, detail, widget.id);
+                  return;
+                }
+                // 用 State 的 context，使弹窗沿用应用主题而非封面取色主题。
+                showBookUploaderSheet(this.context, detail.user);
+              },
+              itemBuilder: (_) => const <PopupMenuEntry<String>>[
+                PopupMenuItem<String>(
+                  value: 'series',
+                  child: ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.library_books_outlined),
+                    title: Text('系列'),
                   ),
-                  PopupMenuItem<String>(
-                    value: 'uploader',
-                    child: ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.person_outline),
-                      title: Text('上传者'),
-                    ),
+                ),
+                PopupMenuItem<String>(
+                  value: 'uploader',
+                  child: ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.person_outline),
+                    title: Text('上传者'),
                   ),
-                ],
-              )
-            else
-              IconButton(
-                icon: const Icon(Icons.person_outline),
-                tooltip: '上传者',
-                onPressed: () =>
-                    showBookUploaderSheet(this.context, detail.user),
-              ),
+                ),
+              ],
+            ),
           ],
           flexibleSpace: FlexibleSpaceBar(
-            background: BookHero(
-              detail: detail,
-              onTitleTap: bundle.isComic ? null : () => _openSeries(bundle),
-            ),
+            background: BookHero(detail: detail),
             collapseMode: CollapseMode.parallax,
           ),
         ),

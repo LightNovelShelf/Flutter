@@ -26,7 +26,6 @@ Future<bool> showCommentComposeSheet(
           type: target.type,
           id: target.id,
           content: content,
-          seriesTitle: target.seriesTitle,
           parentId: parentId,
           replyId: replyId,
         );
@@ -35,7 +34,6 @@ Future<bool> showCommentComposeSheet(
           type: target.type,
           id: target.id,
           content: content,
-          seriesTitle: target.seriesTitle,
         );
       }
       await container.read(commentThreadProvider(target).notifier).refresh();

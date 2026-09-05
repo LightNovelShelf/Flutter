@@ -16,7 +16,6 @@ import '../features/auth/reset_password_verify_screen.dart';
 import '../features/auth/sign_in_screen.dart';
 import '../features/auth/welcome_screen.dart';
 import '../features/book/book_detail_screen.dart';
-import '../features/book/book_versions_screen.dart';
 import '../features/book/comments_screen.dart';
 import '../features/community/community_compose_screen.dart';
 import '../features/community/community_home_screen.dart';
@@ -189,16 +188,6 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
               BookListOrder.latest,
         ),
       ),
-      GoRoute(
-        path: '/books/series/comments',
-        builder: (_, state) {
-          final name = state.uri.queryParameters['name'] ?? '';
-          return CommentsScreen(
-            target: CommentTarget.series(name),
-            title: state.uri.queryParameters['title'] ?? name,
-          );
-        },
-      ),
       GoRoute(path: '/comics', builder: (_, _) => const ComicListScreen()),
       GoRoute(path: '/ranking', builder: (_, _) => const RankingScreen()),
       GoRoute(
@@ -215,13 +204,6 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         path: '/book/:id',
         builder: (_, state) => BookDetailScreen(
           id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
-          type: state.uri.queryParameters['type'] == 'Comic'
-              ? BookType.comic
-              : state.uri.queryParameters['type'] == 'Novel'
-              ? BookType.novel
-              : null,
-          seriesTitle: state.uri.queryParameters['seriesTitle'],
-          fromSeries: state.uri.queryParameters['fromSeries'],
         ),
         routes: <RouteBase>[
           GoRoute(
@@ -231,12 +213,6 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
                 int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
               ),
               title: state.uri.queryParameters['title'] ?? '',
-            ),
-          ),
-          GoRoute(
-            path: 'versions',
-            builder: (_, state) => BookVersionsScreen(
-              seriesTitle: state.uri.queryParameters['seriesTitle'] ?? '',
             ),
           ),
         ],

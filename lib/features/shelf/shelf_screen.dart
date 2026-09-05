@@ -229,12 +229,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   }
 
   void _openBook(BookListItem book) {
-    if (book.type == BookType.comic) {
-      final series = Uri.encodeComponent(book.seriesTitle ?? book.title);
-      context.push('/book/${book.id}?type=Comic&seriesTitle=$series');
-      return;
-    }
-    context.push('/book/${book.id}?type=Novel');
+    context.push('/book/${book.id}');
   }
 
   Widget _banner(

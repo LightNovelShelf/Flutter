@@ -54,8 +54,7 @@ class _NovelSeriesBooksScreenState
         onRetry: controller.retry,
         onRefresh: controller.refresh,
         onLoadMore: controller.loadMore,
-        onOpen: (book) =>
-            openBookDetail(context, book, fromSeries: widget.seriesName),
+        onOpen: (book) => openBookDetail(context, book),
         emptyIcon: Icons.menu_book_outlined,
         emptyTitle: '暂无书籍',
         emptyDescription: '该系列下暂无可显示的小说。',

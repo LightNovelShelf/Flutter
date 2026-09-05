@@ -132,10 +132,14 @@ Future<void> main(List<String> args) async {
     stdout.writeln('   ${page.items.length} 个系列');
   });
 
-  await check('getComicSeriesInfo', () async {
-    final series = await api.getComicSeriesInfo(comicTitle);
-    if (series.volumes.isEmpty) throw StateError('漫画系列没有分卷');
-    stdout.writeln('   ${series.title} · ${series.volumes.length} 卷');
+  await check('getComicBookInfo', () async {
+    final info = await api.getBookInfo(comicId);
+    if (info.series.isEmpty) throw StateError('漫画系列为空');
+    if (info.chapters.isEmpty) throw StateError('漫画没有章节');
+    comicChapterId = info.chapters.first.id;
+    stdout.writeln(
+      '   ${info.title} · 系列 ${info.series.length} 本 · ${info.chapters.length} 话',
+    );
   });
 
   await check('getAnnouncementList', () async {
@@ -156,13 +160,6 @@ Future<void> main(List<String> args) async {
     stdout.writeln(
       '   ${content.chapter.title} · ${content.chapter.content.length} 字节 · 字体=${content.chapter.fontUrl ?? '无'}',
     );
-  });
-
-  await check('getComicInfo', () async {
-    final info = await api.getComicInfo(comicId);
-    if (info.chapters.isEmpty) throw StateError('漫画没有章节');
-    comicChapterId = info.chapters.first.id;
-    stdout.writeln('   ${info.title} · ${info.chapters.length} 话');
   });
 
   await check('getComicContent', () async {

@@ -49,10 +49,19 @@ class _FakeApi extends ApiClient {
   }) async {
     final args = (params ?? const <String, Object?>{}) as Map<String, Object?>;
     switch (methodName) {
-      case 'GetComicInfo':
+      case 'GetBookInfo':
         return decode(<String, Object?>{
+          'SeriesTitle': '测试漫画系列',
+          'Series': <Object?>[
+            <String, Object?>{
+              'Id': _bookId,
+              'Title': '测试漫画',
+              'Cover': 'https://img.example/cover.webp',
+            },
+          ],
           'Book': <String, Object?>{
             'Id': _bookId,
+            'Type': 'Comic',
             'Cover': 'https://img.example/cover.webp',
             'Title': '测试漫画',
             'Author': '作者',

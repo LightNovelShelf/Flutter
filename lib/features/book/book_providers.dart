@@ -9,33 +9,23 @@ import '../../data/providers.dart';
 import '../../data/repositories/shelf_draft.dart';
 import '../../data/repositories/shelf_repository.dart';
 
-/// 漫画与小说走不同接口，类型必须进缓存键。
-typedef BookDetailRequest = ({int id, BookType? type});
-
-/// 详情页数据包。漫画额外带 `ComicInfo`，版本与上传者入口需要系列标题和分卷。
 @immutable
 class BookDetailBundle {
-  const BookDetailBundle({required this.detail, this.comic});
+  const BookDetailBundle({required this.detail});
 
   final BookDetail detail;
-  final ComicInfo? comic;
 
   bool get isComic => detail.type == BookType.comic;
 }
 
 /// autoDispose：书籍数量无上限，常驻缓存会持续增长。
-final FutureProviderFamily<BookDetailBundle, BookDetailRequest>
-bookDetailProvider = FutureProvider.family<BookDetailBundle, BookDetailRequest>(
-  (ref, request) async {
-    final api = ref.watch(apiClientProvider);
-    if (request.type == BookType.comic) {
-      final comic = await api.getComicInfo(request.id);
-      return BookDetailBundle(detail: comic.toBookDetail(), comic: comic);
-    }
-    return BookDetailBundle(detail: await api.getBookInfo(request.id));
-  },
-  isAutoDispose: true,
-);
+final FutureProviderFamily<BookDetailBundle, int> bookDetailProvider =
+    FutureProvider.family<BookDetailBundle, int>(
+      (ref, bookId) async => BookDetailBundle(
+        detail: await ref.watch(apiClientProvider).getBookInfo(bookId),
+      ),
+      isAutoDispose: true,
+    );
 
 /// 只读缓存快照判定，不回源查询。
 final FutureProviderFamily<bool, int> bookInShelfProvider =
@@ -44,13 +34,6 @@ final FutureProviderFamily<bool, int> bookInShelfProvider =
       if (snapshot == null) return false;
       return shelfContainsBook(snapshot.items, bookId);
     }, isAutoDispose: true);
-
-final FutureProviderFamily<ComicSeriesDetail, String> comicSeriesProvider =
-    FutureProvider.family<ComicSeriesDetail, String>(
-      (ref, seriesTitle) =>
-          ref.watch(apiClientProvider).getComicSeriesInfo(seriesTitle),
-      isAutoDispose: true,
-    );
 
 /// 书架按钮的乐观状态：`inShelf` 为 null 表示没有本地覆盖，沿用 [bookInShelfProvider]。
 @immutable

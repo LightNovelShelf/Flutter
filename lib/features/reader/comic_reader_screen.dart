@@ -64,12 +64,12 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
   late int _sortNum;
   final ValueNotifier<bool> _chromeVisible = ValueNotifier<bool>(false);
 
-  List<ComicChapterSummary> _chapters = const <ComicChapterSummary>[];
+  List<BookChapter> _chapters = const <BookChapter>[];
 
   /// 章节标题表只在 `_chapters` 换了之后重建，工具栏每帧都要读它。
   List<String> _chapterTitles = const <String>[];
   int _chapterIndex = 0;
-  ComicChapterSummary? _chapter;
+  BookChapter? _chapter;
   List<ComicPageSlot> _slots = const <ComicPageSlot>[];
 
   /// 前 i 页高宽比之和，乘上页宽就是第 i 页的顶部偏移。页宽变了不用重算，只有 `_slots` 变才重建。
@@ -204,7 +204,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     try {
       // 章节列表只在首次进入时取一次，换章时服务端进度不适用，从第一页开始。
       final info = _chapters.isEmpty
-          ? await ref.read(readerComicInfoProvider(widget.bookId).future)
+          ? await ref.read(readerBookDetailProvider(widget.bookId).future)
           : null;
       if (isStale(version)) return;
       final chapters = info?.chapters ?? _chapters;
@@ -279,10 +279,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     }
   }
 
-  int _resolveInitialPage(
-    ComicChapterSummary chapter,
-    BookReadPosition? server,
-  ) {
+  int _resolveInitialPage(BookChapter chapter, BookReadPosition? server) {
     final restore = resolveReaderRestore(
       bookId: widget.bookId,
       chapterId: chapter.id,
