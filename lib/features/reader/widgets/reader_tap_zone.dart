@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 
 /// 阅读点击热区：沿 [axis] 两端各 30% 翻页，中间 40% 切换工具栏。
-///
-/// 带 [child] 时作为正文的父节点，正文里的链接与图片先收到点击；不带 [child] 时铺
-/// 在内容之上，用于 PhotoView 这类自身消费点击的子树。
 class ReaderTapZoneLayer extends StatelessWidget {
   const ReaderTapZoneLayer({
     super.key,
@@ -12,7 +9,7 @@ class ReaderTapZoneLayer extends StatelessWidget {
     required this.onToggleChrome,
     this.axis = Axis.horizontal,
     this.reversed = false,
-    this.child,
+    required this.child,
   });
 
   final VoidCallback onPrevious;
@@ -23,7 +20,7 @@ class ReaderTapZoneLayer extends StatelessWidget {
   /// 右向左阅读时翻页方向对调。
   final bool reversed;
 
-  final Widget? child;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(

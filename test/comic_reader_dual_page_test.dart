@@ -13,7 +13,6 @@ import 'package:lightnovel/data/settings/app_settings.dart';
 import 'package:lightnovel/features/reader/comic_reader_screen.dart';
 import 'package:lightnovel/features/reader/widgets/reader_status_pills.dart';
 import 'package:lightnovel/shared/widgets/image_preview.dart';
-import 'package:photo_view/photo_view_gallery.dart';
 
 const int _bookId = 9;
 const int _chapterId = 90;
@@ -166,13 +165,9 @@ Future<void> _open(
   await tester.pumpAndSettle();
 }
 
-/// 往后翻一屏。点击热区在 PhotoView 上翻不动（见下方用例的说明），用滑动。
+/// 往后滑动一屏，覆盖图片手势与 PageView 的协作。
 Future<void> _swipeForward(WidgetTester tester) async {
-  await tester.fling(
-    find.byType(PhotoViewGallery),
-    const Offset(-600, 0),
-    1500,
-  );
+  await tester.fling(find.byType(PageView), const Offset(-600, 0), 1500);
   await tester.pumpAndSettle();
 }
 
@@ -288,11 +283,11 @@ void main() {
       padding: const FakeViewPadding(top: 40, bottom: 30),
     );
 
-    final gallery = tester.getRect(find.byType(PhotoViewGallery));
+    final pageView = tester.getRect(find.byType(PageView));
     final pills = tester.getRect(find.byType(ReaderStatusPills));
-    expect(gallery.top, 52);
-    expect(gallery.bottom, 714);
-    expect(pills.top, greaterThan(gallery.bottom));
+    expect(pageView.top, 52);
+    expect(pageView.bottom, 714);
+    expect(pills.top, greaterThan(pageView.bottom));
   });
 
   testWidgets('滚动模式只避开状态栏并隐藏页码胶囊', (tester) async {
@@ -314,6 +309,23 @@ void main() {
 
     expect(_page(0), findsOneWidget);
     expect(_page(1), findsNothing);
+  });
+
+  testWidgets('翻页模式点击边缘时抬手立即换页', (tester) async {
+    await _open(tester, dualPage: false);
+
+    final pageView = find.byType(PageView);
+    final controller = tester.widget<PageView>(pageView).controller!;
+    final rect = tester.getRect(pageView);
+    final gesture = await tester.startGesture(
+      Offset(rect.right - 10, rect.center.dy),
+    );
+    await gesture.up();
+
+    expect(controller.page, 1);
+    await tester.pump();
+    expect(_page(1), findsOneWidget);
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
   });
 
   testWidgets('屏幕竖着时一屏只摆一页', (tester) async {

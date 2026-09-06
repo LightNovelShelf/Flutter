@@ -11,7 +11,6 @@ void main() {
     Offset position, {
     Axis axis = Axis.horizontal,
     bool reversed = false,
-    bool withChild = false,
   }) async {
     final events = <String>[];
     await tester.pumpWidget(
@@ -26,7 +25,7 @@ void main() {
               onPrevious: () => events.add('previous'),
               onNext: () => events.add('next'),
               onToggleChrome: () => events.add('chrome'),
-              child: withChild ? const ColoredBox(color: Colors.white) : null,
+              child: const ColoredBox(color: Colors.white),
             ),
           ),
         ),
@@ -72,12 +71,5 @@ void main() {
   testWidgets('30%/70% 边界归中间区，避免误翻页', (tester) async {
     expect(await tapAt(tester, const Offset(91, 300)), <String>['chrome']);
     expect(await tapAt(tester, const Offset(209, 300)), <String>['chrome']);
-  });
-
-  testWidgets('包住正文时仍然接得到点击', (tester) async {
-    expect(
-      await tapAt(tester, const Offset(30, 300), withChild: true),
-      <String>['previous'],
-    );
   });
 }

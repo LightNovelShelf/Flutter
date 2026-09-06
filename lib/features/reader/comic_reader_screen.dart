@@ -4,8 +4,6 @@ import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:photo_view/photo_view.dart';
-import 'package:photo_view/photo_view_gallery.dart';
 
 import '../../core/network/api_error.dart';
 import '../../core/network/request_scheduler.dart';
@@ -682,59 +680,41 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     builder: (context, constraints) {
       final size = constraints.biggest;
       final spreads = _dualPaged ? _spreads : null;
-      final gallery = PhotoViewGallery.builder(
-        itemCount: spreads?.length ?? _slots.length,
-        pageController: _pageController,
-        reverse: reversed,
-        // 当前页按屏首算，与小说阅读器一致：翻页条上的位置就是这一屏最前面那一页。
-        // 读实时的 _spreads：jumpToPage 会同步派发滚动通知，而这一跳往往就发生在新一批
-        // 图刚改过配对、PhotoViewGallery 还没重建的时候，捕获的旧表会错位甚至越界。
-        onPageChanged: spreads == null
-            ? _onPageChanged
-            : (index) => _onPageChanged(
-                index >= 0 && index < _spreads.length
-                    ? _spreads[index].first
-                    : index,
-              ),
-        backgroundDecoration: const BoxDecoration(color: Colors.transparent),
-        builder: (context, index) {
-          if (spreads == null) {
-            return PhotoViewGalleryPageOptions.customChild(
-              childSize: Size(size.width, size.width * _aspect(index)),
-              minScale: PhotoViewComputedScale.contained,
-              initialScale: PhotoViewComputedScale.contained,
-              maxScale: PhotoViewComputedScale.contained * 6,
-              child: _pageContent(
+      return ReaderTapZoneLayer(
+        reversed: reversed,
+        onPrevious: () => _turn(-1),
+        onNext: () => _turn(1),
+        onToggleChrome: _toggleChrome,
+        child: PageView.builder(
+          itemCount: spreads?.length ?? _slots.length,
+          controller: _pageController,
+          reverse: reversed,
+          // 当前页按屏首算，与小说阅读器一致：翻页条上的位置就是这一屏最前面那一页。
+          // 读实时的 _spreads：jumpToPage 会同步派发滚动通知，而这一跳往往就发生在新一批
+          // 图刚改过配对、PageView 还没重建的时候，捕获的旧表会错位甚至越界。
+          onPageChanged: spreads == null
+              ? _onPageChanged
+              : (index) => _onPageChanged(
+                  index >= 0 && index < _spreads.length
+                      ? _spreads[index].first
+                      : index,
+                ),
+          itemBuilder: (context, index) {
+            final Widget content;
+            if (spreads == null) {
+              content = _pageContent(
                 index,
                 size.width,
                 size.width * _aspect(index),
-              ),
-            );
-          }
-          final pages = spreads[index];
-          final spreadSize = _spreadSize(pages, size.width);
-          return PhotoViewGalleryPageOptions.customChild(
-            childSize: spreadSize,
-            minScale: PhotoViewComputedScale.contained,
-            initialScale: PhotoViewComputedScale.contained,
-            maxScale: PhotoViewComputedScale.contained * 6,
-            child: _spreadContent(pages, spreadSize, reversed),
-          );
-        },
-      );
-      // PhotoView 会先消费子树里的点按，热区必须铺在它上面。
-      return Stack(
-        children: <Widget>[
-          Positioned.fill(child: gallery),
-          Positioned.fill(
-            child: ReaderTapZoneLayer(
-              reversed: reversed,
-              onPrevious: () => _turn(-1),
-              onNext: () => _turn(1),
-              onToggleChrome: _toggleChrome,
-            ),
-          ),
-        ],
+              );
+            } else {
+              final pages = spreads[index];
+              final spreadSize = _spreadSize(pages, size.width);
+              content = _spreadContent(pages, spreadSize, reversed);
+            }
+            return FittedBox(fit: BoxFit.contain, child: content);
+          },
+        ),
       );
     },
   );
