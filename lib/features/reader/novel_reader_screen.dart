@@ -489,6 +489,8 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
     );
     final paged = reader.viewMode == ReaderViewMode.paged;
     final current = _window.current;
+    // 工具栏可见时 _onPositionReported 会重建整屏，这里读到的页码总是最新的。
+    final pages = _pages.value;
 
     final shell = ReaderShell(
       background: background,
@@ -583,7 +585,8 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
         foregroundColor: foreground,
         currentChapter: _sortNum,
         totalChapters: _totalChapters,
-        chapterTitles: current?.chapter.chapterTitles ?? const <String>[],
+        currentPage: pages.$1,
+        totalPages: pages.$2,
         progress: _progression,
         onOpenChapters: () => unawaited(_openChapterSheet()),
         nightMode: Theme.of(context).brightness == Brightness.dark,
@@ -599,8 +602,10 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
         onNextChapter: _sortNum < _totalChapters
             ? () => unawaited(_openAdjacent(true))
             : null,
-        onChapterSelected: (sortNum) =>
-            unawaited(_openChapter(sortNum, ReaderOpenPosition.start)),
+        // 滚动模式没有页码，pages 恒为 (0, 0)，滑杆自然不摆。
+        onSeekPage: _contentReady
+            ? (page) => _contentController.seekPage(page - 1)
+            : null,
       ),
     );
     return ReaderImmersiveMode(

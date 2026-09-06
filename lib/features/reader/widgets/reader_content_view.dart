@@ -67,13 +67,16 @@ class ReaderContentPosition {
   final int pages;
 }
 
-/// 从阅读器外部触发正文前后翻页；未挂载或正文尚未就绪时操作会被忽略。
+/// 从阅读器外部翻页或在本章内跳页；未挂载或正文尚未就绪时操作会被忽略。
 class ReaderContentController {
   _ReaderContentViewState? _state;
 
   void previousPage() => _state?._turnFromController(false);
 
   void nextPage() => _state?._turnFromController(true);
+
+  /// 跳到当前章的第 [page] 栏（从 0 起），只在翻页模式下作数。
+  void seekPage(int page) => _state?._seekPage(page);
 
   void _attach(_ReaderContentViewState state) => _state = state;
 
@@ -973,6 +976,29 @@ class _ReaderContentViewState extends State<ReaderContentView> {
 
   void _turnFromController(bool next) {
     if (_ready) _turn(next);
+  }
+
+  /// 跳到当前章的第 [page] 栏。双页时目标栏若排在屏右，位置仍记在同屏左栏上。
+  void _seekPage(int page) {
+    final slot = _active;
+    if (!_ready || !widget.paged || slot == null || slot.geometry == null) {
+      return;
+    }
+    final column = _strip.globalPageOf(
+      slot,
+      page.clamp(0, slot.columnCount - 1),
+    );
+    final screen = (_leadingPending + column) ~/ _columns;
+    if (screen < 0 || screen >= _screenCount) return;
+    _applyPage(screen);
+    final controller = _pageController;
+    // 拖进度条是跳转不是翻页：隔着几十栏动画翻过去只会把中间那些栏白排一遍。
+    if (controller != null && controller.hasClients) {
+      controller.jumpToPage(screen);
+      return;
+    }
+    setState(_installPageController);
+    _settle();
   }
 
   /// 当前屏上露出加载栏时请求那一章。相邻章的按需请求只有这一个入口：

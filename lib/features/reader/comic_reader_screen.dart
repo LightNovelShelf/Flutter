@@ -65,9 +65,6 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
   final ValueNotifier<bool> _chromeVisible = ValueNotifier<bool>(false);
 
   List<BookChapter> _chapters = const <BookChapter>[];
-
-  /// 章节标题表只在 `_chapters` 换了之后重建，工具栏每帧都要读它。
-  List<String> _chapterTitles = const <String>[];
   int _chapterIndex = 0;
   BookChapter? _chapter;
   List<ComicPageSlot> _slots = const <ComicPageSlot>[];
@@ -249,9 +246,6 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       _pageNotifier.value = page;
       setState(() {
         _chapters = chapters;
-        _chapterTitles = <String>[
-          for (final chapter in chapters) chapter.title,
-        ];
         _chapterIndex = index;
         _chapter = chapter;
         _setSlots(
@@ -555,6 +549,15 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     );
   }
 
+  /// 跳到章内第 [page] 页：翻页模式落到那一页所在的屏，分屏时退到屏首。
+  void _jumpToPage(int page) {
+    final controller = _pageController;
+    if (_slots.isEmpty || controller == null || !controller.hasClients) return;
+    final target = page.clamp(0, _slots.length - 1).toInt();
+    final aligned = _dualPaged ? _spreadHeadOf(target) : target;
+    controller.jumpToPage(_dualPaged ? _spreadIndexOf(aligned) : aligned);
+  }
+
   Future<void> _openChapterIndex(int index) async {
     if (index < 0 || index >= _chapters.length) return;
     await _commitPosition();
@@ -770,7 +773,9 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     foregroundColor: foreground,
     currentChapter: _chapterIndex + 1,
     totalChapters: _chapters.length,
-    chapterTitles: _chapterTitles,
+    currentPage: page + 1,
+    // 连续模式不摆滑杆：一路滚下来没有翻页条上的落点。
+    totalPages: _mode == ReaderViewMode.paged ? _slots.length : 0,
     progress: _slots.isEmpty ? null : (page + 1) / _slots.length,
     onOpenChapters: () => unawaited(_openChapterSheet()),
     nightMode: Theme.of(context).brightness == Brightness.dark,
@@ -786,7 +791,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     onNextChapter: _chapterIndex < _chapters.length - 1
         ? () => unawaited(_openChapterIndex(_chapterIndex + 1))
         : null,
-    onChapterSelected: (chapter) => unawaited(_openChapterIndex(chapter - 1)),
+    onSeekPage: _slots.isEmpty ? null : (target) => _jumpToPage(target - 1),
   );
 
   @override

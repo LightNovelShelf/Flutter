@@ -7,12 +7,11 @@ import 'package:lightnovel/features/reader/widgets/reader_chrome.dart';
 
 Widget buildChrome({
   bool visible = true,
-  int currentChapter = 2,
-  int totalChapters = 10,
-  List<String> chapterTitles = const <String>[],
+  int currentPage = 2,
+  int totalPages = 10,
   bool nightMode = false,
   bool nightModeLocked = false,
-  ValueChanged<int>? onChapterSelected,
+  ValueChanged<int>? onSeekPage,
   VoidCallback? onOpenChapters,
   VoidCallback? onToggleNightMode,
   VoidCallback? onOpenSettings,
@@ -23,9 +22,10 @@ Widget buildChrome({
       title: '测试章节',
       backgroundColor: const Color(0xFFE0C4A1),
       foregroundColor: const Color(0xFF2A2318),
-      currentChapter: currentChapter,
-      totalChapters: totalChapters,
-      chapterTitles: chapterTitles,
+      currentChapter: 2,
+      totalChapters: 10,
+      currentPage: currentPage,
+      totalPages: totalPages,
       onOpenChapters: onOpenChapters ?? () {},
       nightMode: nightMode,
       onToggleNightMode: nightModeLocked ? null : (onToggleNightMode ?? () {}),
@@ -33,7 +33,7 @@ Widget buildChrome({
       onDismiss: () {},
       onPreviousChapter: () {},
       onNextChapter: () {},
-      onChapterSelected: onChapterSelected,
+      onSeekPage: onSeekPage,
     ),
   ),
 );
@@ -42,18 +42,10 @@ double sliderValue(WidgetTester tester) =>
     tester.widget<Slider>(find.byType(Slider)).value;
 
 void main() {
-  testWidgets('拖动章节进度条：气泡给出原始标题，松手才选中目标章节', (tester) async {
-    int? selectedChapter;
+  testWidgets('拖动进度条：气泡给出章内页码与进度，松手才跳页', (tester) async {
+    int? seeked;
 
-    await tester.pumpWidget(
-      buildChrome(
-        chapterTitles: <String>[
-          for (var chapter = 1; chapter <= 10; chapter++)
-            '第$chapter卷 标题$chapter',
-        ],
-        onChapterSelected: (chapter) => selectedChapter = chapter,
-      ),
-    );
+    await tester.pumpWidget(buildChrome(onSeekPage: (page) => seeked = page));
 
     final slider = tester.getRect(find.byType(Slider));
     final gesture = await tester.startGesture(slider.center);
@@ -61,35 +53,21 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 140));
 
-    expect(selectedChapter, isNull);
+    expect(seeked, isNull);
     expect(sliderValue(tester), 10);
-    // 标题原样显示，不做清洗改写：第 10 卷不能被说成第 10 章。
-    expect(find.text('第10卷 标题10'), findsOneWidget);
-    expect(tester.getRect(find.text('第10卷 标题10')).bottom, lessThan(slider.top));
+    expect(find.text('10 / 10'), findsOneWidget);
+    expect(find.text('100.0%'), findsOneWidget);
+    expect(tester.getRect(find.text('10 / 10')).bottom, lessThan(slider.top));
 
     await gesture.up();
     await tester.pumpAndSettle();
 
-    expect(selectedChapter, 10);
-    expect(find.text('第10卷 标题10'), findsNothing);
+    expect(seeked, 10);
+    expect(find.text('10 / 10'), findsNothing);
   });
 
-  testWidgets('章节标题缺失时气泡退回章号', (tester) async {
-    await tester.pumpWidget(buildChrome(onChapterSelected: (_) {}));
-
-    final slider = tester.getRect(find.byType(Slider));
-    final gesture = await tester.startGesture(slider.center);
-    await gesture.moveTo(Offset(slider.right, slider.center.dy));
-    await tester.pump(const Duration(milliseconds: 140));
-
-    expect(find.text('第10章'), findsOneWidget);
-
-    await gesture.up();
-    await tester.pumpAndSettle();
-  });
-
-  testWidgets('选章没能生效时滑块退回当前章节，不停在目标章节', (tester) async {
-    await tester.pumpWidget(buildChrome(onChapterSelected: (_) {}));
+  testWidgets('跳页没能生效时滑块退回当前页，不停在目标页', (tester) async {
+    await tester.pumpWidget(buildChrome(onSeekPage: (_) {}));
 
     final slider = tester.getRect(find.byType(Slider));
     final gesture = await tester.startGesture(slider.center);
@@ -98,38 +76,32 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
 
-    // 外部 currentChapter 没变（打开失败/被抢占），滑块不能继续指向第 10 章。
+    // 外部 currentPage 没变（跳转失败/被抢占），滑块不能继续指向第 10 页。
     expect(sliderValue(tester), 2);
   });
 
   testWidgets('拖动中工具栏收起：预览一并清掉', (tester) async {
-    await tester.pumpWidget(buildChrome(onChapterSelected: (_) {}));
+    await tester.pumpWidget(buildChrome(onSeekPage: (_) {}));
 
     final slider = tester.getRect(find.byType(Slider));
     final gesture = await tester.startGesture(slider.center);
     await gesture.moveTo(Offset(slider.right, slider.center.dy));
     await tester.pump(const Duration(milliseconds: 140));
-    expect(find.text('第10章'), findsOneWidget);
+    expect(find.text('10 / 10'), findsOneWidget);
 
-    await tester.pumpWidget(
-      buildChrome(visible: false, onChapterSelected: (_) {}),
-    );
+    await tester.pumpWidget(buildChrome(visible: false, onSeekPage: (_) {}));
     await tester.pumpAndSettle();
 
     expect(sliderValue(tester), 2);
-    expect(find.text('第10章'), findsNothing);
+    expect(find.text('10 / 10'), findsNothing);
 
     await gesture.up();
     await tester.pumpAndSettle();
   });
 
-  testWidgets('单章书不渲染章节滑杆', (tester) async {
+  testWidgets('滚动模式没有页码时不渲染滑杆', (tester) async {
     await tester.pumpWidget(
-      buildChrome(
-        currentChapter: 1,
-        totalChapters: 1,
-        onChapterSelected: (_) {},
-      ),
+      buildChrome(currentPage: 0, totalPages: 0, onSeekPage: (_) {}),
     );
 
     expect(find.byType(Slider), findsNothing);

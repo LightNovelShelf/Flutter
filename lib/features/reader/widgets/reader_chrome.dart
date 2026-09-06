@@ -59,7 +59,8 @@ class ReaderChrome extends StatelessWidget {
     required this.foregroundColor,
     required this.currentChapter,
     required this.totalChapters,
-    this.chapterTitles = const <String>[],
+    this.currentPage = 0,
+    this.totalPages = 0,
     required this.onOpenChapters,
     required this.nightMode,
     required this.onToggleNightMode,
@@ -68,7 +69,7 @@ class ReaderChrome extends StatelessWidget {
     this.progress,
     this.onPreviousChapter,
     this.onNextChapter,
-    this.onChapterSelected,
+    this.onSeekPage,
   });
 
   final bool visible;
@@ -77,7 +78,10 @@ class ReaderChrome extends StatelessWidget {
   final Color foregroundColor;
   final int currentChapter;
   final int totalChapters;
-  final List<String> chapterTitles;
+
+  /// 章内页码，从 1 起；[totalPages] 为 0（滚动模式）时不摆滑杆。
+  final int currentPage;
+  final int totalPages;
   final double? progress;
   final VoidCallback onOpenChapters;
   final bool nightMode;
@@ -88,7 +92,9 @@ class ReaderChrome extends StatelessWidget {
   final VoidCallback onDismiss;
   final VoidCallback? onPreviousChapter;
   final VoidCallback? onNextChapter;
-  final ValueChanged<int>? onChapterSelected;
+
+  /// 拖动滑杆松手后跳到章内第几页；为空表示当前不许拖。
+  final ValueChanged<int>? onSeekPage;
 
   static const Duration _duration = Duration(milliseconds: 250);
 
@@ -139,7 +145,8 @@ class ReaderChrome extends StatelessWidget {
                 bottomInset: padding.bottom,
                 currentChapter: currentChapter,
                 totalChapters: totalChapters,
-                chapterTitles: chapterTitles,
+                currentPage: currentPage,
+                totalPages: totalPages,
                 progress: progress,
                 nightMode: nightMode,
                 onOpenChapters: onOpenChapters,
@@ -147,7 +154,7 @@ class ReaderChrome extends StatelessWidget {
                 onOpenSettings: onOpenSettings,
                 onPreviousChapter: onPreviousChapter,
                 onNextChapter: onNextChapter,
-                onChapterSelected: onChapterSelected,
+                onSeekPage: onSeekPage,
               ),
             ),
           ),
@@ -251,7 +258,8 @@ class _ReaderBottomBar extends StatefulWidget {
     required this.bottomInset,
     required this.currentChapter,
     required this.totalChapters,
-    required this.chapterTitles,
+    required this.currentPage,
+    required this.totalPages,
     required this.progress,
     required this.nightMode,
     required this.onOpenChapters,
@@ -259,7 +267,7 @@ class _ReaderBottomBar extends StatefulWidget {
     required this.onOpenSettings,
     required this.onPreviousChapter,
     required this.onNextChapter,
-    required this.onChapterSelected,
+    required this.onSeekPage,
   });
 
   final bool visible;
@@ -268,7 +276,8 @@ class _ReaderBottomBar extends StatefulWidget {
   final double bottomInset;
   final int currentChapter;
   final int totalChapters;
-  final List<String> chapterTitles;
+  final int currentPage;
+  final int totalPages;
   final double? progress;
   final bool nightMode;
   final VoidCallback onOpenChapters;
@@ -276,7 +285,7 @@ class _ReaderBottomBar extends StatefulWidget {
   final VoidCallback onOpenSettings;
   final VoidCallback? onPreviousChapter;
   final VoidCallback? onNextChapter;
-  final ValueChanged<int>? onChapterSelected;
+  final ValueChanged<int>? onSeekPage;
 
   @override
   State<_ReaderBottomBar> createState() => _ReaderBottomBarState();
@@ -287,16 +296,16 @@ class _ReaderBottomBarState extends State<_ReaderBottomBar> {
   static const double _menuHeight = 64;
   static const double _previewGap = 16;
 
-  /// 拖动中的目标章节，滑杆位置与气泡共用一份。松手、工具栏收起、外部章节变化都要
-  /// 清空，否则选章失败后滑杆会停在没能打开的那一章。
+  /// 拖动中的目标页码，滑杆位置与气泡共用一份。松手、工具栏收起、外部页码变化都要
+  /// 清空，否则跳页失败后滑杆会停在没能翻到的那一页。
   final ValueNotifier<int?> _preview = ValueNotifier<int?>(null);
 
   @override
   void didUpdateWidget(covariant _ReaderBottomBar oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!widget.visible ||
-        oldWidget.currentChapter != widget.currentChapter ||
-        oldWidget.totalChapters != widget.totalChapters) {
+        oldWidget.currentPage != widget.currentPage ||
+        oldWidget.totalPages != widget.totalPages) {
       _preview.value = null;
     }
   }
@@ -348,16 +357,16 @@ class _ReaderBottomBarState extends State<_ReaderBottomBar> {
                         label: const Text('上一章'),
                       ),
                     ),
-                    if (widget.totalChapters > 1)
+                    if (widget.totalPages > 1)
                       Expanded(
                         flex: 5,
-                        child: _ReaderChapterSlider(
+                        child: _ReaderPageSlider(
                           preview: _preview,
-                          currentChapter: widget.currentChapter,
-                          totalChapters: widget.totalChapters,
+                          currentPage: widget.currentPage,
+                          totalPages: widget.totalPages,
                           backgroundColor: widget.backgroundColor,
                           foregroundColor: widget.foregroundColor,
-                          onChapterSelected: widget.onChapterSelected,
+                          onSeekPage: widget.onSeekPage,
                         ),
                       ),
                     Expanded(
@@ -426,7 +435,7 @@ class _ReaderBottomBarState extends State<_ReaderBottomBar> {
             child: IgnorePointer(
               child: ValueListenableBuilder<int?>(
                 valueListenable: _preview,
-                builder: (context, previewChapter, _) => AnimatedSwitcher(
+                builder: (context, previewPage, _) => AnimatedSwitcher(
                   duration: reduceMotion
                       ? Duration.zero
                       : const Duration(milliseconds: 140),
@@ -446,13 +455,12 @@ class _ReaderBottomBarState extends State<_ReaderBottomBar> {
                       child: child,
                     ),
                   ),
-                  child: previewChapter == null
+                  child: previewPage == null
                       ? const SizedBox.shrink(key: ValueKey<bool>(false))
-                      : _ReaderChapterPreview(
+                      : _ReaderPagePreview(
                           key: const ValueKey<bool>(true),
-                          chapter: previewChapter,
-                          totalChapters: widget.totalChapters,
-                          chapterTitles: widget.chapterTitles,
+                          page: previewPage,
+                          totalPages: widget.totalPages,
                           backgroundColor: widget.backgroundColor,
                           foregroundColor: widget.foregroundColor,
                         ),
@@ -466,27 +474,20 @@ class _ReaderBottomBarState extends State<_ReaderBottomBar> {
   }
 }
 
-class _ReaderChapterPreview extends StatelessWidget {
-  const _ReaderChapterPreview({
+/// 拖动滑杆时的气泡：第一行是章内页码，第二行是这一页在本章的进度。
+class _ReaderPagePreview extends StatelessWidget {
+  const _ReaderPagePreview({
     super.key,
-    required this.chapter,
-    required this.totalChapters,
-    required this.chapterTitles,
+    required this.page,
+    required this.totalPages,
     required this.backgroundColor,
     required this.foregroundColor,
   });
 
-  final int chapter;
-  final int totalChapters;
-  final List<String> chapterTitles;
+  final int page;
+  final int totalPages;
   final Color backgroundColor;
   final Color foregroundColor;
-
-  String get _title {
-    if (chapter < 1 || chapter > chapterTitles.length) return '第$chapter章';
-    final title = chapterTitles[chapter - 1].trim();
-    return title.isEmpty ? '第$chapter章' : title;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -495,7 +496,7 @@ class _ReaderChapterPreview extends StatelessWidget {
       backgroundColor,
     );
     final onSurface = onAccentColor(surface);
-    final percentage = totalChapters <= 0 ? 0.0 : chapter / totalChapters * 100;
+    final percentage = totalPages <= 0 ? 0.0 : page / totalPages * 100;
 
     return Material(
       color: surface,
@@ -508,7 +509,7 @@ class _ReaderChapterPreview extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             Text(
-              _title,
+              '$page / $totalPages',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
@@ -517,6 +518,7 @@ class _ReaderChapterPreview extends StatelessWidget {
                 fontSize: 17,
                 height: 22 / 17,
                 fontWeight: FontWeight.w500,
+                fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
               ),
             ),
             const SizedBox(height: 3),
@@ -580,28 +582,29 @@ class _ReaderMenuButton extends StatelessWidget {
   );
 }
 
-class _ReaderChapterSlider extends StatelessWidget {
-  const _ReaderChapterSlider({
+/// 章内页码滑杆：一档一页，松手才跳。
+class _ReaderPageSlider extends StatelessWidget {
+  const _ReaderPageSlider({
     required this.preview,
-    required this.currentChapter,
-    required this.totalChapters,
+    required this.currentPage,
+    required this.totalPages,
     required this.backgroundColor,
     required this.foregroundColor,
-    required this.onChapterSelected,
+    required this.onSeekPage,
   });
 
   final ValueNotifier<int?> preview;
-  final int currentChapter;
-  final int totalChapters;
+  final int currentPage;
+  final int totalPages;
   final Color backgroundColor;
   final Color foregroundColor;
-  final ValueChanged<int>? onChapterSelected;
+  final ValueChanged<int>? onSeekPage;
 
-  int _chapterAt(double value) => value.round().clamp(1, totalChapters).toInt();
+  int _pageAt(double value) => value.round().clamp(1, totalPages).toInt();
 
   @override
   Widget build(BuildContext context) {
-    final onSelected = onChapterSelected;
+    final onSeek = onSeekPage;
     final activeTrack = foregroundColor.withValues(alpha: 0.38);
     final inactiveTrack = foregroundColor.withValues(alpha: 0.14);
     final thumb = Color.alphaBlend(
@@ -632,26 +635,26 @@ class _ReaderChapterSlider extends StatelessWidget {
           ),
           child: ValueListenableBuilder<int?>(
             valueListenable: preview,
-            builder: (context, previewChapter, _) => Slider(
-              value: (previewChapter ?? currentChapter)
-                  .clamp(1, totalChapters)
+            builder: (context, previewPage, _) => Slider(
+              value: (previewPage ?? currentPage)
+                  .clamp(1, totalPages)
                   .toDouble(),
               min: 1,
-              max: totalChapters.toDouble(),
+              max: totalPages.toDouble(),
               semanticFormatterCallback: (value) =>
-                  '第 ${value.round()} 章，共 $totalChapters 章',
-              onChangeStart: onSelected == null
+                  '本章第 ${value.round()} 页，共 $totalPages 页',
+              onChangeStart: onSeek == null
                   ? null
-                  : (value) => preview.value = _chapterAt(value),
-              onChanged: onSelected == null
+                  : (value) => preview.value = _pageAt(value),
+              onChanged: onSeek == null
                   ? null
-                  : (value) => preview.value = _chapterAt(value),
-              onChangeEnd: onSelected == null
+                  : (value) => preview.value = _pageAt(value),
+              onChangeEnd: onSeek == null
                   ? null
                   : (value) {
-                      final chapter = _chapterAt(value);
+                      final page = _pageAt(value);
                       preview.value = null;
-                      if (chapter != currentChapter) onSelected(chapter);
+                      if (page != currentPage) onSeek(page);
                     },
             ),
           ),
