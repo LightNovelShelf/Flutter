@@ -148,7 +148,9 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
         page: page,
         size: size,
         // 锚点窗口不对齐页网格，拿已加载的最后一条当游标才不会重复或断档
-        afterReplyId: parent.childReplies.isEmpty ? 0 : parent.childReplies.last.id,
+        afterReplyId: parent.childReplies.isEmpty
+            ? 0
+            : parent.childReplies.last.id,
       );
       if (_disposed) return;
       final detail = state.thread;
@@ -182,14 +184,16 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
     final detail = state.thread;
     if (detail == null || detail.item.locked) return Future<void>.value();
     return _optimistic<CommunityLikeToggleResult>(
-      apply: (current) => _withCounts(
-        current.copyWith(liked: !current.liked),
-        likes: current.item.likes + (current.liked ? -1 : 1),
+      apply: (current) => current.copyWith(
+        liked: !current.liked,
+        item: current.item.copyWith(
+          likes: current.item.likes + (current.liked ? -1 : 1),
+        ),
       ),
       commit: () => _api.toggleCommunityThreadLike(detail.item.id),
-      settle: (current, result) => _withCounts(
-        current.copyWith(liked: result.liked),
-        likes: result.likes,
+      settle: (current, result) => current.copyWith(
+        liked: result.liked,
+        item: current.item.copyWith(likes: result.likes),
       ),
       failure: '无法更新点赞状态。',
     );
@@ -199,14 +203,16 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
     final detail = state.thread;
     if (detail == null || detail.item.locked) return Future<void>.value();
     return _optimistic<CommunityFavoriteToggleResult>(
-      apply: (current) => _withCounts(
-        current.copyWith(favorited: !current.favorited),
-        favorites: current.item.favorites + (current.favorited ? -1 : 1),
+      apply: (current) => current.copyWith(
+        favorited: !current.favorited,
+        item: current.item.copyWith(
+          favorites: current.item.favorites + (current.favorited ? -1 : 1),
+        ),
       ),
       commit: () => _api.toggleCommunityThreadFavorite(detail.item.id),
-      settle: (current, result) => _withCounts(
-        current.copyWith(favorited: result.favorited),
-        favorites: result.favorites,
+      settle: (current, result) => current.copyWith(
+        favorited: result.favorited,
+        item: current.item.copyWith(favorites: result.favorites),
       ),
       failure: '无法更新收藏状态。',
     );
@@ -290,6 +296,35 @@ class CommunityThreadController extends Notifier<CommunityThreadState> {
     }
   }
 
+  /// 锁定/解锁帖子。锁定位以服务端响应为准，不做乐观翻转。
+  Future<bool> setLocked(bool locked) async {
+    final detail = state.thread;
+    if (detail == null || !detail.canEdit || state.threadActionBusy) {
+      return false;
+    }
+    state = state.copyWith(threadActionBusy: true);
+    try {
+      final applied = await _api.setCommunityThreadLocked(
+        threadId: detail.item.id,
+        locked: locked,
+      );
+      if (_disposed) return false;
+      final current = state.thread;
+      state = state.copyWith(
+        threadActionBusy: false,
+        thread: current?.copyWith(item: current.item.copyWith(locked: applied)),
+      );
+      return true;
+    } catch (error) {
+      if (_disposed || isCancellation(error)) return false;
+      state = _withNotice(
+        state.copyWith(threadActionBusy: false),
+        describeCommunityError(error, fallback: locked ? '无法锁定帖子。' : '无法解除锁定。'),
+      );
+      return false;
+    }
+  }
+
   /// 乐观更新：先本地翻转，服务端返回后用真实计数覆盖，失败回滚并提示。
   /// `busyKey` 为空表示帖子级动作，否则占用回复级忙碌位。
   Future<void> _optimistic<R>({
@@ -363,20 +398,3 @@ communityThreadProvider =
       CommunityThreadState,
       CommunityThreadArgs
     >(CommunityThreadController.new, isAutoDispose: true);
-
-/// 复制帖子并替换互动计数。
-CommunityThreadDetail _withCounts(
-  CommunityThreadDetail detail, {
-  int? likes,
-  int? favorites,
-}) => CommunityThreadDetail(
-  item: detail.item.copyWith(likes: likes, favorites: favorites),
-  liked: detail.liked,
-  favorited: detail.favorited,
-  canEdit: detail.canEdit,
-  content: detail.content,
-  repliesPage: detail.repliesPage,
-  replyItems: detail.replyItems,
-  relatedThreads: detail.relatedThreads,
-  focus: detail.focus,
-);

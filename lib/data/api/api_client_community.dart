@@ -95,6 +95,15 @@ extension ApiClientCommunity on ApiClient {
     }, (_) {});
   }
 
+  /// 锁定/解锁帖子，返回落库后的锁定位。权限与编辑帖子一致。
+  Future<bool> setCommunityThreadLocked({
+    required int threadId,
+    required bool locked,
+  }) => invoke('SetCommunityThreadLocked', <String, Object?>{
+    'ThreadId': threadId,
+    'Locked': locked,
+  }, decodeCommunityThreadLocked);
+
   Future<CommunityThreadReply> createCommunityReply({
     required int threadId,
     required String content,

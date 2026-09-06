@@ -143,6 +143,15 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
     context.go('/community');
   }
 
+  Future<void> _toggleLock() async {
+    final detail = ref.read(_provider).thread;
+    if (detail == null || !detail.canEdit) return;
+    final locked = !detail.item.locked;
+    final ok = await ref.read(_provider.notifier).setLocked(locked);
+    if (!ok || !mounted) return;
+    showAppSnackBar(context, locked ? '帖子已锁定' : '帖子已解除锁定');
+  }
+
   @override
   Widget build(BuildContext context) {
     // 互动失败是一次性提示，用 noticeTag 区分文案相同的重复失败。
@@ -164,6 +173,17 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
         title: const Text(''),
         actions: <Widget>[
           if (detail?.canEdit ?? false) ...<Widget>[
+            IconButton(
+              onPressed: state.deletingThread || state.threadActionBusy
+                  ? null
+                  : _toggleLock,
+              tooltip: detail!.item.locked ? '解除锁定' : '锁定',
+              icon: Icon(
+                detail.item.locked
+                    ? Icons.lock_open_outlined
+                    : Icons.lock_outline,
+              ),
+            ),
             IconButton(
               onPressed: state.deletingThread ? null : _editThread,
               tooltip: '编辑',

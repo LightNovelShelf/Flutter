@@ -29,7 +29,7 @@ class CommunityThreadState {
   final String? loadMoreError;
   final bool deletingThread;
 
-  /// 帖子级动作（点赞/收藏）的忙碌位，与回复级动作分开，避免互相禁用。
+  /// 帖子级动作（点赞/收藏/锁定）的忙碌位，与回复级动作分开，避免互相禁用。
   final bool threadActionBusy;
 
   /// 进行中的回复级动作，形如 `like:12` / `children:12`，id 用于定位进度指示。

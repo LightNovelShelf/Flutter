@@ -492,12 +492,13 @@ class CommunityThreadDetail {
   final CommunityReplyFocus? focus;
 
   CommunityThreadDetail copyWith({
+    CommunityFeedItem? item,
     bool? liked,
     bool? favorited,
     CommunityPagination? repliesPage,
     List<CommunityThreadReply>? replyItems,
   }) => CommunityThreadDetail(
-    item: item,
+    item: item ?? this.item,
     liked: liked ?? this.liked,
     favorited: favorited ?? this.favorited,
     canEdit: canEdit,
@@ -812,3 +813,7 @@ class CommunityFavoriteToggleResult {
     );
   }
 }
+
+/// SetCommunityThreadLocked 的响应，只有落库后的锁定位有用。
+bool decodeCommunityThreadLocked(Object? value) =>
+    asBool(asRecord(value, '锁定响应')['Locked']);
