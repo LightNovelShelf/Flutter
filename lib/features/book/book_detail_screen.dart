@@ -92,6 +92,9 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   Widget _body(BuildContext context, BookDetailBundle bundle) {
     final detail = bundle.detail;
     final colors = Theme.of(context).colorScheme;
+    final hasOtherSeriesBooks = detail.series.any(
+      (book) => book.id != widget.id,
+    );
     final position = ReadPositionCache.merge(widget.id, detail.readPosition);
     final currentIndex = position == null
         ? -1
@@ -132,17 +135,18 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                   avatarUrl: uploader.avatarUrl,
                 );
               },
-              itemBuilder: (_) => const <PopupMenuEntry<String>>[
-                PopupMenuItem<String>(
-                  value: 'series',
-                  child: ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.library_books_outlined),
-                    title: Text('系列'),
+              itemBuilder: (_) => <PopupMenuEntry<String>>[
+                if (hasOtherSeriesBooks)
+                  const PopupMenuItem<String>(
+                    value: 'series',
+                    child: ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.library_books_outlined),
+                      title: Text('系列'),
+                    ),
                   ),
-                ),
-                PopupMenuItem<String>(
+                const PopupMenuItem<String>(
                   value: 'uploader',
                   child: ListTile(
                     dense: true,

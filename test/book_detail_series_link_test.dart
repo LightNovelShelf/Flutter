@@ -23,7 +23,10 @@ const String _bookTitle = '某本小说 第一卷';
 /// 服务端对无权访问的书籍返回业务错误，`ApiClient` 抛成 [ApiError]。
 const String _forbiddenMessage = '您没有权限访问这本书';
 
-Map<String, dynamic> _detailResponse(String bookType) => <String, dynamic>{
+Map<String, dynamic> _detailResponse(
+  String bookType, {
+  bool hasOtherSeriesBook = true,
+}) => <String, dynamic>{
   'SeriesTitle': '中文系列',
   'Series': <Object?>[
     <String, Object?>{
@@ -31,11 +34,12 @@ Map<String, dynamic> _detailResponse(String bookType) => <String, dynamic>{
       'Title': _bookTitle,
       'Cover': 'https://img.test/$_bookId.jpg',
     },
-    <String, Object?>{
-      'Id': 43,
-      'Title': '某本小说 第二卷',
-      'Cover': 'https://img.test/43.jpg',
-    },
+    if (hasOtherSeriesBook)
+      <String, Object?>{
+        'Id': 43,
+        'Title': '某本小说 第二卷',
+        'Cover': 'https://img.test/43.jpg',
+      },
   ],
   'Book': <String, dynamic>{
     'Id': _bookId,
@@ -71,19 +75,23 @@ Map<String, dynamic> _detailResponse(String bookType) => <String, dynamic>{
 };
 
 class _FakeApi extends ApiClient {
-  _FakeApi({this.forbidBookInfo = false, this.bookType = 'Novel'})
-    : super(
-        signalR: SignalRConnection(
-          endpoint: 'http://localhost/hub',
-          accessTokenFactory: () async => null,
-        ),
-        scheduler: RateLimitRequestScheduler(),
-        headers: () async => const <String, String>{},
-      );
+  _FakeApi({
+    this.forbidBookInfo = false,
+    this.bookType = 'Novel',
+    this.hasOtherSeriesBook = true,
+  }) : super(
+         signalR: SignalRConnection(
+           endpoint: 'http://localhost/hub',
+           accessTokenFactory: () async => null,
+         ),
+         scheduler: RateLimitRequestScheduler(),
+         headers: () async => const <String, String>{},
+       );
 
   /// 详情接口是否返回无权访问。
   final bool forbidBookInfo;
   final String bookType;
+  final bool hasOtherSeriesBook;
 
   final List<(String, Map<String, Object?>)> calls =
       <(String, Map<String, Object?>)>[];
@@ -103,7 +111,9 @@ class _FakeApi extends ApiClient {
         if (forbidBookInfo) {
           throw const ApiError(_forbiddenMessage, ApiErrorCategory.server);
         }
-        return decode(_detailResponse(bookType));
+        return decode(
+          _detailResponse(bookType, hasOtherSeriesBook: hasOtherSeriesBook),
+        );
       case 'GetBooksBySeries':
         return decode(<String, dynamic>{
           'Page': 1,
@@ -142,8 +152,13 @@ Future<({_FakeApi api, GoRouter router})> _open(
   String initialLocation = '/book/$_bookId',
   bool forbidBookInfo = false,
   String bookType = 'Novel',
+  bool hasOtherSeriesBook = true,
 }) async {
-  final api = _FakeApi(forbidBookInfo: forbidBookInfo, bookType: bookType);
+  final api = _FakeApi(
+    forbidBookInfo: forbidBookInfo,
+    bookType: bookType,
+    hasOtherSeriesBook: hasOtherSeriesBook,
+  );
   final router = GoRouter(
     initialLocation: initialLocation,
     routes: <RouteBase>[
@@ -210,6 +225,16 @@ void main() {
     expect(find.text('当前书籍'), findsOneWidget);
     expect(find.text('中文系列 · 2 本'), findsOneWidget);
     expect(find.text('某本小说 第二卷'), findsOneWidget);
+  });
+
+  testWidgets('系列只有当前书籍时菜单不显示系列入口', (tester) async {
+    await _open(tester, hasOtherSeriesBook: false);
+
+    await tester.tap(find.byTooltip('更多'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(ListTile, '系列'), findsNothing);
+    expect(find.widgetWithText(ListTile, '上传者'), findsOneWidget);
   });
 
   testWidgets('漫画复用详情组件且不显示收藏', (tester) async {
