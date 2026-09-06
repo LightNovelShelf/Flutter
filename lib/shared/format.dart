@@ -60,9 +60,15 @@ String cleanChapterTitle(String title) {
   return stripped.isEmpty ? trimmed : stripped;
 }
 
-/// 用户名兜底，空名字按是否已注销返回不同占位。
-String displayUserName(String name, {required bool deleted}) {
+/// 用户名兜底；[showDeletedStatus] 为已注销用户追加状态。
+String displayUserName(
+  String name, {
+  required bool deleted,
+  bool showDeletedStatus = false,
+}) {
   final trimmed = name.trim();
-  if (trimmed.isNotEmpty) return trimmed;
+  if (trimmed.isNotEmpty) {
+    return deleted && showDeletedStatus ? '$trimmed（已注销）' : trimmed;
+  }
   return deleted ? '已注销用户' : '未知用户';
 }

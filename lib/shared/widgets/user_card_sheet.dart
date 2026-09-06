@@ -109,7 +109,7 @@ class _UserCardSheet extends ConsumerWidget {
                     ],
                   ),
                 ),
-                if (userId != myId) ...<Widget>[
+                if (userId != myId && !async.hasError) ...<Widget>[
                   const SizedBox(width: 12),
                   FilledButton.tonalIcon(
                     onPressed: () =>

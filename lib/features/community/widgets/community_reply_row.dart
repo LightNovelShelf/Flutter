@@ -33,6 +33,7 @@ class CommunityReplyRow extends StatelessWidget {
     final name = displayUserName(
       reply.authorName,
       deleted: reply.authorIsDeleted,
+      showDeletedStatus: true,
     );
     final badge = reply.authorBadge?.trim() ?? '';
     final iconSize = threadRowIconSize(isChild);
@@ -50,6 +51,7 @@ class CommunityReplyRow extends StatelessWidget {
           : displayUserName(
               reply.replyTo!.authorName,
               deleted: reply.replyTo!.authorIsDeleted,
+              showDeletedStatus: true,
             ),
       badge: badge.isEmpty
           ? null

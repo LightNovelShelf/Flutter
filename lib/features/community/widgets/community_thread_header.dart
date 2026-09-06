@@ -34,6 +34,7 @@ class CommunityThreadHeader extends StatelessWidget {
     final authorName = displayUserName(
       item.authorName,
       deleted: item.authorIsDeleted,
+      showDeletedStatus: true,
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
