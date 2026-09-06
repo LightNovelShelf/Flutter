@@ -66,6 +66,39 @@ Future<void> _pump(WidgetTester tester, Widget child) => tester.pumpWidget(
   ),
 );
 
+Text _textWithContent(WidgetTester tester, String content) =>
+    tester.widget<Text>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Text &&
+            (widget.data ?? widget.textSpan?.toPlainText()) == content,
+      ),
+    );
+
+TextSpan _spanWithText(InlineSpan span, String text) {
+  if (span is TextSpan) {
+    if (span.text == text) return span;
+    for (final child in span.children ?? const <InlineSpan>[]) {
+      try {
+        return _spanWithText(child, text);
+      } on StateError {
+        continue;
+      }
+    }
+  }
+  throw StateError('找不到文本片段：$text');
+}
+
+void _expectDeletedStatusColor(
+  WidgetTester tester,
+  String content,
+  Color expected,
+) {
+  final text = _textWithContent(tester, content);
+  final status = _spanWithText(text.textSpan!, '（已注销）');
+  expect(status.style?.color, expected);
+}
+
 void main() {
   testWidgets('帖子详情显示已注销的楼主状态', (tester) async {
     final detail = CommunityThreadDetail(
@@ -92,6 +125,13 @@ void main() {
     );
 
     expect(find.text('楼主（已注销）'), findsOneWidget);
+    _expectDeletedStatusColor(
+      tester,
+      '楼主（已注销）',
+      Theme.of(tester.element(find.byType(CommunityThreadHeader)))
+          .colorScheme
+          .error,
+    );
   });
 
   testWidgets('回复作者和回复对象显示已注销状态', (tester) async {
@@ -110,6 +150,11 @@ void main() {
     );
 
     expect(find.text('回复者（已注销）'), findsOneWidget);
-    expect(find.text('回复 回复对象（已注销）'), findsOneWidget);
+    expect(find.text('回复对象（已注销）'), findsOneWidget);
+    final errorColor = Theme.of(tester.element(find.byType(CommunityReplyRow)))
+        .colorScheme
+        .error;
+    _expectDeletedStatusColor(tester, '回复者（已注销）', errorColor);
+    _expectDeletedStatusColor(tester, '回复对象（已注销）', errorColor);
   });
 }

@@ -4,6 +4,7 @@ import '../../../data/api/models.dart';
 import '../../../shared/format.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../../../shared/widgets/user_avatar.dart';
+import '../../../shared/widgets/user_name_text.dart';
 import 'community_primitives.dart';
 
 /// 帖子卡片，社区首页与我的社区共用。
@@ -129,39 +130,27 @@ class CommunityFeedCard extends StatelessWidget {
                 Row(
                   children: <Widget>[
                     Expanded(
-                      child: Text.rich(
-                        TextSpan(
-                          children: <InlineSpan>[
-                            TextSpan(
-                              text: authorName,
+                      child: Row(
+                        children: <Widget>[
+                          Flexible(
+                            child: UserNameText(
+                              name: item.authorName,
+                              deleted: item.authorIsDeleted,
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 color: colors.onSurface,
                               ),
                             ),
-                            if (item.authorIsDeleted &&
-                                item.authorName.trim().isNotEmpty)
-                              TextSpan(
-                                text: '（已注销）',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: colors.error,
-                                ),
-                              ),
-                            TextSpan(
-                              text:
-                                  ' · ${formatRelativeTimeFine(item.publishedAt)}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: colors.onSurfaceVariant,
-                              ),
+                          ),
+                          Text(
+                            ' · ${formatRelativeTimeFine(item.publishedAt)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colors.onSurfaceVariant,
                             ),
-                          ],
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 10),

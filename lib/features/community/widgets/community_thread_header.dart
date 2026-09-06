@@ -4,6 +4,7 @@ import '../../../data/api/models.dart';
 import '../../../shared/format.dart';
 import '../../../shared/widgets/html_content.dart';
 import '../../../shared/widgets/user_avatar.dart';
+import '../../../shared/widgets/user_name_text.dart';
 import '../community_thread_providers.dart';
 import 'community_primitives.dart';
 
@@ -34,8 +35,8 @@ class CommunityThreadHeader extends StatelessWidget {
     final authorName = displayUserName(
       item.authorName,
       deleted: item.authorIsDeleted,
-      showDeletedStatus: true,
     );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -92,8 +93,9 @@ class CommunityThreadHeader extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              Text(
-                                authorName,
+                              UserNameText(
+                                name: item.authorName,
+                                deleted: item.authorIsDeleted,
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,

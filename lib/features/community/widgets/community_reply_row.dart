@@ -30,29 +30,22 @@ class CommunityReplyRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = displayUserName(
-      reply.authorName,
-      deleted: reply.authorIsDeleted,
-      showDeletedStatus: true,
-    );
+    final colors = Theme.of(context).colorScheme;
+    final replyTo = reply.replyTo;
     final badge = reply.authorBadge?.trim() ?? '';
     final iconSize = threadRowIconSize(isChild);
 
     return ThreadReplyRow(
       userId: reply.authorId,
-      userName: name,
+      userName: reply.authorName,
+      userDeleted: reply.authorIsDeleted,
       avatarUrl: reply.authorAvatar,
       content: reply.content,
       publishedAt: reply.publishedAt,
       isChild: isChild,
       highlighted: highlighted,
-      replyToUserName: reply.replyTo == null
-          ? null
-          : displayUserName(
-              reply.replyTo!.authorName,
-              deleted: reply.replyTo!.authorIsDeleted,
-              showDeletedStatus: true,
-            ),
+      replyToUserName: replyTo?.authorName,
+      replyToUserDeleted: replyTo?.authorIsDeleted ?? false,
       badge: badge.isEmpty
           ? null
           : CommunityTagPill(
@@ -80,7 +73,7 @@ class CommunityReplyRow extends StatelessWidget {
             icon: Icons.delete_outline,
             tooltip: '删除',
             iconSize: iconSize,
-            color: Theme.of(context).colorScheme.error,
+            color: colors.error,
             onPressed: busy ? null : onDelete,
           ),
         ],

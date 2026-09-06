@@ -104,11 +104,7 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
     final replyToId = target?.id;
     final replyToName = target == null
         ? null
-        : displayUserName(
-            target.authorName,
-            deleted: target.authorIsDeleted,
-            showDeletedStatus: true,
-          );
+        : displayUserName(target.authorName, deleted: target.authorIsDeleted);
     final posted = await showReplyComposeSheet(
       context,
       hintText: replyToName == null ? '回复讨论' : '回复 $replyToName',
