@@ -38,6 +38,7 @@ class CommunityReplyRow extends StatelessWidget {
     final iconSize = threadRowIconSize(isChild);
 
     return ThreadReplyRow(
+      userId: reply.authorId,
       userName: name,
       avatarUrl: reply.authorAvatar,
       content: reply.content,

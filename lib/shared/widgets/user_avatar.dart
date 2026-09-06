@@ -2,9 +2,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../image_cache.dart';
+import 'user_card_sheet.dart';
 
 /// 全站唯一的圆形头像：无地址或加载失败回退到用户名首字母，
 /// 用户名也为空时回退到 [fallbackIcon]（默认 `?`）。
+///
+/// 传了正数 [userId] 就可点击，点开通用用户名片。
 class UserAvatar extends StatefulWidget {
   const UserAvatar({
     super.key,
@@ -12,12 +15,14 @@ class UserAvatar extends StatefulWidget {
     required this.name,
     this.size = 40,
     this.fallbackIcon,
+    this.userId,
   });
 
   final String url;
   final String name;
   final double size;
   final IconData? fallbackIcon;
+  final int? userId;
 
   @override
   State<UserAvatar> createState() => _UserAvatarState();
@@ -58,7 +63,8 @@ class _UserAvatarState extends State<UserAvatar> {
               ),
       ),
     );
-    return ClipOval(
+    final userId = widget.userId ?? 0;
+    final avatar = ClipOval(
       child: SizedBox(
         width: size,
         height: size,
@@ -84,6 +90,18 @@ class _UserAvatarState extends State<UserAvatar> {
                 },
               ),
       ),
+    );
+    if (userId <= 0) return avatar;
+    // 卡片、列表行本身也可点，头像的手势要压过外层。
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => showUserCardSheet(
+        context,
+        userId: userId,
+        userName: name,
+        avatarUrl: url,
+      ),
+      child: avatar,
     );
   }
 }

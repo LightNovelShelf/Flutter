@@ -186,6 +186,7 @@ class CommunityActiveUsersPanel extends StatelessWidget {
                     url: users[index].avatar,
                     name: users[index].name,
                     size: 36,
+                    userId: users[index].id,
                   ),
                   const SizedBox(width: 12),
                   Expanded(

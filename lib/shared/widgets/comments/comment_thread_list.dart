@@ -184,6 +184,7 @@ class _CommentThreadListState extends ConsumerState<CommentThreadList> {
           isChild: false,
           closesGroup: closesGroup,
           child: ThreadReplyRow(
+            userId: comment.user.id,
             userName: comment.user.userName,
             avatarUrl: comment.user.avatarUrl,
             content: comment.content,
@@ -202,6 +203,7 @@ class _CommentThreadListState extends ConsumerState<CommentThreadList> {
             isChild: true,
             closesGroup: closesGroup,
             child: ThreadReplyRow(
+              userId: reply.user.id,
               userName: reply.user.userName,
               avatarUrl: reply.user.avatarUrl,
               content: reply.content,

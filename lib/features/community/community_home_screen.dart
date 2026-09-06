@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/repositories/profile_repository.dart';
 import '../../shared/paging/scroll_prefetch.dart';
+import '../../shared/widgets/unread_badge.dart';
 import 'community_providers.dart';
 import 'widgets/community_feed_card.dart';
 import 'widgets/community_feed_sliver.dart';
@@ -55,8 +56,9 @@ class _CommunityHomeScreenState extends ConsumerState<CommunityHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(communityHomeProvider);
-    final unread =
-        ref.watch(profileProvider).value?.unreadNotificationCount ?? 0;
+    final profile = ref.watch(profileProvider).value;
+    final unreadNotifications = profile?.unreadNotificationCount ?? 0;
+    final unreadMessages = profile?.unreadDirectMessageCount ?? 0;
     final home = state.home;
 
     return Scaffold(
@@ -76,11 +78,18 @@ class _CommunityHomeScreenState extends ConsumerState<CommunityHomeScreen> {
               title: const Text('社区'),
               actions: <Widget>[
                 IconButton(
+                  onPressed: () => context.push('/messages'),
+                  tooltip: '私信',
+                  icon: UnreadBadge(
+                    count: unreadMessages,
+                    child: const Icon(Icons.mail_outline),
+                  ),
+                ),
+                IconButton(
                   onPressed: () => context.push('/community/notifications'),
                   tooltip: '通知',
-                  icon: Badge(
-                    isLabelVisible: unread > 0,
-                    label: Text(unread > 99 ? '99+' : '$unread'),
+                  icon: UnreadBadge(
+                    count: unreadNotifications,
                     child: const Icon(Icons.notifications_none),
                   ),
                 ),

@@ -245,7 +245,12 @@ class _NotificationCard extends StatelessWidget {
                   ),
                 )
               else
-                UserAvatar(url: actor.avatar, name: actorName, size: 38),
+                UserAvatar(
+                  url: actor.avatar,
+                  name: actorName,
+                  size: 38,
+                  userId: actor.id,
+                ),
               const SizedBox(width: 10),
               Expanded(
                 child: Row(

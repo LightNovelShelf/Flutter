@@ -31,6 +31,8 @@ import '../features/discover/discover_screen.dart';
 import '../features/discover/novel_series_books_screen.dart';
 import '../features/discover/ranking_screen.dart';
 import '../features/history/history_screen.dart';
+import '../features/message/direct_chat_screen.dart';
+import '../features/message/direct_message_list_screen.dart';
 import '../features/reader/comic_reader_screen.dart';
 import '../features/reader/novel_reader_screen.dart';
 import '../features/reader/reader_open_position.dart';
@@ -270,6 +272,16 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/community/rankings',
         builder: (_, _) => const CommunityRankingsScreen(),
+      ),
+      GoRoute(
+        path: '/messages',
+        builder: (_, _) => const DirectMessageListScreen(),
+      ),
+      GoRoute(
+        path: '/messages/:peerId',
+        builder: (_, state) => DirectChatScreen(
+          peerId: int.tryParse(state.pathParameters['peerId'] ?? '') ?? 0,
+        ),
       ),
       GoRoute(path: '/shop', builder: (_, _) => const ShopScreen()),
       GoRoute(

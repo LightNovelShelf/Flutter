@@ -59,6 +59,7 @@ class UserProfile {
     required this.inviteCode,
     required this.groupName,
     required this.unreadNotificationCount,
+    required this.unreadDirectMessageCount,
     required this.registeredAt,
     required this.growth,
   });
@@ -70,6 +71,7 @@ class UserProfile {
   final String inviteCode;
   final String groupName;
   final int unreadNotificationCount;
+  final int unreadDirectMessageCount;
   final DateTime? registeredAt;
   final UserGrowth growth;
 
@@ -85,6 +87,7 @@ class UserProfile {
       inviteCode: asStringOrEmpty(record['InviteCode']),
       groupName: asStringOrEmpty(role['Name']),
       unreadNotificationCount: asInt(record['UnreadNotificationCount'], 0),
+      unreadDirectMessageCount: asInt(record['UnreadDirectMessageCount'], 0),
       registeredAt: asNullableDate(record['RegisterAt']),
       growth: UserGrowth(
         experience: asInt(growth['Exp'], 0),
@@ -98,6 +101,49 @@ class UserProfile {
         signInStreak: asInt(growth['SignStreak'], 0),
         signedToday: asBool(growth['TodaySigned'], false),
       ),
+    );
+  }
+}
+
+/// 其他用户的公开资料，用户名片展示用。走裸 HTTP 端点，字段是 PascalCase。
+class PublicUserSummary {
+  const PublicUserSummary({
+    required this.id,
+    required this.userName,
+    required this.avatarUrl,
+    required this.roleName,
+    required this.level,
+    required this.registeredAt,
+    required this.bookCount,
+    required this.threadCount,
+    required this.replyCount,
+    required this.commentCount,
+  });
+
+  final int id;
+  final String userName;
+  final String avatarUrl;
+  final String roleName;
+  final int level;
+  final DateTime? registeredAt;
+  final int bookCount;
+  final int threadCount;
+  final int replyCount;
+  final int commentCount;
+
+  static PublicUserSummary decode(Object? value) {
+    final record = asRecord(value, '用户名片响应');
+    return PublicUserSummary(
+      id: asInt(record['Id'], 0),
+      userName: asStringOrEmpty(record['UserName']),
+      avatarUrl: asStringOrEmpty(record['Avatar']),
+      roleName: asStringOrEmpty(record['Role']),
+      level: asInt(record['Level'], 0),
+      registeredAt: asNullableDate(record['RegisterAt']),
+      bookCount: asCount(record['BookCount']),
+      threadCount: asCount(record['CommunityThreadCount']),
+      replyCount: asCount(record['CommunityReplyCount']),
+      commentCount: asCount(record['CommentCount']),
     );
   }
 }

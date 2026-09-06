@@ -27,7 +27,12 @@ class CommunityFeedCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          UserAvatar(url: item.authorAvatar, name: authorName, size: 42),
+          UserAvatar(
+            url: item.authorAvatar,
+            name: authorName,
+            size: 42,
+            userId: item.authorId,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

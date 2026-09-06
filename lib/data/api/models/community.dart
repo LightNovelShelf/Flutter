@@ -204,6 +204,7 @@ class CommunityFeedItem {
     required this.subCategoryLabel,
     required this.title,
     required this.excerpt,
+    required this.authorId,
     required this.authorName,
     required this.authorIsDeleted,
     required this.authorAvatar,
@@ -226,6 +227,7 @@ class CommunityFeedItem {
   final String? subCategoryLabel;
   final String title;
   final String excerpt;
+  final int authorId;
   final String authorName;
   final bool authorIsDeleted;
   final String authorAvatar;
@@ -256,6 +258,7 @@ class CommunityFeedItem {
     subCategoryLabel: subCategoryLabel,
     title: title,
     excerpt: excerpt,
+    authorId: authorId,
     authorName: authorName,
     authorIsDeleted: authorIsDeleted,
     authorAvatar: authorAvatar,
@@ -281,6 +284,7 @@ class CommunityFeedItem {
       subCategoryLabel: asNullableString(item['SubCategoryLabel']),
       title: asString(item['Title']),
       excerpt: asStringOrEmpty(item['Excerpt']),
+      authorId: asInt(item['AuthorId'], 0),
       authorName: asStringOrEmpty(item['AuthorName']),
       authorIsDeleted: asBool(item['AuthorIsDeleted'], false),
       authorAvatar: asStringOrEmpty(item['AuthorAvatar']),
@@ -370,6 +374,7 @@ class CommunityReplyTarget {
 class CommunityThreadReply {
   const CommunityThreadReply({
     required this.id,
+    required this.authorId,
     required this.authorName,
     required this.authorIsDeleted,
     required this.authorBadge,
@@ -385,6 +390,7 @@ class CommunityThreadReply {
   });
 
   final int id;
+  final int authorId;
   final String authorName;
   final bool authorIsDeleted;
   final String? authorBadge;
@@ -408,6 +414,7 @@ class CommunityThreadReply {
     bool? canDelete,
   }) => CommunityThreadReply(
     id: id,
+    authorId: authorId,
     authorName: authorName,
     authorIsDeleted: authorIsDeleted,
     authorBadge: authorBadge,
@@ -427,6 +434,7 @@ class CommunityThreadReply {
     final replyTo = asRecordOrNull(reply['ReplyTo']);
     return CommunityThreadReply(
       id: asInt(reply['Id']),
+      authorId: asInt(reply['AuthorId'], 0),
       authorName: asStringOrEmpty(reply['AuthorName']),
       authorIsDeleted: asBool(reply['AuthorIsDeleted'], false),
       authorBadge: asNullableString(reply['AuthorBadge']),

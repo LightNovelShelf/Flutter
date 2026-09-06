@@ -84,6 +84,7 @@ class CommunityThreadHeader extends StatelessWidget {
                           url: item.authorAvatar,
                           name: authorName,
                           size: 38,
+                          userId: item.authorId,
                         ),
                         const SizedBox(width: 10),
                         Expanded(

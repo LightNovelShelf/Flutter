@@ -48,6 +48,17 @@ extension ApiClientAccount on ApiClient {
   Future<void> setAvatar(String url) =>
       invoke('SetAvatar', <String, Object?>{'Url': url}, (_) {});
 
+  /// 其他用户的公开资料，用户名片用。
+  Future<PublicUserSummary> getUserSummary(
+    int userId, {
+    CancelToken? cancelToken,
+  }) => invoke(
+    'GetUserSummary',
+    <String, Object?>{'UserId': userId},
+    PublicUserSummary.decode,
+    cancelToken: cancelToken,
+  );
+
   Future<DailyCheckInResult> checkIn() =>
       invoke('SignIn', <String, Object?>{}, DailyCheckInResult.decode);
 

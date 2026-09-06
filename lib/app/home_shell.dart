@@ -1,16 +1,45 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../data/repositories/profile_repository.dart';
+import '../data/repositories/unread_counts.dart';
+import '../shared/widgets/unread_badge.dart';
 
-class HomeShell extends StatelessWidget {
+class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key, required this.shell});
 
   final StatefulNavigationShell shell;
 
   @override
+  ConsumerState<HomeShell> createState() => _HomeShellState();
+}
+
+class _HomeShellState extends ConsumerState<HomeShell>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(ref.read(communityUnreadCountProvider.notifier).reconcile());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final shell = widget.shell;
     return Scaffold(
       // 两侧各自成层：NavigationBar 的 500ms 指示器动画不再连带重栅格整页内容。
       body: RepaintBoundary(child: shell),
@@ -38,8 +67,8 @@ class HomeShell extends StatelessWidget {
               label: '历史',
             ),
             NavigationDestination(
-              icon: _UnreadBadge(child: Icon(Icons.forum_outlined)),
-              selectedIcon: _UnreadBadge(child: Icon(Icons.forum)),
+              icon: _CommunityUnreadBadge(child: Icon(Icons.forum_outlined)),
+              selectedIcon: _CommunityUnreadBadge(child: Icon(Icons.forum)),
               label: '社区',
             ),
             NavigationDestination(
@@ -55,22 +84,12 @@ class HomeShell extends StatelessWidget {
 }
 
 /// 单独订阅未读数，避免资料刷新把整个 shell（连带 indexedStack 里所有 tab）标脏。
-class _UnreadBadge extends ConsumerWidget {
-  const _UnreadBadge({required this.child});
+class _CommunityUnreadBadge extends ConsumerWidget {
+  const _CommunityUnreadBadge({required this.child});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final unread = ref.watch(
-      profileProvider.select(
-        (profile) => profile.value?.unreadNotificationCount ?? 0,
-      ),
-    );
-    return Badge(
-      isLabelVisible: unread > 0,
-      label: Text(unread > 99 ? '99+' : '$unread'),
-      child: child,
-    );
-  }
+  Widget build(BuildContext context, WidgetRef ref) =>
+      UnreadBadge(count: ref.watch(communityUnreadCountProvider), child: child);
 }

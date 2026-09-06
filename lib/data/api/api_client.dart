@@ -14,6 +14,7 @@ export 'api_client_account.dart';
 export 'api_client_catalog.dart';
 export 'api_client_comments.dart';
 export 'api_client_community.dart';
+export 'api_client_direct_message.dart';
 export 'api_client_shop.dart';
 export 'requests.dart';
 

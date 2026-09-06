@@ -26,6 +26,13 @@ class ProfileController extends AsyncNotifier<UserProfile?> {
     });
   }
 
+  /// 后台对账用：不进 loading 态，未读角标不会在刷新途中闪回 0。
+  Future<void> refreshQuietly() async {
+    if (!ref.read(authSnapshotProvider).isAuthenticated) return;
+    final profile = await _api.getMyProfile();
+    state = AsyncValue<UserProfile?>.data(profile);
+  }
+
   Future<DailyCheckInResult> checkIn() async {
     final result = await _api.checkIn();
     await reload();

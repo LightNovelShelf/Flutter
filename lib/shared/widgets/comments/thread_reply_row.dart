@@ -13,6 +13,7 @@ double threadRowIconSize(bool isChild) => isChild ? 16.0 : 18.0;
 class ThreadReplyRow extends StatelessWidget {
   const ThreadReplyRow({
     super.key,
+    required this.userId,
     required this.userName,
     required this.avatarUrl,
     required this.content,
@@ -24,6 +25,8 @@ class ThreadReplyRow extends StatelessWidget {
     this.actions = const <Widget>[],
   });
 
+  /// 用户 ID，0 表示未知作者，头像不可点。
+  final int userId;
   final String userName;
   final String avatarUrl;
   final String content;
@@ -47,7 +50,12 @@ class ThreadReplyRow extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
-              UserAvatar(url: avatarUrl, name: userName, size: 24),
+              UserAvatar(
+                url: avatarUrl,
+                name: userName,
+                size: 24,
+                userId: userId,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text.rich(
@@ -80,7 +88,12 @@ class ThreadReplyRow extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              UserAvatar(url: avatarUrl, name: userName, size: 40),
+              UserAvatar(
+                url: avatarUrl,
+                name: userName,
+                size: 40,
+                userId: userId,
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(

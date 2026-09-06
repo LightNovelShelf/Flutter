@@ -19,6 +19,7 @@ ThreadReplyRow _row({
   required bool isChild,
   List<Widget> actions = const <Widget>[],
 }) => ThreadReplyRow(
+  userId: 0,
   userName: '甲',
   avatarUrl: '',
   content: '正文',
