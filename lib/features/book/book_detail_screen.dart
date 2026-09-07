@@ -1,7 +1,6 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -13,14 +12,13 @@ import '../../data/repositories/read_position_cache.dart';
 import '../../shared/format.dart';
 import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/state_views.dart';
-import '../../shared/widgets/html_content.dart';
 import '../../shared/widgets/user_card_sheet.dart';
 import '../search/search_providers.dart';
 import 'book_providers.dart';
 import 'widgets/book_action_row.dart';
 import 'widgets/book_detail_hero.dart';
 import 'widgets/book_detail_skeleton.dart';
-import 'widgets/book_introduction_sheet.dart';
+import 'widgets/book_introduction.dart';
 import 'widgets/book_series_sheet.dart';
 import 'widgets/cover_palette_theme.dart';
 
@@ -176,7 +174,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                 onRead: (sortNum) => _openReader(bundle, sortNum),
               ),
               if (detail.introduction.trim().isNotEmpty)
-                _introduction(context, detail),
+                BookIntroduction(detail: detail),
               if (detail.classification.tags.isNotEmpty) _tags(context, bundle),
               const SizedBox(height: 24),
               _updateStrip(context, detail),
@@ -248,59 +246,6 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
         chip(Icons.schedule, formatRelativeTime(detail.lastUpdatedAt)),
         chip(Icons.menu_book_outlined, '${detail.chapters.length} 章'),
       ],
-    );
-  }
-
-  Widget _introduction(BuildContext context, BookDetail detail) {
-    final colors = Theme.of(context).colorScheme;
-    final collapsedHeight = HtmlContent.compactLineExtentOf(context) * 5;
-    // 带 ruby 的简介不折叠，否则注音被截断。
-    final clampable = !htmlHasRuby(detail.introduction);
-    final html = clampable
-        ? HtmlContent.compact(html: detail.introduction)
-        : HtmlContent(html: detail.introduction);
-    final content = HtmlContentTheme.merge(
-      data: HtmlContentThemeData(
-        textStyle: TextStyle(color: colors.onSurfaceVariant),
-      ),
-      child: html,
-    );
-    return Padding(
-      padding: const EdgeInsets.only(top: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            '简介',
-            style: Theme.of(context).textTheme.labelLarge
-                ?.copyWith(color: colors.onSurfaceVariant, letterSpacing: 0.5),
-          ),
-          const SizedBox(height: 8),
-          if (!clampable)
-            content
-          else
-            ClipRect(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: collapsedHeight),
-                child: OverflowBox(
-                  alignment: Alignment.topLeft,
-                  minHeight: 0,
-                  maxHeight: double.infinity,
-                  fit: OverflowBoxFit.deferToChild,
-                  child: content,
-                ),
-              ),
-            ),
-          if (clampable)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: () => showBookIntroductionSheet(context, detail),
-                child: const Text('展开'),
-              ),
-            ),
-        ],
-      ),
     );
   }
 

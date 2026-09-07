@@ -2,7 +2,6 @@ import 'dart:typed_data';
 
 import 'package:html/dom.dart' as dom;
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show OverflowBoxFit, RenderParagraph;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:lightnovel/shared/widgets/html_content.dart';
@@ -195,68 +194,6 @@ void main() {
     final singleHeight = await height('<p>第一段</p>');
     final doubleHeight = await height('<p>第一段</p><p>第二段</p>');
     expect(doubleHeight - singleHeight, closeTo(18.2, 0.3));
-  });
-
-  testWidgets('compact content can be clipped without flex overflow', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MediaQuery(
-          data: const MediaQueryData(textScaler: TextScaler.linear(1.25)),
-          child: Builder(
-            builder: (context) => Align(
-              alignment: Alignment.topLeft,
-              child: ClipRect(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: HtmlContent.compactLineExtentOf(context) * 5,
-                  ),
-                  child: const OverflowBox(
-                    alignment: Alignment.topLeft,
-                    minHeight: 0,
-                    maxHeight: double.infinity,
-                    fit: OverflowBoxFit.deferToChild,
-                    child: SizedBox(
-                      width: 371.4,
-                      child: HtmlContent.compact(
-                        html: '<p>第一行<br>第二行<br>第三行<br>第四行<br>第五行<br>第六行</p>',
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    expect(tester.takeException(), isNull);
-    final viewport = find.byType(OverflowBox);
-    expect(tester.getSize(viewport).height, closeTo(113.75, 0.1));
-    final paragraphFinder = find.byWidgetPredicate(
-      (widget) =>
-          widget is RichText && widget.text.toPlainText().contains('第五行'),
-    );
-    final paragraph = tester.renderObject<RenderParagraph>(paragraphFinder);
-    final plainText = tester
-        .widget<RichText>(paragraphFinder)
-        .text
-        .toPlainText();
-    TextBox boxFor(String line) {
-      final start = plainText.indexOf(line);
-      return paragraph
-          .getBoxesForSelection(
-            TextSelection(baseOffset: start, extentOffset: start + 3),
-          )
-          .single;
-    }
-
-    final paragraphTop = tester.getTopLeft(paragraphFinder).dy;
-    final viewportBottom = tester.getBottomLeft(viewport).dy;
-    expect(paragraphTop + boxFor('第五行').bottom, lessThan(viewportBottom));
-    expect(paragraphTop + boxFor('第六行').top, greaterThan(viewportBottom));
   });
 
   testWidgets('theme can replace source and disable every default hook', (

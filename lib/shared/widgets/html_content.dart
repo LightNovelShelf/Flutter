@@ -17,16 +17,12 @@ final RegExp _linkedImage = RegExp(
   r'''<a\b[^>]*\bhref\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)[^>]*>\s*(<img\b[^>]*>)\s*</a>''',
   caseSensitive: false,
 );
-final RegExp _rubyTag = RegExp(r'<ruby[\s>]', caseSensitive: false);
 
 /// 紧凑内容保留块级排版，只移除折叠区域不显示的内容。
 String createCompactHtmlSource(String html) {
   final content = html.replaceAll(_scriptOrStyle, '').replaceAll(_imageTag, '');
   return '<div class="html-compact-root">$content</div>';
 }
-
-/// 带 ruby 注音的内容不能按固定行高裁剪。
-bool htmlHasRuby(String html) => _rubyTag.hasMatch(html);
 
 typedef HtmlSourceTransformer = String Function(String html);
 
