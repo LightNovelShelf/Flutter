@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../shared/layout/book_grid_layout.dart';
 import '../../../shared/widgets/grid_tile_parts.dart';
 
-/// 快照里缺失详情的书籍占位卡片，仅支持被选中后移出书架。
+/// 书籍不可用或请求失败时的占位卡片。
 class UnavailableBookTile extends StatelessWidget {
   const UnavailableBookTile({
     super.key,
@@ -11,12 +11,14 @@ class UnavailableBookTile extends StatelessWidget {
     required this.sorting,
     required this.onTap,
     required this.onLongPress,
+    this.title = '书籍不可用',
   });
 
   final bool selected;
   final bool sorting;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +57,7 @@ class UnavailableBookTile extends StatelessWidget {
               ),
             ),
           ),
-          GridTileTitle(title: '书籍不可用', color: colors.onSurfaceVariant),
+          GridTileTitle(title: title, color: colors.onSurfaceVariant),
         ],
       ),
     );

@@ -7,6 +7,7 @@ import '../api/api_client.dart';
 import '../api/models.dart';
 import '../providers.dart';
 import 'shelf_draft.dart';
+import 'shelf_books.dart';
 
 /// 书架错误文案，草稿代数抛出的 [ArgumentError] 消息直接展示给用户。
 String describeShelfError(Object error, {String fallback = '书架暂时不可用。'}) {
@@ -37,23 +38,14 @@ class ShelfController extends AsyncNotifier<ShelfSnapshot?> {
     return _load();
   }
 
-  Future<ShelfSnapshot> _hydrate(List<ShelfItem> items, String? version) async {
-    final bookIds = items
-        .where((item) => item.isBook)
-        .map((item) => item.bookId!)
-        .toList();
-    return ShelfSnapshot(
-      items: sortShelfItems(items),
-      books: await _api.getBooksByIdsBatched(bookIds),
-      version: version,
-    );
-  }
-
   Future<ShelfSnapshot> _load() async {
     await _saveQueue;
     final generation = _mutationGeneration;
     final shelf = await _api.getBookShelf();
-    final snapshot = await _hydrate(shelf.items, shelf.version);
+    final snapshot = ShelfSnapshot(
+      items: sortShelfItems(shelf.items),
+      version: shelf.version,
+    );
     if (generation != _mutationGeneration) {
       return state.value ?? snapshot;
     }
@@ -61,6 +53,7 @@ class ShelfController extends AsyncNotifier<ShelfSnapshot?> {
   }
 
   Future<void> reload() async {
+    ref.invalidate(shelfBookCacheProvider);
     state = await AsyncValue.guard(() async {
       if (!ref.read(authSnapshotProvider).isAuthenticated) return null;
       return _load();
@@ -77,26 +70,8 @@ class ShelfController extends AsyncNotifier<ShelfSnapshot?> {
       await _api.saveBookShelf(
         UserShelf(version: normalized.version, items: normalized.items),
       );
-      final knownBooks = <int, BookListItem>{
-        for (final book in state.value?.books ?? const <BookListItem>[])
-          book.id: book,
-      };
-      final missingIds = normalized.items
-          .where((item) => item.isBook && !knownBooks.containsKey(item.bookId))
-          .map((item) => item.bookId!)
-          .toList();
-      for (final book in await _api.getBooksByIdsBatched(missingIds)) {
-        knownBooks[book.id] = book;
-      }
-      final nextIds = normalized.items
-          .where((item) => item.isBook)
-          .map((item) => item.bookId!)
-          .toSet();
       final snapshot = ShelfSnapshot(
         items: normalized.items,
-        books: knownBooks.values
-            .where((book) => nextIds.contains(book.id))
-            .toList(),
         version: normalized.version,
       );
       if (generation == _mutationGeneration) {

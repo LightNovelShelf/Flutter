@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/api/models.dart';
+import '../../../data/repositories/shelf_books.dart';
 import '../../../shared/layout/book_grid_layout.dart';
 import '../../../shared/widgets/book_cover_grid_item.dart';
 import '../shelf_editor_controller.dart';
 import 'shelf_folder_tile.dart';
 import 'unavailable_book_tile.dart';
 
-/// 书架卡片：只订阅自身选中态与拖拽模式，一次选中不再重建整屏卡片。
+/// 按需订阅书籍信息与自身编辑状态的书架卡片。
 class ShelfTile extends ConsumerWidget {
   const ShelfTile({
     super.key,
@@ -16,7 +17,6 @@ class ShelfTile extends ConsumerWidget {
     required this.item,
     required this.index,
     required this.siblings,
-    required this.book,
     required this.folder,
     required this.tileWidth,
     required this.onOpenBook,
@@ -27,9 +27,6 @@ class ShelfTile extends ConsumerWidget {
   final ShelfItem item;
   final int index;
   final List<ShelfItem> siblings;
-
-  /// 书籍条目对应的书籍，已下架时为空。
-  final BookListItem? book;
 
   /// 文件夹条目的封面预览，书籍条目为空。
   final ShelfFolderPreview? folder;
@@ -65,8 +62,20 @@ class ShelfTile extends ConsumerWidget {
 
     final Widget tile;
     if (item.isBook) {
-      final resolved = book;
-      if (resolved == null) {
+      final request = shelfBookProvider(item.bookId!);
+      final async = ref.watch(request);
+      final resolved = async.value;
+      if (async.isLoading) {
+        tile = const BookGridSkeletonTile();
+      } else if (async.hasError) {
+        tile = UnavailableBookTile(
+          title: '加载失败，点击重试',
+          selected: selected,
+          sorting: sorting,
+          onTap: () => ref.invalidate(request),
+          onLongPress: beginSelection,
+        );
+      } else if (resolved == null) {
         tile = UnavailableBookTile(
           selected: selected,
           sorting: sorting,
@@ -87,13 +96,28 @@ class ShelfTile extends ConsumerWidget {
       final preview = folder ?? ShelfFolderPreview.empty;
       final folderId = item.folderId!;
       final title = item.title.trim();
+      final covers = <BookListItem>[];
+      var failed = false;
+      for (final id in preview.bookIds) {
+        final async = ref.watch(shelfBookProvider(id));
+        final book = async.value;
+        if (book != null) covers.add(book);
+        failed = failed || async.hasError;
+      }
       tile = ShelfFolderTile(
         title: title.isEmpty ? '未命名文件夹' : title,
-        covers: preview.covers,
+        covers: covers,
         childCount: preview.count,
         selected: selected,
         sorting: sorting,
-        onTap: () => _handleTap(ref, () => onOpenFolder(folderId)),
+        onTap: () {
+          if (failed) {
+            for (final id in preview.bookIds) {
+              ref.invalidate(shelfBookProvider(id));
+            }
+          }
+          _handleTap(ref, () => onOpenFolder(folderId));
+        },
         onLongPress: beginSelection,
       );
     }

@@ -44,31 +44,26 @@ class ShelfEditorState {
   );
 }
 
-/// 文件夹卡片的预览数据：最多 4 张直接子书籍封面与直接条目数。
+/// 文件夹卡片的前 4 本直接子书籍 ID 与直接条目数。
 @immutable
 class ShelfFolderPreview {
-  const ShelfFolderPreview({required this.covers, required this.count});
+  const ShelfFolderPreview({required this.bookIds, required this.count});
 
   static const ShelfFolderPreview empty = ShelfFolderPreview(
-    covers: <BookListItem>[],
+    bookIds: <int>[],
     count: 0,
   );
 
-  final List<BookListItem> covers;
+  final List<int> bookIds;
   final int count;
 }
 
 /// 渲染当前层需要的全部派生数据，由 [ShelfEditorController.level] 记忆化。
 @immutable
 class ShelfLevel {
-  const ShelfLevel({
-    required this.siblings,
-    required this.bookById,
-    required this.folderPreviews,
-  });
+  const ShelfLevel({required this.siblings, required this.folderPreviews});
 
   final List<ShelfItem> siblings;
-  final Map<int, BookListItem> bookById;
   final Map<String, ShelfFolderPreview> folderPreviews;
 }
 
@@ -152,28 +147,22 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
   }
 
   ShelfDraft? _levelDraft;
-  ShelfSnapshot? _levelSnapshot;
   ShelfLevel? _level;
 
-  /// 当前层的派生视图。选中、切模式、清错误都不改草稿，命中缓存就不再重排整个书架。
-  ShelfLevel level(ShelfSnapshot snapshot, ShelfDraft draft) {
+  /// 按草稿引用缓存当前层的派生数据。
+  ShelfLevel level(ShelfDraft draft) {
     final cached = _level;
-    if (cached != null &&
-        identical(_levelDraft, draft) &&
-        identical(_levelSnapshot, snapshot)) {
+    if (cached != null && identical(_levelDraft, draft)) {
       return cached;
     }
-    final computed = _computeLevel(snapshot, draft);
+    final computed = _computeLevel(draft);
     _levelDraft = draft;
-    _levelSnapshot = snapshot;
     _level = computed;
     return computed;
   }
 
-  ShelfLevel _computeLevel(ShelfSnapshot snapshot, ShelfDraft draft) {
+  ShelfLevel _computeLevel(ShelfDraft draft) {
     final siblings = shelfItemsAtPath(draft, parents);
-    // `bookById` 是每次调用都重建整张表的 getter，一层只取一次。
-    final bookById = snapshot.bookById;
     final buckets = <String, List<ShelfItem>>{};
     for (final item in siblings) {
       if (!item.isBook) buckets[item.folderId!] = <ShelfItem>[];
@@ -193,23 +182,18 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
     }
     final previews = <String, ShelfFolderPreview>{};
     for (final entry in buckets.entries) {
-      final covers = <BookListItem>[];
+      final bookIds = <int>[];
       for (final child in sortShelfItems(entry.value)) {
         if (!child.isBook) continue;
-        final book = bookById[child.bookId];
-        if (book != null) covers.add(book);
-        if (covers.length == 4) break;
+        bookIds.add(child.bookId!);
+        if (bookIds.length == 4) break;
       }
       previews[entry.key] = ShelfFolderPreview(
-        covers: covers,
+        bookIds: bookIds,
         count: entry.value.length,
       );
     }
-    return ShelfLevel(
-      siblings: siblings,
-      bookById: bookById,
-      folderPreviews: previews,
-    );
+    return ShelfLevel(siblings: siblings, folderPreviews: previews);
   }
 
   /// 变更写入草稿，校验失败时只记录错误，草稿保持不变。

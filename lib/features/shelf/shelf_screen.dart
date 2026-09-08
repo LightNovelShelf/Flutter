@@ -410,7 +410,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
       );
     }
 
-    final level = _editor.level(snapshot, draft);
+    final level = _editor.level(draft);
     final siblings = level.siblings;
     final refreshError = async.hasError
         ? describeShelfError(async.error!)
@@ -500,7 +500,6 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
                   item: item,
                   index: index,
                   siblings: level.siblings,
-                  book: item.isBook ? level.bookById[item.bookId] : null,
                   folder: item.isBook
                       ? null
                       : level.folderPreviews[item.folderId],

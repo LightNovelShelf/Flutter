@@ -6,28 +6,18 @@ import '../api/models.dart';
 
 /// 书架草稿代数：纯同步函数，不依赖网络与 Riverpod。
 
-/// 书架快照：条目 + 已解析的书籍信息。
+/// 书架结构快照。
 @immutable
 class ShelfSnapshot {
-  const ShelfSnapshot({
-    required this.items,
-    required this.books,
-    required this.version,
-  });
+  const ShelfSnapshot({required this.items, required this.version});
 
   final List<ShelfItem> items;
-  final List<BookListItem> books;
   final String? version;
 
   static const ShelfSnapshot empty = ShelfSnapshot(
     items: <ShelfItem>[],
-    books: <BookListItem>[],
     version: null,
   );
-
-  Map<int, BookListItem> get bookById => <int, BookListItem>{
-    for (final book in books) book.id: book,
-  };
 
   ShelfDraft toDraft() => ShelfDraft(
     items: items
