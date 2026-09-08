@@ -35,10 +35,12 @@ class CommunityFeedSliver extends ConsumerWidget {
     } else if (state.loading) {
       body = const _FeedSkeletonSliver();
     } else {
-      body = const SliverToBoxAdapter(
+      body = SliverToBoxAdapter(
         child: CommunityStateCard(
-          title: '还没有讨论',
-          description: '可以尝试其他版面或筛选条件，也可以发起第一个讨论。',
+          title: state.query.keyWords.isEmpty ? '还没有讨论' : '没有匹配的讨论',
+          description: state.query.keyWords.isEmpty
+              ? '可以尝试其他版面或筛选条件，也可以发起第一个讨论。'
+              : '没有标题或摘要匹配的讨论，请尝试其他关键词、调整筛选或清空搜索。',
         ),
       );
     }

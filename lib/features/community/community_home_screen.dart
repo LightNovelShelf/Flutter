@@ -23,10 +23,15 @@ class CommunityHomeScreen extends ConsumerStatefulWidget {
 
 class _CommunityHomeScreenState extends ConsumerState<CommunityHomeScreen> {
   final ScrollController _controller = ScrollController();
+  late final TextEditingController _searchInput;
+  final FocusNode _searchFocus = FocusNode();
 
   @override
   void initState() {
     super.initState();
+    _searchInput = TextEditingController(
+      text: ref.read(communityHomeProvider).query.keyWords,
+    );
     // 距底部不足 720 逻辑像素就预取下一页。
     _controller.attachPrefetch(
       threshold: 720,
@@ -40,6 +45,8 @@ class _CommunityHomeScreenState extends ConsumerState<CommunityHomeScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _searchInput.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -53,9 +60,73 @@ class _CommunityHomeScreenState extends ConsumerState<CommunityHomeScreen> {
     context.push('/announcements');
   }
 
+  void _submitSearch(String value) {
+    final keyWords = value.trim();
+    _searchInput.value = TextEditingValue(
+      text: keyWords,
+      selection: TextSelection.collapsed(offset: keyWords.length),
+    );
+    _searchFocus.unfocus();
+    if (_controller.hasClients) _controller.jumpTo(0);
+    ref.read(communityHomeProvider.notifier).submitSearch(keyWords);
+  }
+
+  Widget _buildSearchField(CommunityHomeState state) {
+    final colors = Theme.of(context).colorScheme;
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: _searchInput,
+      builder: (context, value, _) => Row(
+        children: <Widget>[
+          Expanded(
+            child: TextField(
+              controller: _searchInput,
+              focusNode: _searchFocus,
+              textInputAction: TextInputAction.search,
+              onSubmitted: _submitSearch,
+              decoration: InputDecoration(
+                hintText: '搜索标题或摘要',
+                isDense: true,
+                filled: true,
+                fillColor: colors.surfaceContainerHighest,
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: value.text.isEmpty && state.query.keyWords.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        tooltip: '清空搜索',
+                        onPressed: () => _submitSearch(''),
+                      ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: () => _submitSearch(_searchInput.text),
+            child: const Text('搜索'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(communityHomeProvider);
+    ref.listen<String>(
+      communityHomeProvider.select((state) => state.query.keyWords),
+      (previous, next) {
+        if (_searchInput.text == next) return;
+        _searchInput.value = TextEditingValue(
+          text: next,
+          selection: TextSelection.collapsed(offset: next.length),
+        );
+      },
+    );
     final profile = ref.watch(profileProvider).value;
     final unreadNotifications = profile?.unreadNotificationCount ?? 0;
     final unreadMessages = profile?.unreadDirectMessageCount ?? 0;
@@ -117,6 +188,10 @@ class _CommunityHomeScreenState extends ConsumerState<CommunityHomeScreen> {
                         onAnnouncementTap: _openAnnouncement,
                       ),
               ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              sliver: SliverToBoxAdapter(child: _buildSearchField(state)),
             ),
             if (home != null)
               SliverToBoxAdapter(child: CommunityBoardStrip(state: state)),

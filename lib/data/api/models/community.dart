@@ -16,6 +16,7 @@ class CommunityListQuery {
   const CommunityListQuery({
     this.boardKey = 'all',
     this.subCategoryKey = '',
+    this.keyWords = '',
     this.order = CommunityFeedOrder.reply,
     this.scope = CommunityFeedScope.all,
     this.page = 1,
@@ -24,6 +25,7 @@ class CommunityListQuery {
 
   final String boardKey;
   final String subCategoryKey;
+  final String keyWords;
   final CommunityFeedOrder order;
   final CommunityFeedScope scope;
   final int page;
@@ -32,6 +34,7 @@ class CommunityListQuery {
   CommunityListQuery copyWith({
     String? boardKey,
     String? subCategoryKey,
+    String? keyWords,
     CommunityFeedOrder? order,
     CommunityFeedScope? scope,
     int? page,
@@ -39,6 +42,7 @@ class CommunityListQuery {
   }) => CommunityListQuery(
     boardKey: boardKey ?? this.boardKey,
     subCategoryKey: subCategoryKey ?? this.subCategoryKey,
+    keyWords: keyWords ?? this.keyWords,
     order: order ?? this.order,
     scope: scope ?? this.scope,
     page: page ?? this.page,
@@ -48,6 +52,7 @@ class CommunityListQuery {
   Map<String, Object?> encode() => <String, Object?>{
     'BoardKey': boardKey,
     'SubCategoryKey': subCategoryKey,
+    'KeyWords': keyWords,
     'Order': order.wire,
     'Scope': scope.wire,
     'Page': page < 1 ? 1 : page,

@@ -194,6 +194,7 @@ class CommunityHomeController extends Notifier<CommunityHomeState> {
   @override
   CommunityHomeState build() {
     ref.onDispose(() {
+      _generation++;
       _primary?.cancel();
       _more?.cancel();
     });
@@ -217,8 +218,10 @@ class CommunityHomeController extends Notifier<CommunityHomeState> {
     final cancelToken = CancelToken();
     _primary = cancelToken;
     state = state.copyWith(
+      query: state.query.copyWith(page: 1, size: communityPageSize),
       loading: !refresh,
       refreshing: refresh,
+      loadingMore: false,
       error: null,
       loadMoreError: null,
     );
@@ -247,6 +250,7 @@ class CommunityHomeController extends Notifier<CommunityHomeState> {
       state = state.copyWith(
         loading: false,
         refreshing: false,
+        categoriesLoading: false,
         error: describeCommunityError(error),
       );
     }
@@ -266,11 +270,18 @@ class CommunityHomeController extends Notifier<CommunityHomeState> {
   Future<void> selectScope(CommunityFeedScope scope) =>
       _applyQuery(state.query.copyWith(scope: scope));
 
+  Future<void> submitSearch(String keyWords) => _applyQuery(
+    state.query.copyWith(keyWords: keyWords.trim(), page: 1),
+    force: true,
+  );
+
   Future<void> _applyQuery(
     CommunityListQuery next, {
     bool boardChanged = false,
+    bool force = false,
   }) async {
-    if (_queryKey(next) == _queryKey(state.query)) return;
+    if (!force && _queryKey(next) == _queryKey(state.query)) return;
+    next = next.copyWith(page: 1, size: communityPageSize);
     if (state.home == null) {
       state = state.copyWith(query: next);
       return load();
@@ -290,6 +301,8 @@ class CommunityHomeController extends Notifier<CommunityHomeState> {
           : state.subCategories,
       categoriesLoading: boardChanged && next.boardKey != communityAllBoardKey,
       loading: true,
+      refreshing: false,
+      loadingMore: false,
       error: null,
       loadMoreError: null,
     );
@@ -366,8 +379,15 @@ class CommunityHomeController extends Notifier<CommunityHomeState> {
     return Future<void>.delayed(_minSkeleton - elapsed);
   }
 
-  String _queryKey(CommunityListQuery query) =>
-      '${query.boardKey}:${query.subCategoryKey}:${query.order.wire}:${query.scope.wire}';
+  (String, String, CommunityFeedOrder, CommunityFeedScope, String) _queryKey(
+    CommunityListQuery query,
+  ) => (
+    query.boardKey,
+    query.subCategoryKey,
+    query.order,
+    query.scope,
+    query.keyWords,
+  );
 }
 
 final NotifierProvider<CommunityHomeController, CommunityHomeState>
