@@ -105,7 +105,12 @@ class CommentPage {
           replies: replyIds.map((replyId) {
             final reply = getCommentary(replyId);
             final replyToId = asNullableInt(reply['ReplyId']);
-            final replyTo = replyToId == null ? null : getCommentary(replyToId);
+            final replyTo =
+                replyToId == null ||
+                    replyToId == 0 ||
+                    !commentaries.containsKey('$replyToId')
+                ? null
+                : getCommentary(replyToId);
             return CommentReply(
               id: replyId,
               user: getUser(asInt(reply['UserId'])),
