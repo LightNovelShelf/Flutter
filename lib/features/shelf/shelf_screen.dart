@@ -61,22 +61,6 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
     return true;
   }
 
-  /// 跳到书架的某一层；有未保存改动时先确认。
-  Future<void> _goToPath(List<String> path) async {
-    if (_editor.isCurrentPath(path)) return;
-    if (!await _discard() || !mounted) return;
-    if (path.isEmpty) {
-      context.go('/shelf');
-      return;
-    }
-    context.go(
-      Uri(
-        path: '/shelf/folder',
-        queryParameters: <String, List<String>>{'parent': path},
-      ).toString(),
-    );
-  }
-
   ShelfManageCommand get _modeCommand => switch (_state.mode) {
     ShelfMode.browse => ShelfManageCommand.browse,
     ShelfMode.select => ShelfManageCommand.select,
@@ -278,47 +262,6 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
     );
   }
 
-  /// 路径导航：点任意一层直接跳到那一层。
-  Widget _breadcrumb(ShelfDraft draft) {
-    final colors = Theme.of(context).colorScheme;
-    Widget crumb(String label, List<String> path, {required bool active}) =>
-        InkWell(
-          onTap: active ? null : () => _goToPath(path),
-          borderRadius: BorderRadius.circular(6),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                height: 19 / 14,
-                color: active ? colors.onSurface : colors.primary,
-              ),
-            ),
-          ),
-        );
-
-    final crumbs = <Widget>[crumb('我的书架', const <String>[], active: false)];
-    for (var depth = 0; depth < _parents.length; depth += 1) {
-      crumbs
-        ..add(
-          Icon(Icons.chevron_right, size: 16, color: colors.onSurfaceVariant),
-        )
-        ..add(
-          crumb(
-            _editor.folderTitle(draft, _parents[depth]),
-            _parents.sublist(0, depth + 1),
-            active: depth == _parents.length - 1,
-          ),
-        );
-    }
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      reverse: true,
-      child: Row(mainAxisSize: MainAxisSize.min, children: crumbs),
-    );
-  }
-
   Widget _selectionSummary(
     ShelfDraft draft,
     ShelfEditorState editor,
@@ -477,11 +420,6 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
           ),
           sliver: SliverList.list(
             children: <Widget>[
-              if (_parents.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: _breadcrumb(draft),
-                ),
               if (editorError != null)
                 _banner(editorError, onAction: () => _editor.clearError()),
               if (refreshError != null)
