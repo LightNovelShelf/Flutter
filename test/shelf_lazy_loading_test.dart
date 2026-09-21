@@ -16,7 +16,16 @@ import 'package:lightnovel/data/session/auth_controller.dart';
 import 'package:lightnovel/features/shelf/shelf_editor_controller.dart';
 import 'package:lightnovel/features/shelf/widgets/shelf_tile.dart';
 
-ShelfItem _book(int id, {List<String> parents = const []}) => ShelfItem.book(
+ShelfItem _novel(int id, {List<String> parents = const []}) => ShelfItem.book(
+  type: ShelfItemType.novel,
+  id: id,
+  index: id,
+  parents: parents,
+  updatedAt: '2026-01-01T00:00:00Z',
+);
+
+ShelfItem _comic(int id, {List<String> parents = const []}) => ShelfItem.book(
+  type: ShelfItemType.comic,
   id: id,
   index: id,
   parents: parents,
@@ -34,7 +43,7 @@ class _Api extends ApiClient {
         headers: () async => const <String, String>{},
       );
 
-  List<ShelfItem> items = List.generate(100, (index) => _book(index + 1));
+  List<ShelfItem> items = List.generate(100, (index) => _novel(index + 1));
   final batches = <List<int>>[];
   bool fail = false;
   Completer<void>? gate;
@@ -68,6 +77,10 @@ class _Api extends ApiClient {
             if (id != 99)
               {
                 'Id': id,
+                // 漫画与小说同表同 ID 空间，类型跟着书架里的条目走。
+                'Type': items.any((item) => item.isComic && item.bookId == id)
+                    ? 'Comic'
+                    : 'Novel',
                 'Title': 'Book $id',
                 'Cover': '/cover.png',
                 'LastUpdatedAt': '2026-01-01T00:00:00Z',
@@ -95,10 +108,19 @@ void main() {
     addTearDown(container.dispose);
     final snapshot = (await container.read(shelfProvider.future))!;
     final controller = container.read(shelfProvider.notifier);
-    expect(await controller.contains(1), isTrue);
+    expect(
+      await controller.contains((id: 1, type: ShelfItemType.novel)),
+      isTrue,
+    );
     await controller.save(snapshot.toDraft());
-    expect(await controller.toggleBook(101), isTrue);
-    expect(await controller.contains(101), isTrue);
+    expect(
+      await controller.toggleBook((id: 101, type: ShelfItemType.novel)),
+      isTrue,
+    );
+    expect(
+      await controller.contains((id: 101, type: ShelfItemType.novel)),
+      isTrue,
+    );
     expect(api.batches, isEmpty);
   });
 
@@ -188,8 +210,8 @@ void main() {
     );
     api.items = [
       folder,
-      for (var id = 1; id <= 10; id++) _book(id, parents: ['f']),
-      _book(50, parents: ['f', 'nested']),
+      for (var id = 1; id <= 10; id++) _novel(id, parents: ['f']),
+      _novel(50, parents: ['f', 'nested']),
     ];
     final container = _container(api);
     addTearDown(container.dispose);
@@ -230,6 +252,46 @@ void main() {
       [1, 2, 3, 4],
       [1, 2, 3, 4],
     ]);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('漫画条目渲染标题，点击回传这本漫画', (tester) async {
+    final api = _Api();
+    final comic = _comic(7);
+    api.items = <ShelfItem>[comic];
+    final container = _container(api);
+    addTearDown(container.dispose);
+    BookListItem? opened;
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 200,
+              child: ShelfTile(
+                editorKey: shelfEditorKey(const []),
+                item: comic,
+                index: 0,
+                siblings: <ShelfItem>[comic],
+                folder: null,
+                tileWidth: 200,
+                onOpenBook: (book) => opened = book,
+                onOpenFolder: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(api.batches, [
+      [7],
+    ]);
+    expect(find.text('Book 7'), findsOneWidget);
+    await tester.tap(find.text('Book 7'));
+    expect(opened?.id, 7);
+    expect(opened?.type, BookType.comic);
     expect(tester.takeException(), isNull);
   });
 }

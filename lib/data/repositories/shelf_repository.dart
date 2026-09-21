@@ -42,10 +42,7 @@ class ShelfController extends AsyncNotifier<ShelfSnapshot?> {
     await _saveQueue;
     final generation = _mutationGeneration;
     final shelf = await _api.getBookShelf();
-    final snapshot = ShelfSnapshot(
-      items: sortShelfItems(shelf.items),
-      version: shelf.version,
-    );
+    final snapshot = ShelfSnapshot(items: sortShelfItems(shelf.items));
     if (generation != _mutationGeneration) {
       return state.value ?? snapshot;
     }
@@ -62,18 +59,10 @@ class ShelfController extends AsyncNotifier<ShelfSnapshot?> {
 
   Future<ShelfSnapshot> save(ShelfDraft draft) {
     final generation = ++_mutationGeneration;
-    final normalized = ShelfDraft(
-      items: normalizeShelfIndexes(draft.items),
-      version: draft.version,
-    );
+    final normalized = ShelfDraft(items: normalizeShelfIndexes(draft.items));
     final operation = _saveQueue.then((_) async {
-      await _api.saveBookShelf(
-        UserShelf(version: normalized.version, items: normalized.items),
-      );
-      final snapshot = ShelfSnapshot(
-        items: normalized.items,
-        version: normalized.version,
-      );
+      await _api.saveBookShelf(UserShelf(items: normalized.items));
+      final snapshot = ShelfSnapshot(items: normalized.items);
       if (generation == _mutationGeneration) {
         state = AsyncValue<ShelfSnapshot?>.data(snapshot);
       }
@@ -84,32 +73,33 @@ class ShelfController extends AsyncNotifier<ShelfSnapshot?> {
   }
 
   /// 没有缓存快照时回源查询。
-  Future<bool> contains(int bookId) async {
+  Future<bool> contains(ShelfBookRef book) async {
     final snapshot = state.value;
-    if (snapshot != null) return shelfContainsBook(snapshot.items, bookId);
+    if (snapshot != null) return shelfContainsBook(snapshot.items, book);
     final shelf = await _api.getBookShelf();
-    return shelfContainsBook(shelf.items, bookId);
+    return shelfContainsBook(shelf.items, book);
   }
 
   /// 加入/移出书架，返回操作后是否在书架中。
-  Future<bool> toggleBook(int bookId) async {
-    if (bookId <= 0) throw ArgumentError('无效的书籍 ID。');
+  Future<bool> toggleBook(ShelfBookRef book) async {
+    if (book.id <= 0) throw ArgumentError('无效的书籍 ID。');
     final shelf = await _api.getBookShelf();
-    final isInShelf = shelfContainsBook(shelf.items, bookId);
+    final isInShelf = shelfContainsBook(shelf.items, book);
     final items = isInShelf
         ? shelf.items
-              .where((item) => !item.isBook || item.bookId != bookId)
+              .where((item) => item.type != book.type || item.bookId != book.id)
               .toList()
         : <ShelfItem>[
             ShelfItem.book(
-              id: bookId,
+              type: book.type,
+              id: book.id,
               index: -1,
               parents: const <String>[],
               updatedAt: DateTime.now().toUtc().toIso8601String(),
             ),
             ...shelf.items,
           ];
-    await save(ShelfDraft(items: items, version: shelf.version));
+    await save(ShelfDraft(items: items));
     return !isInShelf;
   }
 }

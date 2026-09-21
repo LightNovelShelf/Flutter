@@ -16,6 +16,10 @@ class BookDetailBundle {
   final BookDetail detail;
 
   bool get isComic => detail.type == BookType.comic;
+
+  /// 这本书在书架里的条目类型。
+  ShelfItemType get shelfType =>
+      isComic ? ShelfItemType.comic : ShelfItemType.novel;
 }
 
 /// autoDispose：书籍数量无上限，常驻缓存会持续增长。
@@ -28,11 +32,11 @@ final FutureProviderFamily<BookDetailBundle, int> bookDetailProvider =
     );
 
 /// 只读缓存快照判定，不回源查询。
-final FutureProviderFamily<bool, int> bookInShelfProvider =
-    FutureProvider.family<bool, int>((ref, bookId) async {
+final FutureProviderFamily<bool, ShelfBookRef> bookInShelfProvider =
+    FutureProvider.family<bool, ShelfBookRef>((ref, book) async {
       final snapshot = await ref.watch(shelfProvider.future);
       if (snapshot == null) return false;
-      return shelfContainsBook(snapshot.items, bookId);
+      return shelfContainsBook(snapshot.items, book);
     }, isAutoDispose: true);
 
 /// 书架按钮的乐观状态：`inShelf` 为 null 表示没有本地覆盖，沿用 [bookInShelfProvider]。
@@ -49,7 +53,7 @@ class ShelfToggle {
 class ShelfToggleController extends Notifier<ShelfToggle> {
   ShelfToggleController(this.arg);
 
-  final int arg;
+  final ShelfBookRef arg;
 
   @override
   ShelfToggle build() => const ShelfToggle();
@@ -75,9 +79,9 @@ class ShelfToggleController extends Notifier<ShelfToggle> {
 }
 
 /// autoDispose：乐观状态仅在详情页存续期间有效。
-final NotifierProviderFamily<ShelfToggleController, ShelfToggle, int>
+final NotifierProviderFamily<ShelfToggleController, ShelfToggle, ShelfBookRef>
 shelfToggleProvider =
-    NotifierProvider.family<ShelfToggleController, ShelfToggle, int>(
+    NotifierProvider.family<ShelfToggleController, ShelfToggle, ShelfBookRef>(
       ShelfToggleController.new,
       isAutoDispose: true,
     );

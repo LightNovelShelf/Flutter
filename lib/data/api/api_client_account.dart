@@ -39,7 +39,7 @@ extension ApiClientAccount on ApiClient {
   Future<void> saveBookShelf(UserShelf shelf) =>
       invoke('SaveBookShelf', <String, Object?>{
         'data': shelf.items.map((item) => item.encode()).toList(),
-        'ver': shelf.version ?? shelfStructVersion,
+        'ver': shelfStructVersion,
       }, (_) {});
 
   Future<UserProfile> getMyProfile() =>

@@ -1,11 +1,27 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lightnovel/core/network/api_error.dart';
 import 'package:lightnovel/data/api/models.dart';
 import 'package:lightnovel/data/repositories/shelf_draft.dart';
 
 const String _now = '2026-01-01T00:00:00Z';
 
-ShelfItem _book(int id, {List<String> parents = const <String>[]}) =>
-    ShelfItem.book(id: id, index: id, parents: parents, updatedAt: _now);
+ShelfItem _novel(int id, {List<String> parents = const <String>[]}) =>
+    ShelfItem.book(
+      type: ShelfItemType.novel,
+      id: id,
+      index: id,
+      parents: parents,
+      updatedAt: _now,
+    );
+
+ShelfItem _comic(int id, {List<String> parents = const <String>[]}) =>
+    ShelfItem.book(
+      type: ShelfItemType.comic,
+      id: id,
+      index: id,
+      parents: parents,
+      updatedAt: _now,
+    );
 
 ShelfItem _folder(
   String id, {
@@ -19,8 +35,7 @@ ShelfItem _folder(
   title: id,
 );
 
-ShelfDraft _draft(List<ShelfItem> items) =>
-    ShelfDraft(items: items, version: '1');
+ShelfDraft _draft(List<ShelfItem> items) => ShelfDraft(items: items);
 
 ShelfItem _find(ShelfDraft draft, String key) =>
     draft.items.firstWhere((item) => item.key == key);
@@ -34,10 +49,10 @@ void main() {
     _folder('a'),
     _folder('b', parents: <String>['a']),
     _folder('c', parents: <String>['a', 'b']),
-    _book(1),
-    _book(2, parents: <String>['a']),
-    _book(3, parents: <String>['a', 'b']),
-    _book(4, parents: <String>['a', 'b', 'c']),
+    _novel(1),
+    _novel(2, parents: <String>['a']),
+    _novel(3, parents: <String>['a', 'b']),
+    _novel(4, parents: <String>['a', 'b', 'c']),
   ]);
 
   group('createShelfFolder', () {
@@ -106,10 +121,10 @@ void main() {
       final next = deleteShelfFolder(nested(), id: 'b', now: _now);
       expect(_has(next, 'FOLDER:b'), isFalse);
       // 直接子项升到 a 下。
-      expect(_find(next, 'BOOK:3').parents, <String>['a']);
+      expect(_find(next, 'NOVEL:3').parents, <String>['a']);
       expect(_find(next, 'FOLDER:c').parents, <String>['a']);
       // c 里的书仍在 c 里。
-      expect(_find(next, 'BOOK:4').parents, <String>['a', 'c']);
+      expect(_find(next, 'NOVEL:4').parents, <String>['a', 'c']);
     });
 
     test('提升上来的内容排在上一层原有内容之后', () {
@@ -117,8 +132,8 @@ void main() {
       final level = shelfItemsAtPath(next, <String>[
         'a',
       ]).map((item) => item.key).toList();
-      expect(level.first, 'BOOK:2');
-      expect(level.sublist(1), containsAll(<String>['BOOK:3', 'FOLDER:c']));
+      expect(level.first, 'NOVEL:2');
+      expect(level.sublist(1), containsAll(<String>['NOVEL:3', 'FOLDER:c']));
     });
   });
 
@@ -126,9 +141,9 @@ void main() {
     final next = removeShelfItems(nested(), keys: <String>{'FOLDER:b'});
     expect(_has(next, 'FOLDER:b'), isFalse);
     expect(_has(next, 'FOLDER:c'), isFalse);
-    expect(_has(next, 'BOOK:3'), isFalse);
-    expect(_has(next, 'BOOK:4'), isFalse);
-    expect(_has(next, 'BOOK:2'), isTrue);
+    expect(_has(next, 'NOVEL:3'), isFalse);
+    expect(_has(next, 'NOVEL:4'), isFalse);
+    expect(_has(next, 'NOVEL:2'), isTrue);
   });
 
   group('moveShelfItems', () {
@@ -137,8 +152,8 @@ void main() {
         _folder('a'),
         _folder('b', index: 1),
         _folder('c', parents: <String>['b']),
-        _book(1, parents: <String>['b']),
-        _book(2, parents: <String>['b', 'c']),
+        _novel(1, parents: <String>['b']),
+        _novel(2, parents: <String>['b', 'c']),
       ]);
       final next = moveShelfItems(
         draft,
@@ -148,26 +163,26 @@ void main() {
       );
       expect(_find(next, 'FOLDER:b').parents, <String>['a']);
       expect(_find(next, 'FOLDER:c').parents, <String>['a', 'b']);
-      expect(_find(next, 'BOOK:1').parents, <String>['a', 'b']);
-      expect(_find(next, 'BOOK:2').parents, <String>['a', 'b', 'c']);
+      expect(_find(next, 'NOVEL:1').parents, <String>['a', 'b']);
+      expect(_find(next, 'NOVEL:2').parents, <String>['a', 'b', 'c']);
     });
 
     test('移动到目标层开头，并保持彼此的先后顺序', () {
       final draft = _draft(<ShelfItem>[
         _folder('a'),
-        _book(1, parents: <String>['a']),
-        _book(2),
-        _book(3),
+        _novel(1, parents: <String>['a']),
+        _novel(2),
+        _novel(3),
       ]);
       final next = moveShelfItems(
         draft,
-        keys: <String>{'BOOK:2', 'BOOK:3'},
+        keys: <String>{'NOVEL:2', 'NOVEL:3'},
         destination: <String>['a'],
         now: _now,
       );
       expect(
         shelfItemsAtPath(next, <String>['a']).map((item) => item.key).toList(),
-        <String>['BOOK:2', 'BOOK:3', 'BOOK:1'],
+        <String>['NOVEL:2', 'NOVEL:3', 'NOVEL:1'],
       );
     });
 
@@ -187,12 +202,82 @@ void main() {
     test('祖先与后代同时选中时，后代跟着祖先走一次', () {
       final next = moveShelfItems(
         nested(),
-        keys: <String>{'FOLDER:b', 'BOOK:3'},
+        keys: <String>{'FOLDER:b', 'NOVEL:3'},
         destination: const <String>[],
         now: _now,
       );
       expect(_find(next, 'FOLDER:b').parents, isEmpty);
-      expect(_find(next, 'BOOK:3').parents, <String>['b']);
+      expect(_find(next, 'NOVEL:3').parents, <String>['b']);
+    });
+  });
+
+  group('同 ID 的小说与漫画', () {
+    // 小说和漫画共用一个 ID 空间，书架仍按类型分别记账。
+    ShelfDraft both() =>
+        _draft(<ShelfItem>[_folder('a'), _novel(7), _comic(7)]);
+
+    test('两者同时在架，按类型各自判定', () {
+      final items = both().items;
+      expect(
+        items.map((item) => item.key),
+        containsAll(<String>['NOVEL:7', 'COMIC:7']),
+      );
+      expect(
+        shelfContainsBook(items, (id: 7, type: ShelfItemType.novel)),
+        isTrue,
+      );
+      expect(
+        shelfContainsBook(items, (id: 7, type: ShelfItemType.comic)),
+        isTrue,
+      );
+      expect(
+        shelfContainsBook(items, (id: 8, type: ShelfItemType.comic)),
+        isFalse,
+      );
+    });
+
+    test('移动漫画不带走同 ID 的小说', () {
+      final next = moveShelfItems(
+        both(),
+        keys: <String>{'COMIC:7'},
+        destination: <String>['a'],
+        now: _now,
+      );
+      expect(_find(next, 'COMIC:7').parents, <String>['a']);
+      expect(_find(next, 'NOVEL:7').parents, isEmpty);
+    });
+
+    test('移出漫画时小说留在书架', () {
+      final next = removeShelfItems(both(), keys: <String>{'COMIC:7'});
+      expect(_has(next, 'COMIC:7'), isFalse);
+      expect(_has(next, 'NOVEL:7'), isTrue);
+    });
+
+    test('选中漫画时书籍计数只算它自己', () {
+      expect(shelfSelectionBookCount(both(), <String>{'COMIC:7'}), 1);
+    });
+  });
+
+  group('书架条目编解码', () {
+    test('类型写回大写字面量并能读回来', () {
+      expect(_novel(7).encode()['type'], 'NOVEL');
+      expect(_comic(7).encode()['type'], 'COMIC');
+      expect(_folder('a').encode()['type'], 'FOLDER');
+      expect(ShelfItem.decode(_comic(7).encode()).type, ShelfItemType.comic);
+      expect(ShelfItem.decode(_novel(7).encode()).key, 'NOVEL:7');
+    });
+
+    test('拒绝第一版的 BOOK 类型', () {
+      expect(
+        () => ShelfItem.decode(<String, Object?>{
+          'type': 'BOOK',
+          'id': 7,
+          'index': 0,
+          'parents': <String>[],
+          'updateAt': _now,
+        }),
+        throwsA(isA<ApiError>()),
+      );
     });
   });
 }

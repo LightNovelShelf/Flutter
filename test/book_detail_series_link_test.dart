@@ -237,11 +237,11 @@ void main() {
     expect(find.widgetWithText(ListTile, '上传者'), findsOneWidget);
   });
 
-  testWidgets('漫画复用详情组件且不显示收藏', (tester) async {
+  testWidgets('漫画复用详情组件，带加入书架入口', (tester) async {
     await _open(tester, bookType: 'Comic');
 
     expect(find.byType(BookDetailScreen), findsOneWidget);
-    expect(find.byIcon(Icons.bookmark_border), findsNothing);
+    expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
 
     await tester.tap(find.byTooltip('更多'));
     await tester.pumpAndSettle();

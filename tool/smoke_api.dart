@@ -212,7 +212,11 @@ Future<void> main(List<String> args) async {
 
   await check('getBookShelf', () async {
     final shelf = await api.getBookShelf();
-    stdout.writeln('   ${shelf.items.length} 个条目 · 版本 ${shelf.version}');
+    final novels = shelf.items
+        .where((item) => item.type == ShelfItemType.novel)
+        .length;
+    final comics = shelf.items.where((item) => item.isComic).length;
+    stdout.writeln('   ${shelf.items.length} 个条目 · 小说 $novels · 漫画 $comics');
   });
 
   await check('getReadHistory', () async {

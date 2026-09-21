@@ -26,14 +26,10 @@ class BookActionRow extends ConsumerWidget {
     final colors = Theme.of(context).colorScheme;
     final detail = bundle.detail;
     final hasChapters = detail.chapters.isNotEmpty;
-    final shelf = bundle.isComic
-        ? null
-        : ref.watch(shelfToggleProvider(bookId));
+    final book = (id: bookId, type: bundle.shelfType);
+    final shelf = ref.watch(shelfToggleProvider(book));
     final resolvedInShelf =
-        shelf?.inShelf ??
-        (bundle.isComic
-            ? false
-            : ref.watch(bookInShelfProvider(bookId)).value ?? false);
+        shelf.inShelf ?? ref.watch(bookInShelfProvider(book)).value ?? false;
     final continueTitle = currentIndex >= 0
         ? cleanChapterTitle(detail.chapters[currentIndex].title)
         : null;
@@ -46,47 +42,42 @@ class BookActionRow extends ConsumerWidget {
       children: <Widget>[
         Row(
           children: <Widget>[
-            // 漫画按系列聚合，没有单卷书架条目。
-            if (!bundle.isComic) ...<Widget>[
-              SizedBox(
-                width: 56,
-                height: 56,
-                child: Material(
-                  color: resolvedInShelf
-                      ? colors.primaryContainer
-                      : colors.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(16),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: shelf!.busy
-                        ? null
-                        : () => ref
-                              .read(shelfToggleProvider(bookId).notifier)
-                              .toggle(resolvedInShelf),
-                    child: Center(
-                      child: shelf.busy
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.4,
-                              ),
-                            )
-                          : Icon(
-                              resolvedInShelf
-                                  ? Icons.bookmark
-                                  : Icons.bookmark_border,
-                              size: 25,
-                              color: resolvedInShelf
-                                  ? colors.onPrimaryContainer
-                                  : colors.onSurfaceVariant,
-                            ),
-                    ),
+            SizedBox(
+              width: 56,
+              height: 56,
+              child: Material(
+                color: resolvedInShelf
+                    ? colors.primaryContainer
+                    : colors.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(16),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: shelf.busy
+                      ? null
+                      : () => ref
+                            .read(shelfToggleProvider(book).notifier)
+                            .toggle(resolvedInShelf),
+                  child: Center(
+                    child: shelf.busy
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2.4),
+                          )
+                        : Icon(
+                            resolvedInShelf
+                                ? Icons.bookmark
+                                : Icons.bookmark_border,
+                            size: 25,
+                            color: resolvedInShelf
+                                ? colors.onPrimaryContainer
+                                : colors.onSurfaceVariant,
+                          ),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-            ],
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: SizedBox(
                 height: 56,
@@ -114,11 +105,11 @@ class BookActionRow extends ConsumerWidget {
             ),
           ],
         ),
-        if (shelf?.error != null)
+        if (shelf.error != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              shelf!.error!,
+              shelf.error!,
               style: TextStyle(fontSize: 13, height: 1.38, color: colors.error),
             ),
           ),

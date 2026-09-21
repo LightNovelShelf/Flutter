@@ -9,34 +9,28 @@ import '../api/models.dart';
 /// 书架结构快照。
 @immutable
 class ShelfSnapshot {
-  const ShelfSnapshot({required this.items, required this.version});
+  const ShelfSnapshot({required this.items});
 
   final List<ShelfItem> items;
-  final String? version;
 
-  static const ShelfSnapshot empty = ShelfSnapshot(
-    items: <ShelfItem>[],
-    version: null,
-  );
+  static const ShelfSnapshot empty = ShelfSnapshot(items: <ShelfItem>[]);
 
   ShelfDraft toDraft() => ShelfDraft(
     items: items
         .map((item) => item.copyWith(parents: List<String>.of(item.parents)))
         .toList(),
-    version: version,
   );
 }
 
 /// 编辑中的书架草稿。
 @immutable
 class ShelfDraft {
-  const ShelfDraft({required this.items, required this.version});
+  const ShelfDraft({required this.items});
 
   final List<ShelfItem> items;
-  final String? version;
 
   ShelfDraft copyWith({List<ShelfItem>? items}) =>
-      ShelfDraft(items: items ?? this.items, version: version);
+      ShelfDraft(items: items ?? this.items);
 }
 
 bool _sameParents(List<String> left, List<String> right) {
@@ -47,9 +41,9 @@ bool _sameParents(List<String> left, List<String> right) {
   return true;
 }
 
-/// 判断书籍是否在书架中，快照与草稿共用。
-bool shelfContainsBook(List<ShelfItem> items, int bookId) =>
-    items.any((item) => item.isBook && item.bookId == bookId);
+/// 判断某本书是否在书架中，快照与草稿共用。
+bool shelfContainsBook(List<ShelfItem> items, ShelfBookRef book) =>
+    items.any((item) => item.type == book.type && item.bookId == book.id);
 
 List<ShelfItem> sortShelfItems(List<ShelfItem> items) {
   final sorted = List<ShelfItem>.of(items);
