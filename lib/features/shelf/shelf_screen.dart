@@ -10,8 +10,10 @@ import '../../shared/layout/book_grid_layout.dart';
 import '../../shared/paging/identity_child_delegate.dart';
 import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/book_grid_slivers.dart';
+import '../../shared/widgets/check_menu_button.dart';
 import '../../shared/widgets/state_views.dart';
 import 'shelf_editor_controller.dart';
+import 'shelf_filter.dart';
 import 'widgets/shelf_folder_picker.dart';
 import 'widgets/shelf_manage_sheet.dart';
 import 'widgets/shelf_tile.dart';
@@ -30,12 +32,9 @@ class ShelfScreen extends ConsumerStatefulWidget {
 class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   List<String> get _parents => widget.parents;
 
-  String get _editorKey => shelfEditorKey(_parents);
+  ShelfEditorController get _editor => ref.read(shelfEditorProvider.notifier);
 
-  ShelfEditorController get _editor =>
-      ref.read(shelfEditorProvider(_editorKey).notifier);
-
-  ShelfEditorState get _state => ref.read(shelfEditorProvider(_editorKey));
+  ShelfEditorState get _state => ref.read(shelfEditorProvider);
 
   Future<void> _save() async {
     final messenger = ScaffoldMessenger.of(context);
@@ -47,8 +46,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   /// 放弃草稿；有改动时先确认，返回是否已经放弃。
   Future<bool> _discard() async {
     if (_state.draft == null) return true;
-    final snapshot = ref.read(shelfProvider).value;
-    if (snapshot != null && _editor.isDirty(snapshot)) {
+    if (ref.read(shelfDirtyProvider)) {
       final ok = await showAppConfirm(
         context: context,
         title: '放弃修改',
@@ -68,13 +66,12 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   };
 
   Future<void> _openManageSheet() async {
-    final snapshot = ref.read(shelfProvider).value;
-    if (snapshot == null) return;
+    final draft = ref.read(shelfDraftProvider);
+    if (draft == null) return;
     final editor = _editor;
-    final draft = editor.effectiveDraft(snapshot);
     final folders = editor.selectedFolders(draft);
     final books = editor.selectedBooks(draft);
-    final dirty = editor.isDirty(snapshot);
+    final dirty = ref.read(shelfDirtyProvider);
     final command = await ShelfManageSheet.show(
       context,
       activeMode: _modeCommand,
@@ -123,26 +120,24 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   }
 
   Future<void> _createFolder() async {
-    final snapshot = ref.read(shelfProvider).value;
-    if (snapshot == null) return;
-    final editor = _editor;
-    final draft = editor.effectiveDraft(snapshot);
+    final draft = ref.read(shelfDraftProvider);
+    if (draft == null) return;
     final name = await showAppTextPrompt(
       context: context,
       title: _parents.isEmpty
           ? '新建文件夹'
-          : '在「${editor.folderTitle(draft, _parents.last)}」下新建文件夹',
+          : '在「${shelfFolderTitle(draft, _parents.last)}」下新建文件夹',
       hint: '请输入文件夹名称',
     );
     if (name == null || !mounted) return;
-    editor.createFolder(name);
+    _editor.createFolder(name, parents: _parents);
   }
 
   Future<void> _renameFolder() async {
-    final snapshot = ref.read(shelfProvider).value;
-    if (snapshot == null) return;
+    final draft = ref.read(shelfDraftProvider);
+    if (draft == null) return;
     final editor = _editor;
-    final folders = editor.selectedFolders(editor.effectiveDraft(snapshot));
+    final folders = editor.selectedFolders(draft);
     if (folders.length != 1) return;
     final folder = folders.single;
     final name = await showAppTextPrompt(
@@ -156,10 +151,10 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   }
 
   Future<void> _deleteFolders() async {
-    final snapshot = ref.read(shelfProvider).value;
-    if (snapshot == null) return;
+    final draft = ref.read(shelfDraftProvider);
+    if (draft == null) return;
     final editor = _editor;
-    final folders = editor.selectedFolders(editor.effectiveDraft(snapshot));
+    final folders = editor.selectedFolders(draft);
     if (folders.isEmpty) return;
     final ok = await showAppConfirm(
       context: context,
@@ -172,13 +167,13 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   }
 
   Future<void> _moveItems() async {
-    final snapshot = ref.read(shelfProvider).value;
+    final draft = ref.read(shelfDraftProvider);
     final selected = _state.selected;
-    if (snapshot == null || selected.isEmpty) return;
+    if (draft == null || selected.isEmpty) return;
     final editor = _editor;
     final target = await ShelfFolderPicker.show(
       context,
-      draft: editor.effectiveDraft(snapshot),
+      draft: draft,
       movingKeys: Set<String>.of(selected),
       currentParents: _parents,
     );
@@ -191,11 +186,10 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   }
 
   Future<void> _removeItems() async {
-    final snapshot = ref.read(shelfProvider).value;
+    final draft = ref.read(shelfDraftProvider);
     final selected = _state.selected;
-    if (snapshot == null || selected.isEmpty) return;
+    if (draft == null || selected.isEmpty) return;
     final editor = _editor;
-    final draft = editor.effectiveDraft(snapshot);
     final hasFolder = editor.selectedFolders(draft).isNotEmpty;
     final ok = await showAppConfirm(
       context: context,
@@ -221,6 +215,28 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
 
   void _openBook(BookListItem book) {
     context.push('/book/${book.id}');
+  }
+
+  Widget _filterMenu() {
+    final filter = ref.watch(shelfFilterProvider);
+    final colors = Theme.of(context).colorScheme;
+    return CheckMenuButton<ShelfFilter>(
+      tooltip: '筛选',
+      value: filter,
+      icon: Icon(
+        filter == ShelfFilter.all ? Icons.filter_list : Icons.filter_alt,
+        color: filter == ShelfFilter.all ? null : colors.primary,
+      ),
+      entries: <CheckMenuEntry<ShelfFilter>>[
+        for (final option in ShelfFilter.values)
+          CheckMenuEntry<ShelfFilter>(
+            value: option,
+            icon: option.icon,
+            label: option.label,
+          ),
+      ],
+      onSelected: ref.read(shelfFilterProvider.notifier).select,
+    );
   }
 
   Widget _banner(
@@ -301,17 +317,17 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   Widget build(BuildContext context) {
     final authenticated = ref.watch(authSnapshotProvider).isAuthenticated;
     final async = ref.watch(shelfProvider);
-    final editor = ref.watch(shelfEditorProvider(_editorKey));
+    final editor = ref.watch(shelfEditorProvider);
     final snapshot = async.value;
-    final controller = _editor;
-    final dirty = snapshot != null && controller.isDirty(snapshot);
-    final draft = snapshot == null ? null : controller.effectiveDraft(snapshot);
+    final dirty = ref.watch(shelfDirtyProvider);
+    final draft = ref.watch(shelfDraftProvider);
     final title = _parents.isEmpty || draft == null
         ? '书架'
-        : controller.folderTitle(draft, _parents.last);
+        : shelfFolderTitle(draft, _parents.last);
 
     return PopScope<Object?>(
-      canPop: !dirty,
+      // 各层共用一份草稿，进出子文件夹只是换层渲染；只有从根层退出书架才要确认放弃。
+      canPop: !dirty || _parents.isNotEmpty,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         final discarded = await _discard();
@@ -337,6 +353,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
                       ),
                     )
                   : TextButton(onPressed: _save, child: const Text('保存')),
+            _filterMenu(),
             IconButton(
               tooltip: '管理书架',
               onPressed: snapshot == null ? null : _openManageSheet,
@@ -401,7 +418,8 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
       );
     }
 
-    final level = _editor.level(draft);
+    final filter = ref.watch(shelfLevelFilterProvider);
+    final level = ref.watch(shelfLevelProvider(shelfLevelKey(_parents)));
     final siblings = level.siblings;
     final refreshError = async.hasError
         ? describeShelfError(async.error!)
@@ -447,15 +465,25 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
         if (siblings.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
-            child: EmptyStateView(
-              icon: _parents.isEmpty
-                  ? Icons.collections_bookmark_outlined
-                  : Icons.folder_open_outlined,
-              title: _parents.isEmpty ? '书架还是空的' : '这个文件夹是空的',
-              description: _parents.isEmpty
-                  ? '在书籍详情页点击“加入书架”，之后就能在这里找到它。'
-                  : '把书籍移动到这个文件夹后会显示在这里。',
-            ),
+            child: filter == ShelfFilter.all
+                ? EmptyStateView(
+                    icon: _parents.isEmpty
+                        ? Icons.collections_bookmark_outlined
+                        : Icons.folder_open_outlined,
+                    title: _parents.isEmpty ? '书架还是空的' : '这个文件夹是空的',
+                    description: _parents.isEmpty
+                        ? '在书籍详情页点击“加入书架”，之后就能在这里找到它。'
+                        : '把书籍移动到这个文件夹后会显示在这里。',
+                  )
+                : EmptyStateView(
+                    icon: Icons.filter_alt_off_outlined,
+                    title: filter == ShelfFilter.comic ? '这里没有漫画' : '这里没有小说',
+                    description: '换个筛选或者去别的文件夹看看。',
+                    actionLabel: '全部显示',
+                    onAction: () => ref
+                        .read(shelfFilterProvider.notifier)
+                        .select(ShelfFilter.all),
+                  ),
           )
         else
           SliverPadding(
@@ -473,7 +501,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
                 items: level.siblings,
                 revision: (level, layout.tileWidth),
                 itemBuilder: (_, item, index) => ShelfTile(
-                  editorKey: _editorKey,
+                  parents: _parents,
                   item: item,
                   index: index,
                   siblings: level.siblings,

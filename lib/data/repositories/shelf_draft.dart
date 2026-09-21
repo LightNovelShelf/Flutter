@@ -92,6 +92,13 @@ ShelfItem? shelfFolderById(ShelfDraft draft, String id) {
   return null;
 }
 
+String shelfFolderTitle(ShelfDraft draft, String id) {
+  final folder = shelfFolderById(draft, id);
+  if (folder == null) return '文件夹已不存在';
+  final title = folder.title.trim();
+  return title.isEmpty ? '未命名文件夹' : title;
+}
+
 bool shelfDraftHasChanges(ShelfSnapshot snapshot, ShelfDraft draft) {
   String signature(List<ShelfItem> items) => jsonEncode(
     normalizeShelfIndexes(items).map((item) => item.encode()).toList(),
@@ -324,4 +331,100 @@ ShelfDraft reorderShelfSiblings(
       );
     }).toList(),
   );
+}
+
+/// 文件夹卡片的预览：子树里前 4 本书的 ID、子树书籍总数、直接子文件夹数。
+@immutable
+class ShelfFolderPreview {
+  const ShelfFolderPreview({
+    required this.bookIds,
+    required this.bookCount,
+    required this.folderCount,
+  });
+
+  static const ShelfFolderPreview empty = ShelfFolderPreview(
+    bookIds: <int>[],
+    bookCount: 0,
+    folderCount: 0,
+  );
+
+  final List<int> bookIds;
+  final int bookCount;
+  final int folderCount;
+}
+
+/// 渲染某一层需要的全部派生数据。
+@immutable
+class ShelfLevel {
+  const ShelfLevel({required this.siblings, required this.folderPreviews});
+
+  static const ShelfLevel empty = ShelfLevel(
+    siblings: <ShelfItem>[],
+    folderPreviews: <String, ShelfFolderPreview>{},
+  );
+
+  final List<ShelfItem> siblings;
+  final Map<String, ShelfFolderPreview> folderPreviews;
+}
+
+/// 算出 [parents] 这一层要渲染的同层条目与文件夹预览。
+///
+/// [type] 非空时只留这一类书，文件夹按整棵子树判断，子树里没有这类书的不出现。
+ShelfLevel shelfLevelAt(
+  ShelfDraft draft,
+  List<String> parents, {
+  ShelfItemType? type,
+}) {
+  // 某类书的每一级父文件夹都算「装着这类书」，据此决定文件夹显不显示。
+  final foldersWithType = <String>{};
+  if (type != null) {
+    for (final item in draft.items) {
+      if (item.type == type) foldersWithType.addAll(item.parents);
+    }
+  }
+  bool keep(ShelfItem item) =>
+      type == null ||
+      (item.isBook
+          ? item.type == type
+          : foldersWithType.contains(item.folderId));
+
+  final siblings = shelfItemsAtPath(draft, parents).where(keep).toList();
+  final buckets = <String, List<ShelfItem>>{};
+  for (final item in siblings) {
+    if (!item.isBook) buckets[item.folderId!] = <ShelfItem>[];
+  }
+  // 子树里的条目，路径都是「当前层 + 某个同层文件夹 + ...」。
+  for (final item in draft.items) {
+    if (item.parents.length <= parents.length) continue;
+    final bucket = buckets[item.parents[parents.length]];
+    if (bucket == null) continue;
+    var matches = true;
+    for (var index = 0; index < parents.length; index += 1) {
+      if (item.parents[index] != parents[index]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches && keep(item)) bucket.add(item);
+  }
+  final previews = <String, ShelfFolderPreview>{};
+  for (final entry in buckets.entries) {
+    final bookIds = <int>[];
+    var bookCount = 0;
+    var folderCount = 0;
+    for (final child in sortShelfItems(entry.value)) {
+      if (child.isBook) {
+        bookCount += 1;
+        if (bookIds.length < 4) bookIds.add(child.bookId!);
+      } else if (child.parents.length == parents.length + 1) {
+        folderCount += 1;
+      }
+    }
+    previews[entry.key] = ShelfFolderPreview(
+      bookIds: bookIds,
+      bookCount: bookCount,
+      folderCount: folderCount,
+    );
+  }
+  return ShelfLevel(siblings: siblings, folderPreviews: previews);
 }

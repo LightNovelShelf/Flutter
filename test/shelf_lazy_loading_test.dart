@@ -11,9 +11,9 @@ import 'package:lightnovel/data/api/endpoints.dart';
 import 'package:lightnovel/data/api/models.dart';
 import 'package:lightnovel/data/providers.dart';
 import 'package:lightnovel/data/repositories/shelf_books.dart';
+import 'package:lightnovel/data/repositories/shelf_draft.dart';
 import 'package:lightnovel/data/repositories/shelf_repository.dart';
 import 'package:lightnovel/data/session/auth_controller.dart';
-import 'package:lightnovel/features/shelf/shelf_editor_controller.dart';
 import 'package:lightnovel/features/shelf/widgets/shelf_tile.dart';
 
 ShelfItem _novel(int id, {List<String> parents = const []}) => ShelfItem.book(
@@ -162,7 +162,7 @@ void main() {
               ),
               itemCount: api.items.length,
               itemBuilder: (_, index) => ShelfTile(
-                editorKey: shelfEditorKey(const []),
+                parents: const <String>[],
                 item: api.items[index],
                 index: index,
                 siblings: api.items,
@@ -207,10 +207,10 @@ void main() {
     final container = _container(api);
     addTearDown(container.dispose);
     final snapshot = (await container.read(shelfProvider.future))!;
-    final editor = container.read(
-      shelfEditorProvider(shelfEditorKey(const [])).notifier,
-    );
-    final preview = editor.level(snapshot.toDraft()).folderPreviews['f']!;
+    final preview = shelfLevelAt(
+      snapshot.toDraft(),
+      const <String>[],
+    ).folderPreviews['f']!;
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -219,7 +219,7 @@ void main() {
             body: SizedBox(
               width: 200,
               child: ShelfTile(
-                editorKey: shelfEditorKey(const []),
+                parents: const <String>[],
                 item: folder,
                 index: 0,
                 siblings: const [folder],
@@ -261,7 +261,7 @@ void main() {
             body: SizedBox(
               width: 200,
               child: ShelfTile(
-                editorKey: shelfEditorKey(const []),
+                parents: const <String>[],
                 item: comic,
                 index: 0,
                 siblings: <ShelfItem>[comic],

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../data/api/api_client.dart';
 import '../../data/api/models.dart';
+import '../../shared/widgets/check_menu_button.dart';
 import '../../shared/widgets/paged_grid.dart';
 import 'catalog_providers.dart';
 import 'widgets/book_grid.dart';
@@ -121,23 +122,18 @@ class _ViewModeMenu extends StatelessWidget {
       };
 
   @override
-  Widget build(BuildContext context) => PopupMenuButton<BookListViewMode>(
+  Widget build(BuildContext context) => CheckMenuButton<BookListViewMode>(
     tooltip: '展示方式',
+    value: mode,
     icon: Icon(_specs[mode]!.$1),
-    position: PopupMenuPosition.under,
-    onSelected: onChanged,
-    itemBuilder: (_) => <PopupMenuEntry<BookListViewMode>>[
+    entries: <CheckMenuEntry<BookListViewMode>>[
       for (final entry in _specs.entries)
-        PopupMenuItem<BookListViewMode>(
+        CheckMenuEntry<BookListViewMode>(
           value: entry.key,
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(entry.value.$1),
-            title: Text(entry.value.$2),
-            trailing: entry.key == mode ? const Icon(Icons.check) : null,
-          ),
+          icon: entry.value.$1,
+          label: entry.value.$2,
         ),
     ],
+    onSelected: onChanged,
   );
 }
