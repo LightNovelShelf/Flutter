@@ -108,19 +108,10 @@ void main() {
     addTearDown(container.dispose);
     final snapshot = (await container.read(shelfProvider.future))!;
     final controller = container.read(shelfProvider.notifier);
-    expect(
-      await controller.contains((id: 1, type: ShelfItemType.novel)),
-      isTrue,
-    );
+    expect(await controller.contains(1), isTrue);
     await controller.save(snapshot.toDraft());
-    expect(
-      await controller.toggleBook((id: 101, type: ShelfItemType.novel)),
-      isTrue,
-    );
-    expect(
-      await controller.contains((id: 101, type: ShelfItemType.novel)),
-      isTrue,
-    );
+    expect(await controller.toggleBook(101, type: ShelfItemType.novel), isTrue);
+    expect(await controller.contains(101), isTrue);
     expect(api.batches, isEmpty);
   });
 

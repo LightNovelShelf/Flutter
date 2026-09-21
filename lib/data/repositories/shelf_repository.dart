@@ -73,26 +73,26 @@ class ShelfController extends AsyncNotifier<ShelfSnapshot?> {
   }
 
   /// 没有缓存快照时回源查询。
-  Future<bool> contains(ShelfBookRef book) async {
+  Future<bool> contains(int bookId) async {
     final snapshot = state.value;
-    if (snapshot != null) return shelfContainsBook(snapshot.items, book);
+    if (snapshot != null) return shelfContainsBook(snapshot.items, bookId);
     final shelf = await _api.getBookShelf();
-    return shelfContainsBook(shelf.items, book);
+    return shelfContainsBook(shelf.items, bookId);
   }
 
-  /// 加入/移出书架，返回操作后是否在书架中。
-  Future<bool> toggleBook(ShelfBookRef book) async {
-    if (book.id <= 0) throw ArgumentError('无效的书籍 ID。');
+  /// 加入/移出书架，返回操作后是否在书架中；[type] 决定加入时写的条目类型。
+  Future<bool> toggleBook(int bookId, {required ShelfItemType type}) async {
+    if (bookId <= 0) throw ArgumentError('无效的书籍 ID。');
     final shelf = await _api.getBookShelf();
-    final isInShelf = shelfContainsBook(shelf.items, book);
+    final isInShelf = shelfContainsBook(shelf.items, bookId);
     final items = isInShelf
         ? shelf.items
-              .where((item) => item.type != book.type || item.bookId != book.id)
+              .where((item) => !item.isBook || item.bookId != bookId)
               .toList()
         : <ShelfItem>[
             ShelfItem.book(
-              type: book.type,
-              id: book.id,
+              type: type,
+              id: bookId,
               index: -1,
               parents: const <String>[],
               updatedAt: DateTime.now().toUtc().toIso8601String(),

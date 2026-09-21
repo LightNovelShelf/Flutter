@@ -32,11 +32,11 @@ final FutureProviderFamily<BookDetailBundle, int> bookDetailProvider =
     );
 
 /// 只读缓存快照判定，不回源查询。
-final FutureProviderFamily<bool, ShelfBookRef> bookInShelfProvider =
-    FutureProvider.family<bool, ShelfBookRef>((ref, book) async {
+final FutureProviderFamily<bool, int> bookInShelfProvider =
+    FutureProvider.family<bool, int>((ref, bookId) async {
       final snapshot = await ref.watch(shelfProvider.future);
       if (snapshot == null) return false;
-      return shelfContainsBook(snapshot.items, book);
+      return shelfContainsBook(snapshot.items, bookId);
     }, isAutoDispose: true);
 
 /// 书架按钮的乐观状态：`inShelf` 为 null 表示没有本地覆盖，沿用 [bookInShelfProvider]。
@@ -53,15 +53,18 @@ class ShelfToggle {
 class ShelfToggleController extends Notifier<ShelfToggle> {
   ShelfToggleController(this.arg);
 
-  final ShelfBookRef arg;
+  final int arg;
 
   @override
   ShelfToggle build() => const ShelfToggle();
 
-  Future<void> toggle(bool inShelf) async {
+  /// [type] 只在加入书架时用得上，决定写进书架的条目类型。
+  Future<void> toggle(bool inShelf, {required ShelfItemType type}) async {
     state = ShelfToggle(busy: true, inShelf: !inShelf);
     try {
-      final result = await ref.read(shelfProvider.notifier).toggleBook(arg);
+      final result = await ref
+          .read(shelfProvider.notifier)
+          .toggleBook(arg, type: type);
       if (!ref.mounted) return;
       state = ShelfToggle(inShelf: result);
     } catch (error) {
@@ -79,9 +82,9 @@ class ShelfToggleController extends Notifier<ShelfToggle> {
 }
 
 /// autoDispose：乐观状态仅在详情页存续期间有效。
-final NotifierProviderFamily<ShelfToggleController, ShelfToggle, ShelfBookRef>
+final NotifierProviderFamily<ShelfToggleController, ShelfToggle, int>
 shelfToggleProvider =
-    NotifierProvider.family<ShelfToggleController, ShelfToggle, ShelfBookRef>(
+    NotifierProvider.family<ShelfToggleController, ShelfToggle, int>(
       ShelfToggleController.new,
       isAutoDispose: true,
     );

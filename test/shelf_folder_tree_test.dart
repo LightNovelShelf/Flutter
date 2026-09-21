@@ -211,53 +211,6 @@ void main() {
     });
   });
 
-  group('同 ID 的小说与漫画', () {
-    // 小说和漫画共用一个 ID 空间，书架仍按类型分别记账。
-    ShelfDraft both() =>
-        _draft(<ShelfItem>[_folder('a'), _novel(7), _comic(7)]);
-
-    test('两者同时在架，按类型各自判定', () {
-      final items = both().items;
-      expect(
-        items.map((item) => item.key),
-        containsAll(<String>['NOVEL:7', 'COMIC:7']),
-      );
-      expect(
-        shelfContainsBook(items, (id: 7, type: ShelfItemType.novel)),
-        isTrue,
-      );
-      expect(
-        shelfContainsBook(items, (id: 7, type: ShelfItemType.comic)),
-        isTrue,
-      );
-      expect(
-        shelfContainsBook(items, (id: 8, type: ShelfItemType.comic)),
-        isFalse,
-      );
-    });
-
-    test('移动漫画不带走同 ID 的小说', () {
-      final next = moveShelfItems(
-        both(),
-        keys: <String>{'COMIC:7'},
-        destination: <String>['a'],
-        now: _now,
-      );
-      expect(_find(next, 'COMIC:7').parents, <String>['a']);
-      expect(_find(next, 'NOVEL:7').parents, isEmpty);
-    });
-
-    test('移出漫画时小说留在书架', () {
-      final next = removeShelfItems(both(), keys: <String>{'COMIC:7'});
-      expect(_has(next, 'COMIC:7'), isFalse);
-      expect(_has(next, 'NOVEL:7'), isTrue);
-    });
-
-    test('选中漫画时书籍计数只算它自己', () {
-      expect(shelfSelectionBookCount(both(), <String>{'COMIC:7'}), 1);
-    });
-  });
-
   group('书架条目编解码', () {
     test('类型写回大写字面量并能读回来', () {
       expect(_novel(7).encode()['type'], 'NOVEL');

@@ -26,10 +26,9 @@ class BookActionRow extends ConsumerWidget {
     final colors = Theme.of(context).colorScheme;
     final detail = bundle.detail;
     final hasChapters = detail.chapters.isNotEmpty;
-    final book = (id: bookId, type: bundle.shelfType);
-    final shelf = ref.watch(shelfToggleProvider(book));
+    final shelf = ref.watch(shelfToggleProvider(bookId));
     final resolvedInShelf =
-        shelf.inShelf ?? ref.watch(bookInShelfProvider(book)).value ?? false;
+        shelf.inShelf ?? ref.watch(bookInShelfProvider(bookId)).value ?? false;
     final continueTitle = currentIndex >= 0
         ? cleanChapterTitle(detail.chapters[currentIndex].title)
         : null;
@@ -55,8 +54,8 @@ class BookActionRow extends ConsumerWidget {
                   onTap: shelf.busy
                       ? null
                       : () => ref
-                            .read(shelfToggleProvider(book).notifier)
-                            .toggle(resolvedInShelf),
+                            .read(shelfToggleProvider(bookId).notifier)
+                            .toggle(resolvedInShelf, type: bundle.shelfType),
                   child: Center(
                     child: shelf.busy
                         ? const SizedBox(

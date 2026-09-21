@@ -42,8 +42,8 @@ bool _sameParents(List<String> left, List<String> right) {
 }
 
 /// 判断某本书是否在书架中，快照与草稿共用。
-bool shelfContainsBook(List<ShelfItem> items, ShelfBookRef book) =>
-    items.any((item) => item.type == book.type && item.bookId == book.id);
+bool shelfContainsBook(List<ShelfItem> items, int bookId) =>
+    items.any((item) => item.isBook && item.bookId == bookId);
 
 List<ShelfItem> sortShelfItems(List<ShelfItem> items) {
   final sorted = List<ShelfItem>.of(items);

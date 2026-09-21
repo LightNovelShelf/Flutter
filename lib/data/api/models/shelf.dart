@@ -27,9 +27,6 @@ extension ShelfItemTypeWire on ShelfItemType {
   };
 }
 
-/// 书架里的一本书。小说与漫画共用书籍 ID 空间，但按类型分别记账。
-typedef ShelfBookRef = ({int id, ShelfItemType type});
-
 /// 书架条目：小说、漫画或文件夹。
 class ShelfItem {
   const ShelfItem({
@@ -75,7 +72,7 @@ class ShelfItem {
 
   bool get isComic => type == ShelfItemType.comic;
 
-  /// 小说与漫画的 ID 取自同一个空间，带类型前缀才能唯一标识一个条目。
+  /// 条目标识：书籍 ID 是数字、文件夹 ID 是字符串，统一成带类型前缀的字符串才能放进同一个集合。
   String get key => '${type.wire}:${isBook ? bookId : folderId}';
 
   ShelfItem copyWith({
