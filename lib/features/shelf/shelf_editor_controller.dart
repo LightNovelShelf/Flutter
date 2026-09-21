@@ -44,18 +44,24 @@ class ShelfEditorState {
   );
 }
 
-/// 文件夹卡片的前 4 本直接子书籍 ID 与直接条目数。
+/// 文件夹卡片的预览：子树里前 4 本书的 ID、子树书籍总数、直接子文件夹数。
 @immutable
 class ShelfFolderPreview {
-  const ShelfFolderPreview({required this.bookIds, required this.count});
+  const ShelfFolderPreview({
+    required this.bookIds,
+    required this.bookCount,
+    required this.folderCount,
+  });
 
   static const ShelfFolderPreview empty = ShelfFolderPreview(
     bookIds: <int>[],
-    count: 0,
+    bookCount: 0,
+    folderCount: 0,
   );
 
   final List<int> bookIds;
-  final int count;
+  final int bookCount;
+  final int folderCount;
 }
 
 /// 渲染当前层需要的全部派生数据，由 [ShelfEditorController.level] 记忆化。
@@ -126,10 +132,6 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
     return title.isEmpty ? '未命名文件夹' : title;
   }
 
-  String pathLabel(ShelfDraft draft, List<String> path) => path.isEmpty
-      ? '根文件夹'
-      : path.map((id) => folderTitle(draft, id)).join(' / ');
-
   List<ShelfItem> selectedFolders(ShelfDraft draft) => draft.items
       .where((item) => !item.isBook && state.selected.contains(item.key))
       .toList();
@@ -167,9 +169,10 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
     for (final item in siblings) {
       if (!item.isBook) buckets[item.folderId!] = <ShelfItem>[];
     }
+    // 子树里的条目，路径都是「当前层 + 某个同层文件夹 + ...」。
     for (final item in draft.items) {
-      if (item.parents.length != parents.length + 1) continue;
-      final bucket = buckets[item.parents.last];
+      if (item.parents.length <= parents.length) continue;
+      final bucket = buckets[item.parents[parents.length]];
       if (bucket == null) continue;
       var matches = true;
       for (var index = 0; index < parents.length; index += 1) {
@@ -183,36 +186,42 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
     final previews = <String, ShelfFolderPreview>{};
     for (final entry in buckets.entries) {
       final bookIds = <int>[];
+      var bookCount = 0;
+      var folderCount = 0;
       for (final child in sortShelfItems(entry.value)) {
-        if (!child.isBook) continue;
-        bookIds.add(child.bookId!);
-        if (bookIds.length == 4) break;
+        if (child.isBook) {
+          bookCount += 1;
+          if (bookIds.length < 4) bookIds.add(child.bookId!);
+        } else if (child.parents.length == parents.length + 1) {
+          folderCount += 1;
+        }
       }
       previews[entry.key] = ShelfFolderPreview(
         bookIds: bookIds,
-        count: entry.value.length,
+        bookCount: bookCount,
+        folderCount: folderCount,
       );
     }
     return ShelfLevel(siblings: siblings, folderPreviews: previews);
   }
 
-  /// 变更写入草稿，校验失败时只记录错误，草稿保持不变。
-  void _applyMutation(ShelfDraft Function(ShelfDraft draft) apply) {
+  /// 变更写入草稿，返回是否写入成功；校验失败时只记录错误，草稿保持不变。
+  bool _applyMutation(ShelfDraft Function(ShelfDraft draft) apply) {
     final snapshot = ref.read(shelfProvider).value;
-    if (snapshot == null || state.saving) return;
+    if (snapshot == null || state.saving) return false;
     try {
       state = state.copyWith(
         draft: apply(effectiveDraft(snapshot)),
         clearError: true,
       );
+      return true;
     } catch (error) {
       state = state.copyWith(
         error: describeShelfError(error, fallback: '书架操作失败。'),
       );
+      return false;
     }
   }
-
-  void reportError(String message) => state = state.copyWith(error: message);
 
   void clearError() => state = state.copyWith(clearError: true);
 
@@ -259,11 +268,20 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
     );
   }
 
+  static String _newFolderId() =>
+      DateTime.now().millisecondsSinceEpoch.toString();
+
+  /// 在当前所在的这一层新建文件夹。
   void createFolder(String name) {
-    // 服务端的书架结构中文件夹只有根层级，新建文件夹落在根目录。
-    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    final id = _newFolderId();
     _applyMutation(
-      (draft) => createShelfFolder(draft, id: id, title: name, now: _now()),
+      (draft) => createShelfFolder(
+        draft,
+        id: id,
+        title: name,
+        parents: parents,
+        now: _now(),
+      ),
     );
   }
 
@@ -272,7 +290,7 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
   );
 
   void deleteFolders(List<ShelfItem> folders) {
-    _applyMutation((draft) {
+    final applied = _applyMutation((draft) {
       var next = draft;
       final now = _now();
       for (final folder in folders) {
@@ -280,27 +298,41 @@ class ShelfEditorController extends Notifier<ShelfEditorState> {
       }
       return next;
     });
-    _clearSelection();
+    if (applied) _clearSelection();
   }
 
-  void moveBooks({
-    required List<int> bookIds,
+  /// 移动选中的条目；[newFolderName] 非空时先在目标路径下建好文件夹再移进去。
+  void moveItems({
+    required Set<String> keys,
     required List<String> destination,
+    String? newFolderName,
   }) {
-    _applyMutation(
-      (draft) => moveShelfBooks(
-        draft,
-        bookIds: bookIds,
-        destination: destination,
-        now: _now(),
-      ),
-    );
-    _clearSelection();
+    final applied = _applyMutation((draft) {
+      final now = _now();
+      var next = draft;
+      var target = destination;
+      final name = newFolderName?.trim();
+      if (name != null && name.isNotEmpty) {
+        final id = _newFolderId();
+        next = createShelfFolder(
+          next,
+          id: id,
+          title: name,
+          parents: destination,
+          now: now,
+        );
+        target = <String>[...destination, id];
+      }
+      return moveShelfItems(next, keys: keys, destination: target, now: now);
+    });
+    if (applied) _clearSelection();
   }
 
   void removeItems(Set<String> keys) {
-    _applyMutation((draft) => removeShelfItems(draft, keys: keys, now: _now()));
-    _clearSelection();
+    final applied = _applyMutation(
+      (draft) => removeShelfItems(draft, keys: keys),
+    );
+    if (applied) _clearSelection();
   }
 
   /// 保存草稿，返回是否已写回服务端。

@@ -8,7 +8,7 @@ enum ShelfManageCommand {
   createFolder,
   renameFolder,
   deleteFolder,
-  moveBooks,
+  moveItems,
   removeItems,
   save,
   discard,
@@ -51,7 +51,7 @@ _ShelfCommandSpec _specFor(
     '删除文件夹',
     destructive: true,
   ),
-  ShelfManageCommand.moveBooks => const _ShelfCommandSpec(
+  ShelfManageCommand.moveItems => const _ShelfCommandSpec(
     Icons.drive_file_move_outlined,
     '移动到文件夹',
   ),

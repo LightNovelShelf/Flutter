@@ -107,7 +107,8 @@ class ShelfTile extends ConsumerWidget {
       tile = ShelfFolderTile(
         title: title.isEmpty ? '未命名文件夹' : title,
         covers: covers,
-        childCount: preview.count,
+        bookCount: preview.bookCount,
+        folderCount: preview.folderCount,
         selected: selected,
         sorting: sorting,
         onTap: () {

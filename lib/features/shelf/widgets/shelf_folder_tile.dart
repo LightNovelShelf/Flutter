@@ -13,7 +13,8 @@ class ShelfFolderTile extends StatelessWidget {
     super.key,
     required this.title,
     required this.covers,
-    required this.childCount,
+    required this.bookCount,
+    required this.folderCount,
     this.onTap,
     this.onLongPress,
     this.selected = false,
@@ -25,8 +26,9 @@ class ShelfFolderTile extends StatelessWidget {
   /// 直接子书籍的封面，最多取前 4 本。
   final List<BookListItem> covers;
 
-  /// 该文件夹下的直接条目数，用于无障碍朗读。
-  final int childCount;
+  /// 子树里的书籍总数与直接子文件夹数，用于无障碍朗读。
+  final int bookCount;
+  final int folderCount;
 
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
@@ -84,7 +86,9 @@ class ShelfFolderTile extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     return Semantics(
       button: true,
-      label: '文件夹 $title，共 $childCount 项',
+      label: folderCount == 0
+          ? '文件夹 $title，共 $bookCount 本书'
+          : '文件夹 $title，共 $bookCount 本书、$folderCount 个子文件夹',
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,

@@ -76,30 +76,27 @@ List<ShelfItem> shelfItemsAtPath(ShelfDraft draft, List<String> parents) =>
       draft.items.where((item) => _sameParents(item.parents, parents)).toList(),
     );
 
-class ShelfFolderPath {
-  const ShelfFolderPath({
-    required this.id,
-    required this.title,
-    required this.parents,
-  });
-
-  final String id;
-  final String title;
-  final List<String> parents;
-
-  List<String> get path => <String>[...parents, id];
+/// 校验路径上的每一层文件夹都存在，且父子关系与路径一致。
+void _assertShelfPath(List<ShelfItem> items, List<String> parents) {
+  for (var index = 0; index < parents.length; index += 1) {
+    final id = parents[index];
+    final expectedParents = parents.sublist(0, index);
+    final exists = items.any(
+      (item) =>
+          !item.isBook &&
+          item.folderId == id &&
+          _sameParents(item.parents, expectedParents),
+    );
+    if (!exists) throw ArgumentError('目标文件夹已不存在。');
+  }
 }
 
-List<ShelfFolderPath> shelfFolderPaths(ShelfDraft draft) =>
-    sortShelfItems(draft.items.where((item) => !item.isBook).toList())
-        .map(
-          (item) => ShelfFolderPath(
-            id: item.folderId!,
-            title: item.title,
-            parents: item.parents,
-          ),
-        )
-        .toList();
+ShelfItem? shelfFolderById(ShelfDraft draft, String id) {
+  for (final item in draft.items) {
+    if (!item.isBook && item.folderId == id) return item;
+  }
+  return null;
+}
 
 bool shelfDraftHasChanges(ShelfSnapshot snapshot, ShelfDraft draft) {
   String signature(List<ShelfItem> items) => jsonEncode(
@@ -124,6 +121,7 @@ ShelfDraft createShelfFolder(
   ShelfDraft draft, {
   required String id,
   required String title,
+  required List<String> parents,
   required String now,
 }) {
   final name = title.trim();
@@ -133,15 +131,21 @@ ShelfDraft createShelfFolder(
   if (draft.items.any((item) => !item.isBook && item.folderId == id)) {
     throw ArgumentError('该文件夹已存在。');
   }
-  if (draft.items.any((item) => !item.isBook && item.title == name)) {
-    throw ArgumentError('已存在同名文件夹。');
+  _assertShelfPath(draft.items, parents);
+  if (draft.items.any(
+    (item) =>
+        !item.isBook &&
+        item.title == name &&
+        _sameParents(item.parents, parents),
+  )) {
+    throw ArgumentError('这一层已有同名文件夹。');
   }
   return draft.copyWith(
     items: normalizeShelfIndexes(<ShelfItem>[
       ShelfItem.folder(
         id: id,
         index: -1,
-        parents: const <String>[],
+        parents: List<String>.of(parents),
         updatedAt: now,
         title: name,
       ),
@@ -156,61 +160,65 @@ ShelfDraft renameShelfFolder(
   required String title,
   required String now,
 }) {
+  final folder = shelfFolderById(draft, id);
+  if (folder == null) throw ArgumentError('该文件夹已不存在。');
   final name = title.trim();
   if (name.isEmpty || name == '根文件夹') {
     throw ArgumentError('请输入有效的文件夹名称。');
   }
+  final parents = folder.parents;
   if (draft.items.any(
-    (item) => !item.isBook && item.folderId != id && item.title == name,
+    (item) =>
+        !item.isBook &&
+        item.folderId != id &&
+        item.title == name &&
+        _sameParents(item.parents, parents),
   )) {
-    throw ArgumentError('已存在同名文件夹。');
+    throw ArgumentError('这一层已有同名文件夹。');
   }
-  var found = false;
-  final items = draft.items.map((item) {
-    if (item.isBook || item.folderId != id) return item;
-    found = true;
-    return item.copyWith(title: name, updatedAt: now);
-  }).toList();
-  if (!found) throw ArgumentError('该文件夹已不存在。');
-  return draft.copyWith(items: items);
+  return draft.copyWith(
+    items: draft.items.map((item) {
+      if (item.isBook || item.folderId != id) return item;
+      return item.copyWith(title: name, updatedAt: now);
+    }).toList(),
+  );
 }
 
-/// 删除文件夹：子书籍提升到根目录尾部，子文件夹解除该层父级。
+/// 删除文件夹：其中的内容提升到该文件夹所在的上一层，更深的层级关系保持不变。
 ShelfDraft deleteShelfFolder(
   ShelfDraft draft, {
   required String id,
   required String now,
 }) {
-  if (!draft.items.any((item) => !item.isBook && item.folderId == id)) {
-    throw ArgumentError('该文件夹已不存在。');
-  }
-  var rootIndex = draft.items.fold<int>(
+  final folder = shelfFolderById(draft, id);
+  if (folder == null) throw ArgumentError('该文件夹已不存在。');
+  final parents = folder.parents;
+  // 提升上来的内容排在上一层末尾。
+  var lastIndex = draft.items.fold<int>(
     -1,
-    (maximum, item) => item.parents.isEmpty
-        ? (item.index > maximum ? item.index : maximum)
+    (maximum, item) =>
+        _sameParents(item.parents, parents) && item.index > maximum
+        ? item.index
         : maximum,
   );
   final items = <ShelfItem>[];
   for (final item in draft.items) {
     if (!item.isBook && item.folderId == id) continue;
-    if (!item.parents.contains(id)) {
+    final depth = item.parents.indexOf(id);
+    if (depth == -1) {
       items.add(item);
       continue;
     }
-    if (item.isBook) {
-      rootIndex += 1;
-      items.add(
-        item.copyWith(
-          index: rootIndex,
-          parents: const <String>[],
-          updatedAt: now,
-        ),
-      );
-      continue;
-    }
+    // 从路径里摘掉这个文件夹，直接子项重新排到上一层末尾。
+    final isDirectChild = depth == item.parents.length - 1;
+    if (isDirectChild) lastIndex += 1;
     items.add(
       item.copyWith(
-        parents: item.parents.where((parent) => parent != id).toList(),
+        parents: <String>[
+          ...item.parents.sublist(0, depth),
+          ...item.parents.sublist(depth + 1),
+        ],
+        index: isDirectChild ? lastIndex : item.index,
         updatedAt: now,
       ),
     );
@@ -218,66 +226,77 @@ ShelfDraft deleteShelfFolder(
   return draft.copyWith(items: normalizeShelfIndexes(items));
 }
 
-ShelfDraft removeShelfItems(
-  ShelfDraft draft, {
-  required Set<String> keys,
-  required String now,
-}) {
+/// 移出书架：选中文件夹时，其中所有层级的内容一并移出。
+ShelfDraft removeShelfItems(ShelfDraft draft, {required Set<String> keys}) {
+  if (keys.isEmpty) return draft;
   final folderIds = draft.items
       .where((item) => !item.isBook && keys.contains(item.key))
       .map((item) => item.folderId!)
+      .toSet();
+  final items = draft.items
+      .where(
+        (item) =>
+            !keys.contains(item.key) && !item.parents.any(folderIds.contains),
+      )
       .toList();
-  final bookKeys = keys.where((key) => key.startsWith('BOOK:')).toSet();
-  var next = draft.copyWith(
-    items: draft.items.where((item) => !bookKeys.contains(item.key)).toList(),
-  );
-  for (final id in folderIds) {
-    if (next.items.any((item) => !item.isBook && item.folderId == id)) {
-      next = deleteShelfFolder(next, id: id, now: now);
-    }
-  }
-  return next.copyWith(items: normalizeShelfIndexes(next.items));
+  if (items.length == draft.items.length) return draft;
+  return draft.copyWith(items: normalizeShelfIndexes(items));
 }
 
-void _assertShelfPath(List<ShelfItem> items, List<String> parents) {
-  for (var index = 0; index < parents.length; index += 1) {
-    final id = parents[index];
-    final expectedParents = parents.sublist(0, index);
-    final exists = items.any(
-      (item) =>
-          !item.isBook &&
-          item.folderId == id &&
-          _sameParents(item.parents, expectedParents),
-    );
-    if (!exists) throw ArgumentError('目标文件夹已不存在。');
-  }
-}
-
-ShelfDraft moveShelfBooks(
+/// 移动到指定路径；移动文件夹时，它子树里所有条目的路径前缀一并重写。
+ShelfDraft moveShelfItems(
   ShelfDraft draft, {
-  required List<int> bookIds,
+  required Set<String> keys,
   required List<String> destination,
   required String now,
 }) {
   _assertShelfPath(draft.items, destination);
-  final ids = bookIds.toSet();
-  if (ids.isEmpty) throw ArgumentError('请至少选择一本书。');
+  if (keys.isEmpty) throw ArgumentError('请至少选择一个条目。');
   final selected = sortShelfItems(
-    draft.items
-        .where((item) => item.isBook && ids.contains(item.bookId))
-        .toList(),
+    draft.items.where((item) => keys.contains(item.key)).toList(),
   );
-  if (selected.length != ids.length) throw ArgumentError('所选书籍已不存在。');
-  final position = <int, int>{
-    for (var index = 0; index < selected.length; index += 1)
-      selected[index].bookId!: index - selected.length,
+  if (selected.length != keys.length) throw ArgumentError('所选条目已不存在。');
+
+  final selectedFolders = <String>{
+    for (final item in selected)
+      if (!item.isBook) item.folderId!,
+  };
+  final moving = <ShelfItem>[];
+  for (final item in selected) {
+    // 已经在目标文件夹里。
+    if (_sameParents(item.parents, destination)) continue;
+    // 祖先也在移动列表里，跟着祖先一起走。
+    if (item.parents.any(selectedFolders.contains)) continue;
+    // 目标路径经过这个文件夹自己，移进去会把它从树上摘下来。
+    if (!item.isBook && destination.contains(item.folderId)) {
+      throw ArgumentError('不能把文件夹移动到它自己或它的下级里。');
+    }
+    moving.add(item);
+  }
+  if (moving.isEmpty) throw ArgumentError('所选条目已经在这个文件夹里了。');
+
+  // 负数下标让移动过来的条目排在目标层开头，彼此保持原来的先后顺序。
+  final position = <String, int>{
+    for (var index = 0; index < moving.length; index += 1)
+      moving[index].key: index - moving.length,
+  };
+  final movingFolders = <String>{
+    for (final item in moving)
+      if (!item.isBook) item.folderId!,
   };
   final items = draft.items.map((item) {
-    final index = item.isBook ? position[item.bookId] : null;
-    if (index == null) return item;
+    final index = position[item.key];
+    if (index != null) {
+      return item.copyWith(
+        index: index,
+        parents: List<String>.of(destination),
+        updatedAt: now,
+      );
+    }
+    final anchor = item.parents.indexWhere(movingFolders.contains);
+    if (anchor == -1) return item;
     return item.copyWith(
-      index: index,
-      parents: List<String>.of(destination),
+      parents: <String>[...destination, ...item.parents.sublist(anchor)],
       updatedAt: now,
     );
   }).toList();

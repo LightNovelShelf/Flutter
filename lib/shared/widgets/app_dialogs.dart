@@ -94,28 +94,6 @@ Future<String?> showAppTextPrompt({
   return text.isEmpty ? null : text;
 }
 
-/// 选项列表弹窗；返回 null 表示取消。
-Future<T?> showAppChoice<T extends Object>({
-  required BuildContext context,
-  required String title,
-  required List<(String label, T value)> options,
-}) => showDialog<T>(
-  context: context,
-  builder: (dialogContext) => SimpleDialog(
-    title: Text(title),
-    children: <Widget>[
-      for (final option in options)
-        SimpleDialogOption(
-          onPressed: () => Navigator.of(dialogContext).pop(option.$2),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Text(option.$1),
-          ),
-        ),
-    ],
-  ),
-);
-
 /// 轻提示，同一时间只保留一条。
 void showAppSnackBar(BuildContext context, String message) =>
     ScaffoldMessenger.of(context).showText(message);

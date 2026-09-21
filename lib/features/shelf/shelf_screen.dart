@@ -12,6 +12,7 @@ import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/book_grid_slivers.dart';
 import '../../shared/widgets/state_views.dart';
 import 'shelf_editor_controller.dart';
+import 'widgets/shelf_folder_picker.dart';
 import 'widgets/shelf_manage_sheet.dart';
 import 'widgets/shelf_tile.dart';
 
@@ -60,23 +61,19 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
     return true;
   }
 
-  /// 选择移动目标；返回空列表代表根文件夹，返回 null 代表取消。
-  Future<List<String>?> _pickDestination(ShelfDraft draft) {
-    final editor = _editor;
-    final destinations = <(String label, List<String> path)>[
-      if (_parents.isNotEmpty) ('根文件夹', const <String>[]),
-      for (final folder in shelfFolderPaths(draft))
-        if (!editor.isCurrentPath(folder.path))
-          (editor.pathLabel(draft, folder.path), folder.path),
-    ];
-    if (destinations.isEmpty) {
-      editor.reportError('还没有可用的目标文件夹，请先新建一个。');
-      return Future<List<String>?>.value();
+  /// 跳到书架的某一层；有未保存改动时先确认。
+  Future<void> _goToPath(List<String> path) async {
+    if (_editor.isCurrentPath(path)) return;
+    if (!await _discard() || !mounted) return;
+    if (path.isEmpty) {
+      context.go('/shelf');
+      return;
     }
-    return showAppChoice<List<String>>(
-      context: context,
-      title: '移动到文件夹',
-      options: destinations,
+    context.go(
+      Uri(
+        path: '/shelf/folder',
+        queryParameters: <String, List<String>>{'parent': path},
+      ).toString(),
     );
   }
 
@@ -106,7 +103,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
           ShelfManageCommand.renameFolder,
         if (folders.isNotEmpty && books.isEmpty)
           ShelfManageCommand.deleteFolder,
-        if (books.isNotEmpty && folders.isEmpty) ShelfManageCommand.moveBooks,
+        if (_state.selected.isNotEmpty) ShelfManageCommand.moveItems,
         if (_state.selected.isNotEmpty) ShelfManageCommand.removeItems,
         if (dirty) ShelfManageCommand.save,
         if (dirty) ShelfManageCommand.discard,
@@ -130,8 +127,8 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
         await _renameFolder();
       case ShelfManageCommand.deleteFolder:
         await _deleteFolders();
-      case ShelfManageCommand.moveBooks:
-        await _moveBooks();
+      case ShelfManageCommand.moveItems:
+        await _moveItems();
       case ShelfManageCommand.removeItems:
         await _removeItems();
       case ShelfManageCommand.save:
@@ -142,13 +139,19 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   }
 
   Future<void> _createFolder() async {
+    final snapshot = ref.read(shelfProvider).value;
+    if (snapshot == null) return;
+    final editor = _editor;
+    final draft = editor.effectiveDraft(snapshot);
     final name = await showAppTextPrompt(
       context: context,
-      title: '新建文件夹',
+      title: _parents.isEmpty
+          ? '新建文件夹'
+          : '在「${editor.folderTitle(draft, _parents.last)}」下新建文件夹',
       hint: '请输入文件夹名称',
     );
     if (name == null || !mounted) return;
-    _editor.createFolder(name);
+    editor.createFolder(name);
   }
 
   Future<void> _renameFolder() async {
@@ -177,25 +180,29 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
     final ok = await showAppConfirm(
       context: context,
       title: '删除文件夹',
-      message: '将删除所选的 ${folders.length} 个文件夹，其中的书籍会移回书架根目录。',
+      message: '将删除所选的 ${folders.length} 个文件夹，其中的内容会移到上一层。',
       confirmLabel: '删除',
     );
     if (!ok || !mounted) return;
     editor.deleteFolders(folders);
   }
 
-  Future<void> _moveBooks() async {
+  Future<void> _moveItems() async {
     final snapshot = ref.read(shelfProvider).value;
-    if (snapshot == null) return;
+    final selected = _state.selected;
+    if (snapshot == null || selected.isEmpty) return;
     final editor = _editor;
-    final draft = editor.effectiveDraft(snapshot);
-    final books = editor.selectedBooks(draft);
-    if (books.isEmpty) return;
-    final destination = await _pickDestination(draft);
-    if (destination == null || !mounted) return;
-    editor.moveBooks(
-      bookIds: books.map((item) => item.bookId!).toList(),
-      destination: destination,
+    final target = await ShelfFolderPicker.show(
+      context,
+      draft: editor.effectiveDraft(snapshot),
+      movingKeys: Set<String>.of(selected),
+      currentParents: _parents,
+    );
+    if (target == null || !mounted) return;
+    editor.moveItems(
+      keys: Set<String>.of(selected),
+      destination: target.parents,
+      newFolderName: target.newFolderName,
     );
   }
 
@@ -210,7 +217,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
       context: context,
       title: '移出书架',
       message: hasFolder
-          ? '所选文件夹会被删除，其中的书籍将移回书架根目录。'
+          ? '所选文件夹及其中的 ${shelfSelectionBookCount(draft, selected)} 本书会一起移出书架，阅读记录不受影响。'
           : '将从书架移出 ${shelfSelectionBookCount(draft, selected)} 本书，阅读记录不受影响。',
       confirmLabel: '移出',
     );
@@ -268,6 +275,47 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// 路径导航：点任意一层直接跳到那一层。
+  Widget _breadcrumb(ShelfDraft draft) {
+    final colors = Theme.of(context).colorScheme;
+    Widget crumb(String label, List<String> path, {required bool active}) =>
+        InkWell(
+          onTap: active ? null : () => _goToPath(path),
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                height: 19 / 14,
+                color: active ? colors.onSurface : colors.primary,
+              ),
+            ),
+          ),
+        );
+
+    final crumbs = <Widget>[crumb('我的书架', const <String>[], active: false)];
+    for (var depth = 0; depth < _parents.length; depth += 1) {
+      crumbs
+        ..add(
+          Icon(Icons.chevron_right, size: 16, color: colors.onSurfaceVariant),
+        )
+        ..add(
+          crumb(
+            _editor.folderTitle(draft, _parents[depth]),
+            _parents.sublist(0, depth + 1),
+            active: depth == _parents.length - 1,
+          ),
+        );
+    }
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      reverse: true,
+      child: Row(mainAxisSize: MainAxisSize.min, children: crumbs),
     );
   }
 
@@ -429,19 +477,10 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
           ),
           sliver: SliverList.list(
             children: <Widget>[
-              if (_parents.length > 1)
+              if (_parents.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(
-                    _editor.pathLabel(draft, _parents),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 14,
-                      height: 19 / 14,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
+                  child: _breadcrumb(draft),
                 ),
               if (editorError != null)
                 _banner(editorError, onAction: () => _editor.clearError()),
