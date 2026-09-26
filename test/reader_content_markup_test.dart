@@ -89,6 +89,21 @@ void main() {
         '<$readerIndentElement></$readerIndentElement>正文</p>',
       );
     });
+
+    test('非块级外壳里的段落照常缩进', () {
+      final blocks = _blocks(
+        '<note> <p>「善哉。」</p> </note>'
+        '<note><p class="center">居中</p></note>',
+      );
+      final builder = ReaderBlockMarkupBuilder(_style(indent: true));
+      final markup = <String>[for (final block in blocks) builder.next(block)];
+
+      expect(
+        markup[0],
+        '<note><p><$readerIndentElement></$readerIndentElement>「善哉。」</p></note>',
+      );
+      expect(markup[1], isNot(contains(readerIndentElement)));
+    });
   });
 
   test('通用 HTML 分块清理非正文节点，但不执行小说标记加工', () {

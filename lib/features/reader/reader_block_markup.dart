@@ -13,7 +13,7 @@ final RegExp _footnoteMarkerPattern = RegExp(
   dotAll: true,
 );
 final RegExp _openingTagPattern = RegExp(
-  r'''^\s*<([a-zA-Z][\w:-]*)((?:"[^"]*"|'[^']*'|[^<>'"])*)>''',
+  r'''\s*<([a-zA-Z][\w:-]*)((?:"[^"]*"|'[^']*'|[^<>'"])*)>''',
 );
 final RegExp _classAttributePattern = RegExp(
   r'''\bclass\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))''',
@@ -46,8 +46,14 @@ class ReaderBlockMarkupBuilder {
 }
 
 /// 缩进占位插在块内，插到块外会跟随外层对齐方式偏移。
+///
+/// 分块会给段落补上非块级祖先（如 `<note><p>`），要跳过这些外壳找到段落本身。
 String _indentBlock(String html, ReaderContentStyle style) {
-  final opening = _openingTagPattern.firstMatch(html);
+  var opening = _openingTagPattern.matchAsPrefix(html);
+  while (opening != null &&
+      !htmlBlockTags.contains(opening[1]!.toLowerCase())) {
+    opening = _openingTagPattern.matchAsPrefix(html, opening.end);
+  }
   if (opening == null) return html;
   final classMatch = _classAttributePattern.firstMatch(opening[2] ?? '');
   final classValue = classMatch == null
