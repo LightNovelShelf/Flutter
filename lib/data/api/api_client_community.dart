@@ -179,8 +179,13 @@ extension ApiClientCommunity on ApiClient {
     cancelToken: cancelToken,
   );
 
-  Future<void> markNotifications(List<int> ids) async {
-    if (ids.isEmpty) return;
-    await invoke('MarkNotifications', <String, Object?>{'Ids': ids}, (_) {});
+  Future<void> markNotifications({
+    List<int> ids = const <int>[],
+    bool all = false,
+  }) async {
+    if (!all && ids.isEmpty) return;
+    await invoke('MarkNotifications', <String, Object?>{
+      if (all) 'All': true else 'Ids': ids,
+    }, (_) {});
   }
 }

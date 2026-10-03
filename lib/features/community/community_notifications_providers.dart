@@ -48,20 +48,28 @@ class CommunityNotificationsController
   String describeError(Object error) =>
       describeCommunityError(error, fallback: '无法加载通知。');
 
+  Future<void> mark(List<int> ids) => _mark(ids: ids);
+
+  Future<void> markAll() => _mark(all: true);
+
   /// 已读先本地翻转，服务端提交成功后再用列表 + 资料对齐未读角标。
-  Future<void> mark(List<int> ids) async {
-    if (ids.isEmpty || _marking) return;
+  Future<void> _mark({
+    List<int> ids = const <int>[],
+    bool all = false,
+  }) async {
+    if ((!all && ids.isEmpty) || _marking) return;
     _marking = true;
     state = state.copyWith(
       items: state.items
           .map(
-            (item) =>
-                ids.contains(item.id) ? item.copyWith(isRead: true) : item,
+            (item) => all || ids.contains(item.id)
+                ? item.copyWith(isRead: true)
+                : item,
           )
           .toList(growable: false),
     );
     try {
-      await ref.read(apiClientProvider).markNotifications(ids);
+      await ref.read(apiClientProvider).markNotifications(ids: ids, all: all);
     } catch (_) {
       // 返回值可能解析失败，但服务端已提交，以随后的对账为准。
     }
@@ -72,13 +80,6 @@ class CommunityNotificationsController
       ref.read(profileProvider.notifier).reload(),
     ]);
   }
-
-  Future<void> markAll() => mark(
-    state.items
-        .where((item) => !item.isRead)
-        .map((item) => item.id)
-        .toList(growable: false),
-  );
 
   /// 对账刷新，失败时清除错误并保留乐观结果。
   Future<void> _reconcile() async {

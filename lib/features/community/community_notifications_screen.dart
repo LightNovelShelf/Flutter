@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/api/models.dart';
+import '../../data/repositories/profile_repository.dart';
 import '../../shared/format.dart';
 import '../../shared/paging/paged_list.dart';
 import '../../shared/paging/scroll_prefetch.dart';
@@ -50,11 +51,13 @@ class _CommunityNotificationsScreenState
   Widget build(BuildContext context) {
     final state = ref.watch(communityNotificationsProvider);
     final controller = ref.read(communityNotificationsProvider.notifier);
+    final unreadNotifications =
+        ref.watch(profileProvider).value?.unreadNotificationCount ?? 0;
     return Scaffold(
       appBar: AppBar(
         title: const Text('通知'),
         actions: <Widget>[
-          if (controller.hasUnread)
+          if (controller.hasUnread || unreadNotifications > 0)
             TextButton(
               onPressed: controller.markAll,
               child: const Text('全部已读'),
