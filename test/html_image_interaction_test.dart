@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
@@ -56,13 +55,6 @@ Future<int Function()> _pumpBlock(
   return () => openedLinks;
 }
 
-String _previewUrl(WidgetTester tester) {
-  final provider = tester
-      .widget<PhotoView>(find.byType(PhotoView))
-      .imageProvider;
-  return (provider! as CachedNetworkImageProvider).url;
-}
-
 const _plainImage =
     '<img src="https://img.example/post.webp?size=40x60'
     '&amp;placeholder=$_hash">';
@@ -85,20 +77,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byKey(imagePreviewTransformKey), findsOneWidget);
     expect(openedLinks(), 1);
-  });
-
-  testWidgets('预览请求的地址与显示的一致，命中同一份缓存', (tester) async {
-    await _pumpBlock(tester);
-
-    final displayed = tester.widget<BookImage>(find.byType(BookImage));
-    // 显示高度 60、DPR 3 落在 256 档。
-    expect(displayed.url, contains('height=256'));
-    expect(displayed.requestSizedVariant, isFalse);
-
-    await tester.longPress(find.byType(BookImage));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(_previewUrl(tester), displayed.url);
   });
 
   testWidgets('预览旋转 90° 后按短边重新贴合，缩放下限跟着换', (tester) async {

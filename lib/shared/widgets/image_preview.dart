@@ -171,7 +171,7 @@ class ContentImage extends StatelessWidget {
 /// 预览的变换层，承载进入、退出、下拉的位移与缩放。
 const Key imagePreviewTransformKey = Key('image-preview-transform');
 
-/// 全屏图片预览：从来源位置放大进入，退出时缩回原位，支持捏合缩放与下拉关闭。
+/// 全屏图片预览：复用 BookImage 占位与加载，等比贴合屏幕，支持缩放、下拉关闭及切换原图。
 ///
 /// [sourceRect] 是来源缩略图在屏幕上的矩形（[globalRectOf]），缺省时改用居中的淡入淡出加轻微缩放。
 Future<void> showImagePreview(
@@ -241,10 +241,12 @@ class _ImagePreviewState extends ConsumerState<_ImagePreview>
     curve: Curves.easeOutCubic,
   );
 
-  /// 缓存键与 BookImage 一致，来源图已经下载过时直接命中。
-  late final ImageProvider _provider = CachedNetworkImageProvider(
-    widget.url,
-    cacheKey: BookImage.cacheKeyFor(widget.url),
+  late String _url = widget.url;
+  String? _originalUrl;
+
+  ImageProvider _providerFor(String url) => CachedNetworkImageProvider(
+    url,
+    cacheKey: BookImage.cacheKeyFor(url),
     cacheManager: appImageCacheManager,
   );
   late final PhotoViewController _photo = PhotoViewController();
@@ -266,7 +268,35 @@ class _ImagePreviewState extends ConsumerState<_ImagePreview>
   void initState() {
     super.initState();
     _imageSize = contentImageMetadata(widget.url).size;
+    final uri = Uri.tryParse(normalizeCoverUrl(widget.url));
+    final height = int.tryParse(uri?.queryParameters['height'] ?? '');
+    final size = _imageSize;
+    if (uri != null &&
+        contentImageMetadata(widget.url).blurHash != null &&
+        size != null &&
+        height != null &&
+        height > 0 &&
+        height % imageHeightStep == 0 &&
+        height < size.height) {
+      final query = Map<String, String>.of(uri.queryParameters)
+        ..remove('height');
+      _originalUrl = uri.replace(queryParameters: query).toString();
+      _imageSize = Size(size.width * height / size.height, height.toDouble());
+    }
     if (_imageSize == null) _listenImageSize();
+  }
+
+  void _showOriginal() {
+    final url = _originalUrl;
+    if (url == null) return;
+    _rotate.stop();
+    _photo.reset();
+    setState(() {
+      _url = url;
+      _imageSize = contentImageMetadata(url).size;
+      _quarterTurns = 0;
+      _originalUrl = null;
+    });
   }
 
   void _listenImageSize() {
@@ -280,7 +310,7 @@ class _ImagePreviewState extends ConsumerState<_ImagePreview>
       );
     });
     _sizeListener = listener;
-    _sizeStream = _provider.resolve(ImageConfiguration.empty)
+    _sizeStream = _providerFor(_url).resolve(ImageConfiguration.empty)
       ..addListener(listener);
   }
 
@@ -390,28 +420,29 @@ class _ImagePreviewState extends ConsumerState<_ImagePreview>
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
     final fit = _fitScale(screen, _quarterTurns);
+    final imageSize = _imageSize ?? screen;
     final image = PhotoViewGestureDetectorScope(
       axis: Axis.vertical,
       child: GestureDetector(
         onVerticalDragStart: _onDragStart,
         onVerticalDragUpdate: _onDragUpdate,
         onVerticalDragEnd: _onDragEnd,
-        child: PhotoView(
-          imageProvider: _provider,
+        child: PhotoView.customChild(
+          key: ValueKey(_url),
+          childSize: imageSize,
           controller: _photo,
           backgroundDecoration: const BoxDecoration(color: Colors.transparent),
-          // 尺寸已知时按当前旋转角给出贴合缩放，否则退回 PhotoView 自己算的贴合值。
+          initialScale: fit ?? PhotoViewComputedScale.contained,
           minScale: fit ?? PhotoViewComputedScale.contained,
           maxScale: PhotoViewComputedScale.covered * 6,
           onTapUp: (context, _, _) => Navigator.of(context).pop(),
-          loadingBuilder: (context, _) => const Center(
-            child: CircularProgressIndicator(color: Colors.white),
-          ),
-          errorBuilder: (context, _, _) => const Center(
-            child: Text(
-              '图片加载失败',
-              style: TextStyle(color: Colors.white, fontSize: 14),
-            ),
+          child: BookImage(
+            url: _url,
+            displayHeight: imageSize.height,
+            blurHash: contentImageMetadata(_url).blurHash,
+            aspectRatio: imageSize.height / imageSize.width,
+            fit: BoxFit.contain,
+            requestSizedVariant: false,
           ),
         ),
       ),
@@ -462,6 +493,27 @@ class _ImagePreviewState extends ConsumerState<_ImagePreview>
                     ),
                   ),
                 ),
+                if (_originalUrl != null)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: MediaQuery.paddingOf(context).bottom + 76,
+                    child: Opacity(
+                      opacity: chromeOpacity,
+                      child: Center(
+                        child: TextButton(
+                          onPressed: chromeOpacity >= 0.5 && _running == null
+                              ? _showOriginal
+                              : null,
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            backgroundColor: Colors.black45,
+                          ),
+                          child: const Text('显示原图'),
+                        ),
+                      ),
+                    ),
+                  ),
                 Positioned(
                   left: 0,
                   right: 0,
@@ -476,12 +528,12 @@ class _ImagePreviewState extends ConsumerState<_ImagePreview>
                         onRotateRight: () => _rotateBy(1, screen),
                         onShare: (origin) => _run(
                           _PreviewAction.share,
-                          () => shareImage(widget.url, origin: origin),
+                          () => shareImage(_url, origin: origin),
                         ),
                         onSave: () => _run(
                           _PreviewAction.save,
                           () => saveImage(
-                            widget.url,
+                            _url,
                             ownFolder: ref
                                 .read(appSettingsProvider)
                                 .imageSaveToOwnFolder,
