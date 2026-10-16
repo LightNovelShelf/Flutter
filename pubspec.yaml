@@ -21,14 +21,12 @@ dependencies:
   http: ^1.2.2
 
   # 存储
-  # 10.x 已带 Package.swift（支持 SPM），且插件 compileSdk 仍是 36；
-  # 11.x 把 compileSdk 抬到 37，会连带要求 app 编译到尚未被 AGP 9.1 推荐的 API 37。
-  flutter_secure_storage: ^10.3.1
+  flutter_secure_storage: ^11.2.0
   shared_preferences: ^2.3.3
   path_provider: ^2.1.5
 
   # 图片
-  cached_network_image: ^3.4.1
+  cached_network_image: ^4.0.4
   flutter_svg: ^2.2.3
   # 直接用它配置纯 Dart 的缓存元数据仓库，避开 sqflite platform channel
   flutter_cache_manager: ^3.4.1
@@ -46,7 +44,7 @@ dependencies:
   # 其它
   crypto: ^3.0.6
   intl: ^0.20.2
-  dynamic_color: ^1.7.0
+  dynamic_color: ^1.9.0
   package_info_plus: ^10.2.1
   url_launcher: ^6.3.1
   share_plus: ^13.3.0
@@ -54,7 +52,7 @@ dependencies:
   code_assets: ^2.0.0
   hooks: ^2.0.2
   # GlobalCupertinoLocalizations 引入的 Cupertino 组件引用 CupertinoIcons 字形。
-  cupertino_icons: ^1.0.8
+  cupertino_icons: ^2.0.0
   markdown: ^7.3.1
   cloudflare_turnstile: ^3.8.1
 

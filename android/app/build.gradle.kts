@@ -18,8 +18,10 @@ val hasReleaseSigning =
 
 android {
     namespace = "app.lightnovel.shelf"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // AGP 9.2 最高支持 API 37.0；本机 SDK 只保留这一版平台和最新 NDK。
+    compileSdk = 37
+    buildToolsVersion = "37.0.0"
+    ndkVersion = "30.0.16248370"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
