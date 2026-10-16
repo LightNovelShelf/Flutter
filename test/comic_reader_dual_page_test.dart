@@ -70,13 +70,14 @@ class _FakeApi extends ApiClient {
             'LastUpdatedAt': '2026-01-01T00:00:00Z',
             'Favorite': 0,
             'Chapters': <Object?>[
-              <String, Object?>{
-                'Id': _chapterId,
-                'SortNum': 1,
-                'Title': '第 1 话',
-                'CreatedAt': '2026-01-01T00:00:00Z',
-                'PageCount': _pageSizes.length,
-              },
+              for (var sortNum = 1; sortNum <= 2; sortNum++)
+                <String, Object?>{
+                  'Id': _chapterId + sortNum - 1,
+                  'SortNum': sortNum,
+                  'Title': '第 $sortNum 话',
+                  'CreatedAt': '2026-01-01T00:00:00Z',
+                  'PageCount': _pageSizes.length,
+                },
             ],
           },
           'ReadPosition': null,
@@ -84,13 +85,15 @@ class _FakeApi extends ApiClient {
       case 'GetComicContent':
         final skip = args['Skip']! as int;
         final take = args['Take']! as int;
+        final chapterId = args['Cid']! as int;
+        final sortNum = chapterId - _chapterId + 1;
         expect(take, 6);
         return decode(<String, Object?>{
           'Chapter': <String, Object?>{
-            'Id': _chapterId,
+            'Id': chapterId,
             'BookId': _bookId,
-            'Title': '第 1 话',
-            'SortNum': 1,
+            'Title': '第 $sortNum 话',
+            'SortNum': sortNum,
             'Total': _pageSizes.length,
             'Skip': skip,
             'Images': <Object?>[
@@ -99,7 +102,8 @@ class _FakeApi extends ApiClient {
                 index < skip + take && index < _pageSizes.length;
                 index++
               )
-                'https://img.example/page$index.webp?size=${_pageSizes[index]}',
+                'https://img.example/c$chapterId/page$index.webp'
+                    '?size=${_pageSizes[index]}',
             ],
           },
           'ReadPosition': null,
@@ -133,6 +137,7 @@ Future<void> _open(
   ComicPagedDirection direction = ComicPagedDirection.ltr,
   Size size = const Size(1400, 800),
   FakeViewPadding padding = const FakeViewPadding(),
+  int sortNum = 1,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -157,8 +162,8 @@ Future<void> _open(
         apiClientProvider.overrideWithValue(_FakeApi()),
         settingsControllerProvider.overrideWith((ref) => settings),
       ],
-      child: const MaterialApp(
-        home: ComicReaderScreen(bookId: _bookId, sortNum: 1),
+      child: MaterialApp(
+        home: ComicReaderScreen(bookId: _bookId, sortNum: sortNum),
       ),
     ),
   );
@@ -326,6 +331,61 @@ void main() {
     await tester.pump();
     expect(_page(1), findsOneWidget);
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
+  });
+
+  Finder chapterPage(int chapterId, int index) => find.byWidgetPredicate(
+    (widget) =>
+        widget is ContentImage &&
+        widget.url.contains('/c$chapterId/page$index.webp'),
+  );
+
+  testWidgets('末页再往后翻进入下一话首页', (tester) async {
+    await _open(tester, dualPage: false, size: const Size(800, 800));
+
+    for (var page = 1; page < _pageSizes.length; page++) {
+      await tester.tapAt(const Offset(790, 400));
+      await tester.pumpAndSettle();
+    }
+    expect(_currentPage(tester), _pageSizes.length);
+
+    await tester.tapAt(const Offset(790, 400));
+    await tester.pumpAndSettle();
+
+    expect(chapterPage(_chapterId + 1, 0), findsOneWidget);
+    expect(_currentPage(tester), 1);
+  });
+
+  testWidgets('首页再往前翻进入上一话末页', (tester) async {
+    await _open(
+      tester,
+      dualPage: false,
+      size: const Size(800, 800),
+      sortNum: 2,
+    );
+    expect(chapterPage(_chapterId + 1, 0), findsOneWidget);
+
+    await tester.tapAt(const Offset(10, 400));
+    await tester.pumpAndSettle();
+
+    expect(chapterPage(_chapterId, _pageSizes.length - 1), findsOneWidget);
+    expect(_currentPage(tester), _pageSizes.length);
+  });
+
+  testWidgets('双页末屏再往后翻进入下一话', (tester) async {
+    await _open(tester);
+
+    for (var screen = 0; screen < 3; screen++) {
+      await tester.tapAt(const Offset(1390, 400));
+      await tester.pumpAndSettle();
+    }
+    expect(_currentPage(tester), 5);
+
+    await tester.tapAt(const Offset(1390, 400));
+    await tester.pumpAndSettle();
+
+    expect(chapterPage(_chapterId + 1, 0), findsOneWidget);
+    expect(chapterPage(_chapterId + 1, 1), findsOneWidget);
+    expect(_currentPage(tester), 1);
   });
 
   testWidgets('屏幕竖着时一屏只摆一页', (tester) async {

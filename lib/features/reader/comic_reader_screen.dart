@@ -60,6 +60,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
   late final ReaderProgressController _progress;
 
   late int _sortNum;
+  ReaderOpenPosition _openPosition = ReaderOpenPosition.saved;
   final ValueNotifier<bool> _chromeVisible = ValueNotifier<bool>(false);
 
   List<BookChapter> _chapters = const <BookChapter>[];
@@ -211,7 +212,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       if (index < 0) throw const ApiError('章节不存在。', ApiErrorCategory.server);
       final chapter = chapters[index];
 
-      final target = _resolveInitialPage(chapter, info?.readPosition);
+      var target = _resolveInitialPage(chapter, info?.readPosition);
       var total = chapter.pageCount;
       var skip = getComicPageBatchStart(target, math.max(total, 1), _batchSize);
       var content = await _api.getComicContent(
@@ -224,6 +225,9 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       // 目录里的页数偶尔滞后，以正文返回的 total 为准并按需重取。
       if (content.chapter.total != total) {
         total = content.chapter.total;
+        if (_openPosition == ReaderOpenPosition.end) {
+          target = math.max(0, total - 1);
+        }
         final corrected = getComicPageBatchStart(
           target,
           math.max(total, 1),
@@ -279,7 +283,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     );
     final saved = int.tryParse(restore?.position ?? '') ?? 1;
     return resolveReaderInitialIndex(
-      ReaderOpenPosition.saved,
+      _openPosition,
       saved - 1,
       chapter.pageCount,
     );
@@ -516,7 +520,10 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     if (_dualPaged && pageController != null && pageController.hasClients) {
       final current = _spreadIndexOf(_page);
       final target = (current + delta).clamp(0, _spreads.length - 1).toInt();
-      if (target == current) return;
+      if (target == current) {
+        _turnChapter(delta);
+        return;
+      }
       turnReaderPage(
         pageController,
         target,
@@ -527,7 +534,10 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     final target = (_page + delta)
         .clamp(0, math.max(0, _slots.length - 1))
         .toInt();
-    if (target == _page) return;
+    if (target == _page) {
+      _turnChapter(delta);
+      return;
+    }
     if (pageController != null && pageController.hasClients) {
       turnReaderPage(
         pageController,
@@ -538,7 +548,13 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     }
     final scrollController = _scrollController;
     if (scrollController == null || !scrollController.hasClients) return;
-    final viewport = scrollController.position.viewportDimension;
+    final position = scrollController.position;
+    final edge = delta > 0 ? position.maxScrollExtent : position.minScrollExtent;
+    if ((scrollController.offset - edge).abs() < 0.5) {
+      _turnChapter(delta);
+      return;
+    }
+    final viewport = position.viewportDimension;
     scrollController.jumpTo(
       (scrollController.offset + delta * viewport).clamp(
         0.0,
@@ -556,12 +572,29 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     controller.jumpToPage(_dualPaged ? _spreadIndexOf(aligned) : aligned);
   }
 
-  Future<void> _openChapterIndex(int index) async {
+  Future<void> _openChapterIndex(
+    int index, {
+    ReaderOpenPosition position = ReaderOpenPosition.saved,
+  }) async {
     if (index < 0 || index >= _chapters.length) return;
     await _commitPosition();
     if (!mounted) return;
-    setState(() => _sortNum = _chapters[index].sortNum);
+    setState(() {
+      _sortNum = _chapters[index].sortNum;
+      _openPosition = position;
+    });
     await _loadChapter();
+  }
+
+  void _turnChapter(int delta) {
+    final index = _chapterIndex + delta;
+    if (index < 0 || index >= _chapters.length) return;
+    unawaited(
+      _openChapterIndex(
+        index,
+        position: delta > 0 ? ReaderOpenPosition.start : ReaderOpenPosition.end,
+      ),
+    );
   }
 
   Future<void> _commitPosition() async {
@@ -686,6 +719,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
         onNext: () => _turn(1),
         onToggleChrome: _toggleChrome,
         child: PageView.builder(
+          key: ObjectKey(_pageController),
           itemCount: spreads?.length ?? _slots.length,
           controller: _pageController,
           reverse: reversed,
@@ -727,6 +761,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       onNext: () => _turn(1),
       onToggleChrome: _toggleChrome,
       child: ListView.builder(
+        key: ObjectKey(_scrollController),
         controller: _scrollController,
         itemCount: _slots.length,
         itemExtentBuilder: (index, _) => _continuousPageExtent(index),
