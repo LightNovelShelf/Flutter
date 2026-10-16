@@ -74,7 +74,6 @@ class SearchHeader extends ConsumerWidget {
           const SizedBox(height: 10),
           const _SearchScopeToggle(),
           _SearchHistorySection(onUseKeyword: onUseKeyword),
-          const _SearchPageLabel(),
           const SizedBox(height: 14),
         ],
       ),
@@ -125,35 +124,6 @@ class _SearchScopeToggle extends ConsumerWidget {
         showSelectedIcon: false,
         onSelectionChanged: (selection) =>
             ref.read(bookSearchProvider.notifier).setComic(selection.first),
-      ),
-    );
-  }
-}
-
-/// 页码提示。订阅的是渲染后的文案，翻页中间态不触发重建。
-class _SearchPageLabel extends ConsumerWidget {
-  const _SearchPageLabel();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final label = ref.watch(
-      bookSearchProvider.select((state) {
-        if (state.isIdle || state.loading || state.error != null) return null;
-        return '${state.comic ? '漫画' : '小说'} · 第 '
-            '${state.page < 1 ? 1 : state.page} / '
-            '${state.totalPages < 1 ? 1 : state.totalPages} 页';
-      }),
-    );
-    if (label == null) return const SizedBox.shrink();
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(top: 14),
-      child: Text(
-        label,
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-          fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-        ),
       ),
     );
   }
