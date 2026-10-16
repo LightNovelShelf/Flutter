@@ -103,6 +103,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
   ReaderPageTurnController? _pageController;
   ScrollController? _scrollController;
   bool? _paged;
+  bool _syncPending = false;
 
   @override
   void initState() {
@@ -345,6 +346,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     // 声明成 final 而不是 `double?`：只有 try 正常走完才会落到下面的对位，
     // 哪天 catch 少写一个 return，这里会直接编译不过而不是悄悄传个 null。
     final double anchor;
+    final List<List<int>> spreads;
     try {
       final content = await _api.getComicContent(
         chapterId: chapter.id,
@@ -355,6 +357,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       if (isStale(version)) return;
       // 新一批图带来真实比例，之前按未知比例占位的页高会变，先记下当前页起点再补回偏移。
       anchor = _offsetForPage(_page);
+      spreads = _spreads;
       setState(() {
         _setSlots(
           mergeComicPageBatch(
@@ -375,7 +378,34 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     // 那会给无关的页画上重试块并锁住重新取图。
     _restoreAnchor(anchor);
     // 配对可能被新到的宽图错开一位，当前页所在的那一屏要重新对准。
-    if (_dualPaged) _syncToPage();
+    if (_dualPaged && !_sameSpreads(spreads, _spreads)) _syncAfterTurn();
+  }
+
+  bool _sameSpreads(List<List<int>> a, List<List<int>> b) {
+    if (a.length != b.length) return false;
+    for (var index = 0; index < a.length; index++) {
+      final left = a[index];
+      final right = b[index];
+      if (left.length != right.length) return false;
+      for (var page = 0; page < left.length; page++) {
+        if (left[page] != right[page]) return false;
+      }
+    }
+    return true;
+  }
+
+  void _syncAfterTurn() {
+    if (_pageController?.isTurning ?? false) {
+      _syncPending = true;
+      return;
+    }
+    _syncToPage();
+  }
+
+  void _onTurnEnd() {
+    if (!mounted || !_syncPending) return;
+    _syncPending = false;
+    _syncToPage();
   }
 
   /// 换页节流：快速滚动会连着跨很多页，只对停住的位置排预取，避免成串解码任务抢 UI/raster。
@@ -732,6 +762,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
                           index < _spreads.length &&
                           _spreads[index].length > 1,
                 onBoundary: (next) => _turnChapter(next ? 1 : -1),
+                onTurnEnd: _onTurnEnd,
                 // 当前页按屏首算，与小说阅读器一致：翻页条上的位置就是这一屏最前面那一页。
                 // 读实时的 _spreads：jumpToPage 会同步派发滚动通知，而这一跳往往就发生在新一批
                 // 图刚改过配对、PageView 还没重建的时候，捕获的旧表会错位甚至越界。

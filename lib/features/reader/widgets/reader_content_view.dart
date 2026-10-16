@@ -273,6 +273,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       const ReaderPageStrip<_ChapterSlot>.empty();
   bool _stripDirty = false;
   bool _scrolling = false;
+  bool _reanchorPending = false;
 
   /// 已通知上层、窗口尚未平移的那一章。`jumpTo` 与惯性收尾会多次上报落定，用于去重。
   int? _notifiedChapter;
@@ -372,6 +373,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     _slots.clear();
     _strip = const ReaderPageStrip<_ChapterSlot>.empty();
     _stripDirty = false;
+    _reanchorPending = false;
     _locator = '';
     _progression = 0;
     _pageIndex = 0;
@@ -589,8 +591,12 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     final activeMeasured = identical(window.slot, active);
     setState(() {
       if (activeMeasured && active != null && active.geometry != null) {
-        _syncStrip();
-        _installControllers(_anchorOffset(active.geometry!, viewport));
+        if (_scrolling) {
+          _reanchorPending = true;
+        } else {
+          _syncStrip();
+          _installControllers(_anchorOffset(active.geometry!, viewport));
+        }
       } else {
         _refreshStrip();
       }
@@ -810,7 +816,17 @@ class _ReaderContentViewState extends State<ReaderContentView> {
 
   /// 翻页落定，补上挂起的翻页条改动，并把位置同步给上层。
   void _settle() {
-    if (_stripDirty) setState(_refreshStrip);
+    final active = _active;
+    if (_reanchorPending && active?.geometry != null) {
+      setState(() {
+        _reanchorPending = false;
+        _stripDirty = false;
+        _syncStrip();
+        _installControllers(_anchorOffset(active!.geometry!, _viewport));
+      });
+    } else if (_stripDirty) {
+      setState(_refreshStrip);
+    }
     _syncPosition();
   }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
@@ -29,7 +31,7 @@ const List<String> _pageSizes = <String>[
 ];
 
 class _FakeApi extends ApiClient {
-  _FakeApi()
+  _FakeApi({this.pageSizes = _pageSizes, this.gate})
     : super(
         signalR: SignalRConnection(
           endpoint: 'http://localhost/hub',
@@ -38,6 +40,9 @@ class _FakeApi extends ApiClient {
         scheduler: RateLimitRequestScheduler(),
         headers: () async => const <String, String>{},
       );
+
+  final List<String> pageSizes;
+  final Completer<void>? gate;
 
   @override
   Future<T> invoke<T>(
@@ -77,7 +82,7 @@ class _FakeApi extends ApiClient {
                   'SortNum': sortNum,
                   'Title': '第 $sortNum 话',
                   'CreatedAt': '2026-01-01T00:00:00Z',
-                  'PageCount': _pageSizes.length,
+                  'PageCount': pageSizes.length,
                 },
             ],
           },
@@ -89,22 +94,24 @@ class _FakeApi extends ApiClient {
         final chapterId = args['Cid']! as int;
         final sortNum = chapterId - _chapterId + 1;
         expect(take, 6);
+        final gate = this.gate;
+        if (skip > 0 && gate != null) await gate.future;
         return decode(<String, Object?>{
           'Chapter': <String, Object?>{
             'Id': chapterId,
             'BookId': _bookId,
             'Title': '第 $sortNum 话',
             'SortNum': sortNum,
-            'Total': _pageSizes.length,
+            'Total': pageSizes.length,
             'Skip': skip,
             'Images': <Object?>[
               for (
                 var index = skip;
-                index < skip + take && index < _pageSizes.length;
+                index < skip + take && index < pageSizes.length;
                 index++
               )
                 'https://img.example/c$chapterId/page$index.webp'
-                    '?size=${_pageSizes[index]}',
+                    '?size=${pageSizes[index]}',
             ],
           },
           'ReadPosition': null,
@@ -139,6 +146,8 @@ Future<void> _open(
   Size size = const Size(1400, 800),
   FakeViewPadding padding = const FakeViewPadding(),
   int sortNum = 1,
+  List<String> pageSizes = _pageSizes,
+  Completer<void>? gate,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -160,7 +169,9 @@ Future<void> _open(
   await tester.pumpWidget(
     ProviderScope(
       overrides: <Override>[
-        apiClientProvider.overrideWithValue(_FakeApi()),
+        apiClientProvider.overrideWithValue(
+          _FakeApi(pageSizes: pageSizes, gate: gate),
+        ),
         settingsControllerProvider.overrideWith((ref) => settings),
       ],
       child: MaterialApp(
@@ -391,6 +402,79 @@ void main() {
     expect(chapterPage(_chapterId + 1, 0), findsOneWidget);
     expect(chapterPage(_chapterId + 1, 1), findsOneWidget);
     expect(_currentPage(tester), 1);
+  });
+
+  ReaderPageTurnController turnController(WidgetTester tester) =>
+      tester.widget<ReaderPageTurner>(find.byType(ReaderPageTurner)).controller;
+
+  Future<ReaderPageTurnController> turnWhileBatchArrives(
+    WidgetTester tester,
+    List<String> pageSizes,
+  ) async {
+    final gate = Completer<void>();
+    await _open(
+      tester,
+      pageTurnAnimation: ReaderPageTurnAnimation.slide,
+      pageSizes: pageSizes,
+      gate: gate,
+    );
+    await tester.tapAt(const Offset(1390, 400));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final controller = turnController(tester);
+    await tester.tapAt(const Offset(1390, 400));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(controller.isTurning, isTrue);
+
+    gate.complete();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(controller.isTurning, isTrue);
+    return controller;
+  }
+
+  testWidgets('双页翻页途中新一批图到达：配对没变就不打断翻页', (tester) async {
+    final controller = await turnWhileBatchArrives(
+      tester,
+      List<String>.filled(14, '1000x1500'),
+    );
+
+    await tester.pumpAndSettle();
+    expect(controller.page, 2);
+    expect(_currentPage(tester), 5);
+  });
+
+  testWidgets('双页翻页途中配对被宽图错开：等翻页结束再对准', (tester) async {
+    final controller = await turnWhileBatchArrives(tester, <String>[
+      for (var index = 0; index < 14; index++)
+        index == 7 ? '1600x1000' : '1000x1500',
+    ]);
+
+    await tester.pumpAndSettle();
+    expect(controller.isTurning, isFalse);
+    expect(_currentPage(tester), 5);
+    expect(_page(4), findsOneWidget);
+    expect(_page(5), findsOneWidget);
+  });
+
+  testWidgets('翻页动画途中连点：每一下都算数', (tester) async {
+    await _open(
+      tester,
+      dualPage: false,
+      size: const Size(800, 800),
+      pageTurnAnimation: ReaderPageTurnAnimation.slide,
+    );
+
+    await tester.tapAt(const Offset(790, 400));
+    await tester.pump(const Duration(milliseconds: 30));
+    await tester.tapAt(const Offset(790, 400));
+    await tester.pump(const Duration(milliseconds: 30));
+    await tester.tapAt(const Offset(790, 400));
+    await tester.pumpAndSettle();
+
+    expect(_currentPage(tester), 4);
   });
 
   testWidgets('屏幕竖着时一屏只摆一页', (tester) async {
