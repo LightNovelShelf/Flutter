@@ -21,7 +21,9 @@ class VerificationCodeField extends StatefulWidget {
   final bool isInvalid;
   final bool isSending;
   final int cooldownSeconds;
-  final VoidCallback onResend;
+
+  /// 为 null 时重发按钮不可用。
+  final VoidCallback? onResend;
   final VoidCallback? onSubmitted;
 
   @override
@@ -68,7 +70,10 @@ class _VerificationCodeFieldState extends State<VerificationCodeField>
   @override
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
-    final bool canResend = !widget.isSending && widget.cooldownSeconds == 0;
+    final bool canResend =
+        widget.onResend != null &&
+        !widget.isSending &&
+        widget.cooldownSeconds == 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

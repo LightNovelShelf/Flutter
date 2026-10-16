@@ -326,8 +326,8 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  Future<void> sendRegisterCode(String email) =>
-      _api.sendRegisterEmail(_normalizeAndValidateEmail(email));
+  Future<void> sendRegisterCode(String email, String turnstileToken) =>
+      _api.sendRegisterEmail(_normalizeAndValidateEmail(email), turnstileToken);
 
   Future<void> sendResetCode(String email) =>
       _api.sendResetEmail(_normalizeAndValidateEmail(email));

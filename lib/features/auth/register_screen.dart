@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/network/api_error.dart';
 import '../../data/providers.dart';
+import '../../shared/widgets/app_dialogs.dart';
+import '../settings/about_settings_screen.dart';
 import 'auth_flow_session.dart';
 import 'widgets/auth_form_scaffold.dart';
+import 'widgets/register_turnstile.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -26,7 +30,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final FocusNode _passwordConfirmationFocus = FocusNode();
   final FocusNode _inviteCodeFocus = FocusNode();
 
+  final GlobalKey<RegisterTurnstileState> _turnstile =
+      GlobalKey<RegisterTurnstileState>();
+
   String? _error;
+  String? _turnstileToken;
   bool _isSubmitting = false;
 
   @override
@@ -58,6 +66,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       setState(() => _error = invalid);
       return;
     }
+    final String? token = _turnstileToken;
+    if (token == null) {
+      setState(() => _error = '请先完成人机验证。');
+      return;
+    }
 
     setState(() {
       _isSubmitting = true;
@@ -66,7 +79,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     final String email = _email.text.trim();
     try {
-      await ref.read(authControllerProvider).sendRegisterCode(email);
+      await ref.read(authControllerProvider).sendRegisterCode(email, token);
       if (!mounted) return;
       AuthFlowSession.instance.setRegistration(
         RegistrationDraft(
@@ -85,6 +98,23 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         _error = error is ApiError ? error.message : '无法发送验证码，请重试。';
         _isSubmitting = false;
       });
+    } finally {
+      _turnstile.currentState?.reset();
+    }
+  }
+
+  Future<void> _openWebRegister() async {
+    var opened = false;
+    try {
+      opened = await launchUrl(
+        Uri.parse('$officialWebsiteUrl/register'),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      opened = false;
+    }
+    if (!opened && mounted) {
+      await showAppAlert(context: context, title: '无法打开链接', message: '请稍后重试。');
     }
   }
 
@@ -139,6 +169,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           textInputAction: TextInputAction.done,
           onSubmitted: (_) => _submit(),
         ),
+        const SizedBox(height: 14),
+        RegisterTurnstile(
+          key: _turnstile,
+          onTokenChanged: (String? token) {
+            if (mounted) setState(() => _turnstileToken = token);
+          },
+        ),
         if (_error != null) ...<Widget>[
           const SizedBox(height: 14),
           AuthFormError(message: _error),
@@ -148,13 +185,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           label: '继续',
           submittingLabel: '正在发送验证码…',
           isSubmitting: _isSubmitting,
-          onPressed: _submit,
+          onPressed: _turnstileToken == null ? null : _submit,
         ),
         const SizedBox(height: 14),
         AuthFooterLink(
           label: '已有账号？登录',
           onPressed: () => context.pushReplacement('/sign-in/credentials'),
         ),
+        const SizedBox(height: 4),
+        AuthFooterLink(label: '前往网页注册', onPressed: _openWebRegister),
       ],
     );
   }

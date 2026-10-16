@@ -118,18 +118,19 @@ extension ApiClientAccount on ApiClient {
     return SessionTokens.decode(decodeHttpBody(response));
   }
 
-  Future<void> sendRegisterEmail(String email) =>
-      _requestEmailCode(ServiceEndpoints.sendRegisterEmailPath, email);
+  Future<void> sendRegisterEmail(String email, String turnstileToken) =>
+      _requestEmailCode(
+        ServiceEndpoints.sendRegisterEmailPath,
+        <String, String>{'email': email, 'token': turnstileToken},
+      );
 
-  Future<void> sendResetEmail(String email) =>
-      _requestEmailCode(ServiceEndpoints.sendResetEmailPath, email);
+  Future<void> sendResetEmail(String email) => _requestEmailCode(
+    ServiceEndpoints.sendResetEmailPath,
+    <String, String>{'email': email},
+  );
 
-  Future<void> _requestEmailCode(String path, String email) async {
-    final response = await request(
-      'GET',
-      path,
-      query: <String, String>{'email': email},
-    );
+  Future<void> _requestEmailCode(String path, Map<String, String> query) async {
+    final response = await request('GET', path, query: query);
     // 验证码接口的 401 表示本次发送被拒，不是登录失效。
     ensureOk(response, '无法发送验证码。', authStatuses: const <int>{});
     envelopeOf(response, '无法发送验证码。');

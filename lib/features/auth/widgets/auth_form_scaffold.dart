@@ -195,7 +195,7 @@ class _AuthPasswordFieldState extends State<AuthPasswordField> {
   }
 }
 
-/// 表单主按钮，提交中显示转圈与 [submittingLabel] 并降低透明度。
+/// 表单主按钮，提交中显示转圈与 [submittingLabel]，提交中或 [onPressed] 为 null 时降低透明度。
 class AuthSubmitButton extends StatelessWidget {
   const AuthSubmitButton({
     super.key,
@@ -208,7 +208,7 @@ class AuthSubmitButton extends StatelessWidget {
   final String label;
   final String submittingLabel;
   final bool isSubmitting;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -216,7 +216,7 @@ class AuthSubmitButton extends StatelessWidget {
     final Color onAccent = colors.onPrimary;
 
     return Opacity(
-      opacity: isSubmitting ? 0.56 : 1,
+      opacity: isSubmitting || onPressed == null ? 0.56 : 1,
       child: FilledButton(
         onPressed: isSubmitting ? null : onPressed,
         style: FilledButton.styleFrom(
