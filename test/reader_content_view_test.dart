@@ -598,6 +598,35 @@ void main() {
     expect(harness.chapterChanges, <int>[3]);
   });
 
+  testWidgets('停在加载栏上继续翻页：留在加载栏等，不交给上层整章重载', (tester) async {
+    final harness = await _pump(tester, count: 12, totalChapters: 3);
+
+    while (harness.last.page < harness.last.pages) {
+      await tester.tapAt(const Offset(700, 300));
+      await tester.pumpAndSettle();
+    }
+    await tester.tapAt(const Offset(700, 300));
+    await spin(tester);
+    expect(harness.needed, <int>[3]);
+
+    for (var tap = 0; tap < 3; tap++) {
+      await tester.tapAt(const Offset(700, 300));
+      await spin(tester);
+      harness.controller.nextPage();
+      await spin(tester);
+    }
+
+    expect(harness.boundaries, isEmpty);
+    expect(harness.needed, <int>[3]);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    harness.join(_chapter(3, count: 12));
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    expect(harness.last.sortNum, 3);
+    expect(harness.last.page, 1);
+  });
+
   testWidgets('全书末章之后不再摆加载栏，也不请求', (tester) async {
     final harness = await _pump(tester, count: 12, totalChapters: 2);
 

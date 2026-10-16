@@ -958,7 +958,12 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     }
     final controller = _pageController;
     final target = _screenIndex() + (next ? 1 : -1);
-    if (controller == null || target < 0 || target >= _screenCount) {
+    final outside = target < 0 || target >= _screenCount;
+    if (outside && (next ? _hasChapterAfter : _hasChapterBefore)) {
+      _scheduleRequest();
+      return;
+    }
+    if (controller == null || outside) {
       // 条外没有栏可翻了：滚动模式交给上层换章，翻页模式此处已是全书两端。
       widget.onBoundary(next);
       return;
