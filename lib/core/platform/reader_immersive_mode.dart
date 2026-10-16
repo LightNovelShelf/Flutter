@@ -112,3 +112,40 @@ class _ReaderImmersiveController {
     );
   }
 }
+
+class ReaderStableInsets extends StatefulWidget {
+  const ReaderStableInsets({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<ReaderStableInsets> createState() => _ReaderStableInsetsState();
+}
+
+class _ReaderStableInsetsState extends State<ReaderStableInsets> {
+  final Map<Orientation, EdgeInsets> _insets = <Orientation, EdgeInsets>{};
+
+  EdgeInsets _max(EdgeInsets a, EdgeInsets b) => EdgeInsets.fromLTRB(
+    a.left > b.left ? a.left : b.left,
+    a.top > b.top ? a.top : b.top,
+    a.right > b.right ? a.right : b.right,
+    a.bottom > b.bottom ? a.bottom : b.bottom,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final insets = _max(
+      _insets[media.orientation] ?? EdgeInsets.zero,
+      media.padding,
+    );
+    _insets[media.orientation] = insets;
+    return MediaQuery(
+      data: media.copyWith(
+        padding: insets,
+        viewPadding: _max(media.viewPadding, insets),
+      ),
+      child: widget.child,
+    );
+  }
+}

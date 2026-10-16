@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme/app_theme.dart';
-import '../../core/platform/reader_immersive_mode.dart';
 import '../../data/providers.dart';
 import '../../data/settings/app_settings.dart';
 import '../../data/api/models/book.dart';
@@ -316,16 +315,6 @@ class ReaderSettingsContent extends ConsumerWidget {
                   enabled: paged && reader.dualPageEnabled,
                   onChanged: (value) => updateReader(
                     (reader) => reader.copyWith(dualPageOffsetEnabled: value),
-                  ),
-                ),
-              if (readerImmersiveSupported)
-                SettingsToggleRow(
-                  title: '沉浸式阅读',
-                  description: '阅读时隐藏状态栏和导航栏',
-                  icon: Icons.fullscreen,
-                  value: reader.immersiveEnabled,
-                  onChanged: (value) => updateReader(
-                    (reader) => reader.copyWith(immersiveEnabled: value),
                   ),
                 ),
               if (defaultTargetPlatform == TargetPlatform.android)

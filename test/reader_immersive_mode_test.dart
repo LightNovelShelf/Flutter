@@ -170,4 +170,33 @@ void main() {
       expect(modes, isEmpty);
     });
   });
+
+  testWidgets('系统栏收起后正文仍按原来的留白排版，不跟着跳', (tester) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    tester.view.padding = const FakeViewPadding(top: 32, bottom: 24);
+    addTearDown(tester.view.reset);
+    final seen = <EdgeInsets>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReaderStableInsets(
+          child: Builder(
+            builder: (context) {
+              seen.add(MediaQuery.paddingOf(context));
+              return const SizedBox.expand();
+            },
+          ),
+        ),
+      ),
+    );
+    expect(seen.last, const EdgeInsets.only(top: 32, bottom: 24));
+
+    tester.view.padding = const FakeViewPadding(top: 8);
+    await tester.pump();
+    expect(seen.last, const EdgeInsets.only(top: 32, bottom: 24));
+
+    tester.view.padding = const FakeViewPadding(top: 40, bottom: 24);
+    await tester.pump();
+    expect(seen.last, const EdgeInsets.only(top: 40, bottom: 24));
+  });
 }

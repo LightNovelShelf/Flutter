@@ -610,12 +610,12 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
       ),
     );
     return ReaderImmersiveMode(
-      enabled: reader.immersiveEnabled,
+      enabled: !_chromeVisible,
       child: ReaderVolumeKeyListener(
         enabled: reader.volumeKeyPagingEnabled && !_chromeVisible,
         onPrevious: _contentController.previousPage,
         onNext: _contentController.nextPage,
-        child: shell,
+        child: ReaderStableInsets(child: shell),
       ),
     );
   }

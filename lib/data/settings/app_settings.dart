@@ -69,7 +69,6 @@ class ReaderPreferences {
     this.backgroundColorValue = '#F7F1E3',
     this.dualPageEnabled = true,
     this.dualPageOffsetEnabled = false,
-    this.immersiveEnabled = false,
     this.pageTurnAnimation = ReaderPageTurnAnimation.simulation,
     this.statusPillsEnabled = true,
     this.theme = ReaderThemeSetting.followApp,
@@ -80,7 +79,6 @@ class ReaderPreferences {
   final String backgroundColorValue;
   final bool dualPageEnabled;
   final bool dualPageOffsetEnabled;
-  final bool immersiveEnabled;
   final ReaderPageTurnAnimation pageTurnAnimation;
   final bool statusPillsEnabled;
   final ReaderThemeSetting theme;
@@ -93,7 +91,6 @@ class ReaderPreferences {
     String? backgroundColorValue,
     bool? dualPageEnabled,
     bool? dualPageOffsetEnabled,
-    bool? immersiveEnabled,
     ReaderPageTurnAnimation? pageTurnAnimation,
     bool? statusPillsEnabled,
     ReaderThemeSetting? theme,
@@ -103,7 +100,6 @@ class ReaderPreferences {
     backgroundColorValue: backgroundColorValue ?? this.backgroundColorValue,
     dualPageEnabled: dualPageEnabled ?? this.dualPageEnabled,
     dualPageOffsetEnabled: dualPageOffsetEnabled ?? this.dualPageOffsetEnabled,
-    immersiveEnabled: immersiveEnabled ?? this.immersiveEnabled,
     pageTurnAnimation: pageTurnAnimation ?? this.pageTurnAnimation,
     statusPillsEnabled: statusPillsEnabled ?? this.statusPillsEnabled,
     theme: theme ?? this.theme,
@@ -129,7 +125,6 @@ class ReaderPreferences {
           : '#F7F1E3',
       dualPageEnabled: _bool(values['dualPageEnabled'], true),
       dualPageOffsetEnabled: _bool(values['dualPageOffsetEnabled'], false),
-      immersiveEnabled: _bool(values['immersiveEnabled'], false),
       pageTurnAnimation: values['viewMode'] == 'scroll'
           ? ReaderPageTurnAnimation.vertical
           : _enumFromName(
@@ -152,7 +147,6 @@ class ReaderPreferences {
     'backgroundColorValue': backgroundColorValue,
     'dualPageEnabled': dualPageEnabled,
     'dualPageOffsetEnabled': dualPageOffsetEnabled,
-    'immersiveEnabled': immersiveEnabled,
     'pageTurnAnimation': pageTurnAnimation.name,
     'statusPillsEnabled': statusPillsEnabled,
     'theme': theme.name,
@@ -166,7 +160,6 @@ class ReaderPreferences {
       other.backgroundColorValue == backgroundColorValue &&
       other.dualPageEnabled == dualPageEnabled &&
       other.dualPageOffsetEnabled == dualPageOffsetEnabled &&
-      other.immersiveEnabled == immersiveEnabled &&
       other.pageTurnAnimation == pageTurnAnimation &&
       other.statusPillsEnabled == statusPillsEnabled &&
       other.theme == theme &&
@@ -178,7 +171,6 @@ class ReaderPreferences {
     backgroundColorValue,
     dualPageEnabled,
     dualPageOffsetEnabled,
-    immersiveEnabled,
     pageTurnAnimation,
     statusPillsEnabled,
     theme,

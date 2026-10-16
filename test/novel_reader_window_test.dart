@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -572,5 +573,30 @@ void main() {
     expect(view.padding.top, 12);
     expect(view.padding.bottom, 12);
     expect(find.byType(ReaderStatusPills), findsNothing);
+  });
+
+  testWidgets('全屏阅读时藏起系统栏，打开阅读菜单时还回来', (tester) async {
+    final modes = <String>[];
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'SystemChrome.setEnabledSystemUIMode') {
+        modes.add(call.arguments as String);
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    await _open(tester, size: const Size(800, 800));
+    expect(modes.last, 'SystemUiMode.immersiveSticky');
+
+    await tester.tapAt(const Offset(400, 400));
+    await tester.pumpAndSettle();
+    expect(modes.last, 'SystemUiMode.edgeToEdge');
+
+    await tester.tapAt(const Offset(400, 400));
+    await tester.pumpAndSettle();
+    expect(modes.last, 'SystemUiMode.immersiveSticky');
   });
 }

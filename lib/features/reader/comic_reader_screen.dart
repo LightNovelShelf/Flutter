@@ -859,7 +859,6 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       :pageTurnAnimation,
       :pagedDirection,
       :volumeKeyPagingEnabled,
-      :immersiveEnabled,
       :dualPageEnabled,
       :dualPageOffsetEnabled,
       :statusPillsEnabled,
@@ -872,7 +871,6 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
           pageTurnAnimation: settings.comicReader.pageTurnAnimation,
           pagedDirection: settings.comicPagedDirection,
           volumeKeyPagingEnabled: settings.comicReader.volumeKeyPagingEnabled,
-          immersiveEnabled: settings.comicReader.immersiveEnabled,
           dualPageEnabled: settings.comicReader.dualPageEnabled,
           dualPageOffsetEnabled: settings.comicReader.dualPageOffsetEnabled,
           statusPillsEnabled: settings.comicReader.statusPillsEnabled,
@@ -975,12 +973,12 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
         ),
       ),
     );
-    return ReaderImmersiveMode(
-      enabled: immersiveEnabled,
-      child: ValueListenableBuilder<bool>(
-        valueListenable: _chromeVisible,
-        child: shell,
-        builder: (context, chromeVisible, child) => ReaderVolumeKeyListener(
+    return ValueListenableBuilder<bool>(
+      valueListenable: _chromeVisible,
+      child: ReaderStableInsets(child: shell),
+      builder: (context, chromeVisible, child) => ReaderImmersiveMode(
+        enabled: !chromeVisible,
+        child: ReaderVolumeKeyListener(
           enabled: volumeKeyPagingEnabled && !chromeVisible,
           onPrevious: () => _turn(-1),
           onNext: () => _turn(1),
