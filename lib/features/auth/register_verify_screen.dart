@@ -8,7 +8,7 @@ import '../../core/network/api_error.dart';
 import '../../data/providers.dart';
 import 'auth_flow_session.dart';
 import 'widgets/auth_form_scaffold.dart';
-import 'widgets/register_turnstile.dart';
+import 'widgets/auth_turnstile.dart';
 import 'widgets/verification_code_field.dart';
 
 class RegisterVerifyScreen extends ConsumerStatefulWidget {
@@ -23,8 +23,8 @@ class _RegisterVerifyScreenState extends ConsumerState<RegisterVerifyScreen> {
   static const int _cooldownSeconds = 60;
 
   final TextEditingController _code = TextEditingController();
-  final GlobalKey<RegisterTurnstileState> _turnstile =
-      GlobalKey<RegisterTurnstileState>();
+  final GlobalKey<AuthTurnstileState> _turnstile =
+      GlobalKey<AuthTurnstileState>();
 
   RegistrationDraft? _draft;
   Timer? _ticker;
@@ -167,8 +167,9 @@ class _RegisterVerifyScreenState extends ConsumerState<RegisterVerifyScreen> {
         // 冷却结束才挂载验证组件，避免令牌在冷却期间过期。
         if (_cooldown <= 0) ...<Widget>[
           const SizedBox(height: 18),
-          RegisterTurnstile(
+          AuthTurnstile(
             key: _turnstile,
+            action: 'register',
             onTokenChanged: (String? token) {
               if (mounted) setState(() => _turnstileToken = token);
             },

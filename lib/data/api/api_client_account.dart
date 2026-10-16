@@ -124,10 +124,11 @@ extension ApiClientAccount on ApiClient {
         <String, String>{'email': email, 'token': turnstileToken},
       );
 
-  Future<void> sendResetEmail(String email) => _requestEmailCode(
-    ServiceEndpoints.sendResetEmailPath,
-    <String, String>{'email': email},
-  );
+  Future<void> sendResetEmail(String email, String turnstileToken) =>
+      _requestEmailCode(ServiceEndpoints.sendResetEmailPath, <String, String>{
+        'email': email,
+        'token': turnstileToken,
+      });
 
   Future<void> _requestEmailCode(String path, Map<String, String> query) async {
     final response = await request('GET', path, query: query);

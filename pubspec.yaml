@@ -58,6 +58,10 @@ dependencies:
   markdown: ^7.3.1
   cloudflare_turnstile: ^3.8.1
 
+dependency_overrides:
+  # 6.1.5 的 Android 插件仍用 proguard-android.txt，AGP 9 直接拒绝构建；beta 改用了 optimize 版本。
+  flutter_inappwebview: 6.2.0-beta.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

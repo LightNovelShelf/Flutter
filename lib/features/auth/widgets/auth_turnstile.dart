@@ -7,9 +7,16 @@ import '../../settings/about_settings_screen.dart';
 
 const String _turnstileSiteKey = '0x4AAAAAAADgWLX3ngufVh5F';
 
-/// 发送注册验证码前的 Cloudflare 人机验证，令牌一次性有效，每次发送后需调用 [RegisterTurnstileState.reset]。
-class RegisterTurnstile extends StatefulWidget {
-  const RegisterTurnstile({super.key, required this.onTokenChanged});
+/// 发送邮箱验证码前的 Cloudflare 人机验证，令牌一次性有效，每次发送后需调用 [AuthTurnstileState.reset]。
+class AuthTurnstile extends StatefulWidget {
+  const AuthTurnstile({
+    super.key,
+    required this.action,
+    required this.onTokenChanged,
+  });
+
+  /// 与后端校验的用途一致，如 register、reset_password。
+  final String action;
 
   /// 令牌可用时传入令牌，过期、出错或重置时传入 null。
   final ValueChanged<String?> onTokenChanged;
@@ -22,10 +29,10 @@ class RegisterTurnstile extends StatefulWidget {
       Platform.isWindows;
 
   @override
-  State<RegisterTurnstile> createState() => RegisterTurnstileState();
+  State<AuthTurnstile> createState() => AuthTurnstileState();
 }
 
-class RegisterTurnstileState extends State<RegisterTurnstile> {
+class AuthTurnstileState extends State<AuthTurnstile> {
   int _generation = 0;
   String? _error;
 
@@ -54,8 +61,8 @@ class RegisterTurnstileState extends State<RegisterTurnstile> {
       height: 20 / 14,
     );
 
-    if (!RegisterTurnstile.isSupported) {
-      return Text('当前平台无法完成人机验证，请前往网页注册。', style: hintStyle);
+    if (!AuthTurnstile.isSupported) {
+      return Text('当前平台无法完成人机验证，请前往网页操作。', style: hintStyle);
     }
 
     final String? error = _error;
@@ -66,6 +73,7 @@ class RegisterTurnstileState extends State<RegisterTurnstile> {
           child: CloudflareTurnstile(
             key: ValueKey<int>(_generation),
             siteKey: _turnstileSiteKey,
+            action: widget.action,
             // 移动端要求 baseUrl 属于站点密钥登记的域名。
             baseUrl: officialWebsiteUrl,
             options: TurnstileOptions(

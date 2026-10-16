@@ -6,6 +6,7 @@ import '../../core/network/api_error.dart';
 import '../../data/providers.dart';
 import 'auth_flow_session.dart';
 import 'widgets/auth_form_scaffold.dart';
+import 'widgets/auth_turnstile.dart';
 
 class ResetPasswordScreen extends ConsumerStatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -17,8 +18,11 @@ class ResetPasswordScreen extends ConsumerStatefulWidget {
 
 class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   final TextEditingController _email = TextEditingController();
+  final GlobalKey<AuthTurnstileState> _turnstile =
+      GlobalKey<AuthTurnstileState>();
 
   String? _error;
+  String? _turnstileToken;
   bool _isSubmitting = false;
 
   @override
@@ -30,6 +34,11 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   /// 不做本地校验，邮箱格式交给发送验证码时报错。
   Future<void> _submit() async {
     if (_isSubmitting) return;
+    final String? token = _turnstileToken;
+    if (token == null) {
+      setState(() => _error = '请先完成人机验证。');
+      return;
+    }
     setState(() {
       _isSubmitting = true;
       _error = null;
@@ -37,7 +46,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
 
     final String email = _email.text.trim();
     try {
-      await ref.read(authControllerProvider).sendResetCode(email);
+      await ref.read(authControllerProvider).sendResetCode(email, token);
       if (!mounted) return;
       AuthFlowSession.instance.setPasswordReset(
         PasswordResetDraft(email: email, code: ''),
@@ -50,6 +59,8 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
         _error = error is ApiError ? error.message : '无法发送验证码，请重试。';
         _isSubmitting = false;
       });
+    } finally {
+      _turnstile.currentState?.reset();
     }
   }
 
@@ -68,6 +79,14 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
           autofillHints: const <String>[AutofillHints.email],
           onSubmitted: (_) => _submit(),
         ),
+        const SizedBox(height: 14),
+        AuthTurnstile(
+          key: _turnstile,
+          action: 'reset_password',
+          onTokenChanged: (String? token) {
+            if (mounted) setState(() => _turnstileToken = token);
+          },
+        ),
         if (_error != null) ...<Widget>[
           const SizedBox(height: 14),
           AuthFormError(message: _error),
@@ -77,7 +96,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
           label: '发送验证码',
           submittingLabel: '正在发送验证码…',
           isSubmitting: _isSubmitting,
-          onPressed: _submit,
+          onPressed: _turnstileToken == null ? null : _submit,
         ),
         const SizedBox(height: 14),
         AuthFooterLink(

@@ -9,7 +9,7 @@ import '../../shared/widgets/app_dialogs.dart';
 import '../settings/about_settings_screen.dart';
 import 'auth_flow_session.dart';
 import 'widgets/auth_form_scaffold.dart';
-import 'widgets/register_turnstile.dart';
+import 'widgets/auth_turnstile.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -30,8 +30,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final FocusNode _passwordConfirmationFocus = FocusNode();
   final FocusNode _inviteCodeFocus = FocusNode();
 
-  final GlobalKey<RegisterTurnstileState> _turnstile =
-      GlobalKey<RegisterTurnstileState>();
+  final GlobalKey<AuthTurnstileState> _turnstile =
+      GlobalKey<AuthTurnstileState>();
 
   String? _error;
   String? _turnstileToken;
@@ -170,8 +170,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           onSubmitted: (_) => _submit(),
         ),
         const SizedBox(height: 14),
-        RegisterTurnstile(
+        AuthTurnstile(
           key: _turnstile,
+          action: 'register',
           onTokenChanged: (String? token) {
             if (mounted) setState(() => _turnstileToken = token);
           },
