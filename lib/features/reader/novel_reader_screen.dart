@@ -302,7 +302,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
   /// 系统栏由外层 SafeArea 处理，这里只保留正文和页码胶囊的间距。
   EdgeInsets _contentPadding(AppSettings settings) {
     final reader = settings.novelReader;
-    final paged = reader.viewMode == ReaderViewMode.paged;
+    final paged = reader.paged;
     // 页底那块留白是给页码胶囊的，胶囊关掉就还给正文。
     final pills = paged && reader.statusPillsEnabled;
     return EdgeInsets.fromLTRB(
@@ -487,7 +487,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
       customColorValue: reader.backgroundColorValue,
       oledBlack: settings.oledBlack,
     );
-    final paged = reader.viewMode == ReaderViewMode.paged;
+    final paged = reader.paged;
     final current = _window.current;
     // 工具栏可见时 _onPositionReported 会重建整屏，这里读到的页码总是最新的。
     final pages = _pages.value;
@@ -521,6 +521,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
                         failedChapters: _failedChapters,
                         paged: paged,
                         pageTurnAnimation: reader.pageTurnAnimation,
+                        paperColor: background,
                         dualPage: reader.dualPageEnabled,
                         padding: _contentPadding(settings),
                         restoreLocator: _restoreLocator,

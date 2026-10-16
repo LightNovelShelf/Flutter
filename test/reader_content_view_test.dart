@@ -11,6 +11,7 @@ import 'package:lightnovel/shared/widgets/blurhash_image.dart';
 import 'package:lightnovel/shared/widgets/book_image.dart';
 import 'package:lightnovel/shared/widgets/image_preview.dart';
 import 'package:lightnovel/shared/widgets/html_content.dart';
+import 'package:lightnovel/features/reader/widgets/reader_page_turner.dart';
 import 'package:lightnovel/features/reader/widgets/reader_content_view.dart';
 import 'package:lightnovel/features/reader/widgets/reader_measure_box.dart';
 import 'package:lightnovel/features/reader/widgets/reader_page_body.dart';
@@ -208,7 +209,7 @@ const ReaderContentStyle _justifiedIndentedStyle = ReaderContentStyle(
 
 /// 翻页条内渲染的正文，排除测量层中的同名文本。
 Finder _pageText(String text) => find.descendant(
-  of: find.byType(PageView),
+  of: find.byType(ReaderPageTurner),
   matching: find.byWidgetPredicate(
     (widget) => widget is RichText && widget.text.toPlainText().contains(text),
   ),
@@ -481,7 +482,10 @@ void main() {
 
     // 第二页的段落整体上移了页顶偏移，段顶的屏幕坐标为 12 减去该偏移。
     final paragraph = find
-        .descendant(of: find.byType(PageView), matching: find.byType(RichText))
+        .descendant(
+          of: find.byType(ReaderPageTurner),
+          matching: find.byType(RichText),
+        )
         .first;
     final pageTop = 12 - tester.getTopLeft(paragraph).dy;
     // 行距由测试字体的实际度量决定，只能用段高除以行数反推。
@@ -505,7 +509,10 @@ void main() {
     await tester.tapAt(const Offset(700, 300));
     await tester.pumpAndSettle();
     final paragraph = find
-        .descendant(of: find.byType(PageView), matching: find.byType(RichText))
+        .descendant(
+          of: find.byType(ReaderPageTurner),
+          matching: find.byType(RichText),
+        )
         .first;
     // 下一页把段落上移 pageTop，本页可见高度须与之相等，否则会重复渲染该行。
     final pageTop = 12 - tester.getTopLeft(paragraph).dy;
@@ -1036,7 +1043,7 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    await tester.drag(find.byType(PageView), const Offset(-500, 0));
+    await tester.drag(find.byType(ReaderPageTurner), const Offset(-500, 0));
     await tester.pumpAndSettle();
 
     expect(harness.boundaries, isEmpty);

@@ -10,6 +10,7 @@ import 'package:lightnovel/data/api/api_client.dart';
 import 'package:lightnovel/data/providers.dart';
 import 'package:lightnovel/data/repositories/read_position_cache.dart';
 import 'package:lightnovel/data/settings/app_settings.dart';
+import 'package:lightnovel/features/reader/widgets/reader_page_turner.dart';
 import 'package:lightnovel/features/reader/novel_reader_screen.dart';
 import 'package:lightnovel/features/reader/widgets/reader_content_view.dart';
 import 'package:lightnovel/features/reader/widgets/reader_page_body.dart';
@@ -134,7 +135,7 @@ class _MemoryStore implements KeyValueStore {
 
 /// 翻页条内渲染的正文，排除测量层中的同名文本。
 Finder _pageText(String text) => find.descendant(
-  of: find.byType(PageView),
+  of: find.byType(ReaderPageTurner),
   matching: find.byWidgetPredicate(
     (widget) => widget is RichText && widget.text.toPlainText().contains(text),
   ),
@@ -196,7 +197,9 @@ Future<_FakeApi> _open(
       readerPrerenderAdjacent: prerender,
       novelReader: ReaderPreferences(
         statusPillsEnabled: statusPills,
-        viewMode: scroll ? ReaderViewMode.scroll : ReaderViewMode.paged,
+        pageTurnAnimation: scroll
+            ? ReaderPageTurnAnimation.vertical
+            : ReaderPageTurnAnimation.none,
         dualPageEnabled: dualPage,
       ),
     ),

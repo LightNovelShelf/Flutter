@@ -16,9 +16,7 @@ enum SeriesSearchMode { system, original, display }
 
 enum ConvertType { none, t2s, s2t }
 
-enum ReaderViewMode { paged, scroll }
-
-enum ReaderPageTurnAnimation { none, slide }
+enum ReaderPageTurnAnimation { simulation, cover, slide, vertical, none }
 
 enum ReaderBackgroundMode { auto, paper, custom }
 
@@ -72,11 +70,10 @@ class ReaderPreferences {
     this.dualPageEnabled = true,
     this.dualPageOffsetEnabled = false,
     this.immersiveEnabled = false,
-    this.pageTurnAnimation = ReaderPageTurnAnimation.none,
+    this.pageTurnAnimation = ReaderPageTurnAnimation.simulation,
     this.statusPillsEnabled = true,
     this.theme = ReaderThemeSetting.followApp,
     this.volumeKeyPagingEnabled = false,
-    this.viewMode = ReaderViewMode.paged,
   });
 
   final ReaderBackgroundMode backgroundMode;
@@ -88,7 +85,8 @@ class ReaderPreferences {
   final bool statusPillsEnabled;
   final ReaderThemeSetting theme;
   final bool volumeKeyPagingEnabled;
-  final ReaderViewMode viewMode;
+
+  bool get paged => pageTurnAnimation != ReaderPageTurnAnimation.vertical;
 
   ReaderPreferences copyWith({
     ReaderBackgroundMode? backgroundMode,
@@ -100,7 +98,6 @@ class ReaderPreferences {
     bool? statusPillsEnabled,
     ReaderThemeSetting? theme,
     bool? volumeKeyPagingEnabled,
-    ReaderViewMode? viewMode,
   }) => ReaderPreferences(
     backgroundMode: backgroundMode ?? this.backgroundMode,
     backgroundColorValue: backgroundColorValue ?? this.backgroundColorValue,
@@ -112,7 +109,6 @@ class ReaderPreferences {
     theme: theme ?? this.theme,
     volumeKeyPagingEnabled:
         volumeKeyPagingEnabled ?? this.volumeKeyPagingEnabled,
-    viewMode: viewMode ?? this.viewMode,
   );
 
   static final RegExp _hexPattern = RegExp(r'^#[0-9A-Fa-f]{6}$');
@@ -134,11 +130,13 @@ class ReaderPreferences {
       dualPageEnabled: _bool(values['dualPageEnabled'], true),
       dualPageOffsetEnabled: _bool(values['dualPageOffsetEnabled'], false),
       immersiveEnabled: _bool(values['immersiveEnabled'], false),
-      pageTurnAnimation: _enumFromName(
-        ReaderPageTurnAnimation.values,
-        values['pageTurnAnimation'],
-        ReaderPageTurnAnimation.none,
-      ),
+      pageTurnAnimation: values['viewMode'] == 'scroll'
+          ? ReaderPageTurnAnimation.vertical
+          : _enumFromName(
+              ReaderPageTurnAnimation.values,
+              values['pageTurnAnimation'],
+              ReaderPageTurnAnimation.simulation,
+            ),
       statusPillsEnabled: _bool(values['statusPillsEnabled'], true),
       theme: _enumFromName(
         ReaderThemeSetting.values,
@@ -146,11 +144,6 @@ class ReaderPreferences {
         ReaderThemeSetting.followApp,
       ),
       volumeKeyPagingEnabled: _bool(values['volumeKeyPagingEnabled'], false),
-      viewMode: _enumFromName(
-        ReaderViewMode.values,
-        values['viewMode'],
-        ReaderViewMode.paged,
-      ),
     );
   }
 
@@ -164,7 +157,6 @@ class ReaderPreferences {
     'statusPillsEnabled': statusPillsEnabled,
     'theme': theme.name,
     'volumeKeyPagingEnabled': volumeKeyPagingEnabled,
-    'viewMode': viewMode.name,
   };
 
   @override
@@ -178,8 +170,7 @@ class ReaderPreferences {
       other.pageTurnAnimation == pageTurnAnimation &&
       other.statusPillsEnabled == statusPillsEnabled &&
       other.theme == theme &&
-      other.volumeKeyPagingEnabled == volumeKeyPagingEnabled &&
-      other.viewMode == viewMode;
+      other.volumeKeyPagingEnabled == volumeKeyPagingEnabled;
 
   @override
   int get hashCode => Object.hash(
@@ -192,7 +183,6 @@ class ReaderPreferences {
     statusPillsEnabled,
     theme,
     volumeKeyPagingEnabled,
-    viewMode,
   );
 }
 

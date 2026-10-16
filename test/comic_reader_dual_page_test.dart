@@ -10,6 +10,7 @@ import 'package:lightnovel/data/api/models.dart';
 import 'package:lightnovel/data/providers.dart';
 import 'package:lightnovel/data/repositories/read_position_cache.dart';
 import 'package:lightnovel/data/settings/app_settings.dart';
+import 'package:lightnovel/features/reader/widgets/reader_page_turner.dart';
 import 'package:lightnovel/features/reader/comic_reader_screen.dart';
 import 'package:lightnovel/features/reader/widgets/reader_status_pills.dart';
 import 'package:lightnovel/shared/widgets/image_preview.dart';
@@ -133,7 +134,7 @@ Future<void> _open(
   bool dualPage = true,
   bool offsetFirstPage = false,
   bool statusPills = true,
-  ReaderViewMode viewMode = ReaderViewMode.paged,
+  ReaderPageTurnAnimation pageTurnAnimation = ReaderPageTurnAnimation.none,
   ComicPagedDirection direction = ComicPagedDirection.ltr,
   Size size = const Size(1400, 800),
   FakeViewPadding padding = const FakeViewPadding(),
@@ -151,7 +152,7 @@ Future<void> _open(
         dualPageEnabled: dualPage,
         dualPageOffsetEnabled: offsetFirstPage,
         statusPillsEnabled: statusPills,
-        viewMode: viewMode,
+        pageTurnAnimation: pageTurnAnimation,
       ),
       comicPagedDirection: direction,
     ),
@@ -172,7 +173,11 @@ Future<void> _open(
 
 /// 往后滑动一屏，覆盖图片手势与 PageView 的协作。
 Future<void> _swipeForward(WidgetTester tester) async {
-  await tester.fling(find.byType(PageView), const Offset(-600, 0), 1500);
+  await tester.fling(
+    find.byType(ReaderPageTurner),
+    const Offset(-600, 0),
+    1500,
+  );
   await tester.pumpAndSettle();
 }
 
@@ -288,7 +293,7 @@ void main() {
       padding: const FakeViewPadding(top: 40, bottom: 30),
     );
 
-    final pageView = tester.getRect(find.byType(PageView));
+    final pageView = tester.getRect(find.byType(ReaderPageTurner));
     final pills = tester.getRect(find.byType(ReaderStatusPills));
     expect(pageView.top, 52);
     expect(pageView.bottom, 714);
@@ -298,7 +303,7 @@ void main() {
   testWidgets('滚动模式只避开状态栏并隐藏页码胶囊', (tester) async {
     await _open(
       tester,
-      viewMode: ReaderViewMode.scroll,
+      pageTurnAnimation: ReaderPageTurnAnimation.vertical,
       size: const Size(800, 800),
       padding: const FakeViewPadding(top: 40, bottom: 30),
     );
@@ -319,8 +324,8 @@ void main() {
   testWidgets('翻页模式点击边缘时抬手立即换页', (tester) async {
     await _open(tester, dualPage: false);
 
-    final pageView = find.byType(PageView);
-    final controller = tester.widget<PageView>(pageView).controller!;
+    final pageView = find.byType(ReaderPageTurner);
+    final controller = tester.widget<ReaderPageTurner>(pageView).controller;
     final rect = tester.getRect(pageView);
     final gesture = await tester.startGesture(
       Offset(rect.right - 10, rect.center.dy),

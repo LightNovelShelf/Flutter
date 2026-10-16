@@ -20,7 +20,6 @@ import '../../shared/widgets/image_preview.dart';
 import '../../shared/widgets/state_views.dart';
 import 'reader_comic_paging.dart';
 import 'reader_open_position.dart';
-import 'reader_page_turn.dart';
 import 'reader_pagination.dart';
 import 'reader_position.dart';
 import 'reader_progress_controller.dart';
@@ -28,6 +27,7 @@ import 'reader_providers.dart';
 import 'widgets/comic_retry_tile.dart';
 import 'widgets/reader_chapter_sheet.dart';
 import 'widgets/reader_chrome.dart';
+import 'widgets/reader_page_turner.dart';
 import 'widgets/reader_settings_sheet.dart';
 import 'widgets/reader_shell.dart';
 import 'widgets/reader_status_pills.dart';
@@ -100,9 +100,9 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
   double _devicePixelRatio = 1;
   double _continuousPageWidth = 0;
 
-  PageController? _pageController;
+  ReaderPageTurnController? _pageController;
   ScrollController? _scrollController;
-  ReaderViewMode? _mode;
+  bool? _paged;
 
   @override
   void initState() {
@@ -149,8 +149,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
   }
 
   /// 分屏只在翻页模式下作数，连续模式仍是一页接一页。
-  bool get _dualPaged =>
-      _dual && _mode == ReaderViewMode.paged && _spreads.isNotEmpty;
+  bool get _dualPaged => _dual && _paged == true && _spreads.isNotEmpty;
 
   /// 第 [page] 页在第几屏；不分屏时就是页码本身。
   int _spreadIndexOf(int page) =>
@@ -293,7 +292,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
   void _resetControllers(int page) {
     final previousPage = _pageController;
     final previousScroll = _scrollController?..removeListener(_onScroll);
-    _pageController = PageController(
+    _pageController = ReaderPageTurnController(
       initialPage: _dualPaged ? _spreadIndexOf(page) : page,
     );
     _scrollController = ScrollController(
@@ -460,7 +459,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
   }
 
   /// 整页高度，展示与预取共用同一个算式，避免尺寸档分叉。翻页模式铺满屏宽，连续模式按内容宽收窄。
-  double _pageHeight(int index) => _mode == ReaderViewMode.paged
+  double _pageHeight(int index) => _paged == true
       ? _pagedPageWidth(index) * _aspect(index)
       : _continuousPageExtent(index);
 
@@ -524,11 +523,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
         _turnChapter(delta);
         return;
       }
-      turnReaderPage(
-        pageController,
-        target,
-        ref.read(appSettingsProvider).comicReader.pageTurnAnimation,
-      );
+      pageController.animateToPage(target);
       return;
     }
     final target = (_page + delta)
@@ -539,17 +534,15 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       return;
     }
     if (pageController != null && pageController.hasClients) {
-      turnReaderPage(
-        pageController,
-        target,
-        ref.read(appSettingsProvider).comicReader.pageTurnAnimation,
-      );
+      pageController.animateToPage(target);
       return;
     }
     final scrollController = _scrollController;
     if (scrollController == null || !scrollController.hasClients) return;
     final position = scrollController.position;
-    final edge = delta > 0 ? position.maxScrollExtent : position.minScrollExtent;
+    final edge = delta > 0
+        ? position.maxScrollExtent
+        : position.minScrollExtent;
     if ((scrollController.offset - edge).abs() < 0.5) {
       _turnChapter(delta);
       return;
@@ -709,46 +702,62 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     );
   }
 
-  Widget _pagedView(bool reversed) => LayoutBuilder(
+  Widget _pagedView({
+    required bool reversed,
+    required ReaderPageTurnAnimation animation,
+    required Color background,
+  }) => LayoutBuilder(
     builder: (context, constraints) {
       final size = constraints.biggest;
       final spreads = _dualPaged ? _spreads : null;
+      final controller = _pageController;
       return ReaderTapZoneLayer(
         reversed: reversed,
         onPrevious: () => _turn(-1),
         onNext: () => _turn(1),
         onToggleChrome: _toggleChrome,
-        child: PageView.builder(
-          key: ObjectKey(_pageController),
-          itemCount: spreads?.length ?? _slots.length,
-          controller: _pageController,
-          reverse: reversed,
-          // 当前页按屏首算，与小说阅读器一致：翻页条上的位置就是这一屏最前面那一页。
-          // 读实时的 _spreads：jumpToPage 会同步派发滚动通知，而这一跳往往就发生在新一批
-          // 图刚改过配对、PageView 还没重建的时候，捕获的旧表会错位甚至越界。
-          onPageChanged: spreads == null
-              ? _onPageChanged
-              : (index) => _onPageChanged(
-                  index >= 0 && index < _spreads.length
-                      ? _spreads[index].first
-                      : index,
-                ),
-          itemBuilder: (context, index) {
-            final Widget content;
-            if (spreads == null) {
-              content = _pageContent(
-                index,
-                size.width,
-                size.width * _aspect(index),
-              );
-            } else {
-              final pages = spreads[index];
-              final spreadSize = _spreadSize(pages, size.width);
-              content = _spreadContent(pages, spreadSize, reversed);
-            }
-            return FittedBox(fit: BoxFit.contain, child: content);
-          },
-        ),
+        child: controller == null
+            ? const SizedBox.expand()
+            : ReaderPageTurner(
+                key: ObjectKey(controller),
+                controller: controller,
+                itemCount: spreads?.length ?? _slots.length,
+                animation: animation,
+                reverse: reversed,
+                paperColor: background,
+                isSpread: spreads == null
+                    ? null
+                    : (index) =>
+                          index >= 0 &&
+                          index < _spreads.length &&
+                          _spreads[index].length > 1,
+                onBoundary: (next) => _turnChapter(next ? 1 : -1),
+                // 当前页按屏首算，与小说阅读器一致：翻页条上的位置就是这一屏最前面那一页。
+                // 读实时的 _spreads：jumpToPage 会同步派发滚动通知，而这一跳往往就发生在新一批
+                // 图刚改过配对、PageView 还没重建的时候，捕获的旧表会错位甚至越界。
+                onPageChanged: spreads == null
+                    ? _onPageChanged
+                    : (index) => _onPageChanged(
+                        index >= 0 && index < _spreads.length
+                            ? _spreads[index].first
+                            : index,
+                      ),
+                itemBuilder: (context, index) {
+                  final Widget content;
+                  if (spreads == null) {
+                    content = _pageContent(
+                      index,
+                      size.width,
+                      size.width * _aspect(index),
+                    );
+                  } else {
+                    final pages = spreads[index];
+                    final spreadSize = _spreadSize(pages, size.width);
+                    content = _spreadContent(pages, spreadSize, reversed);
+                  }
+                  return FittedBox(fit: BoxFit.contain, child: content);
+                },
+              ),
       );
     },
   );
@@ -790,7 +799,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     totalChapters: _chapters.length,
     currentPage: page + 1,
     // 连续模式不摆滑杆：一路滚下来没有翻页条上的落点。
-    totalPages: _mode == ReaderViewMode.paged ? _slots.length : 0,
+    totalPages: _paged == true ? _slots.length : 0,
     progress: _slots.isEmpty ? null : (page + 1) / _slots.length,
     onOpenChapters: () => unawaited(_openChapterSheet()),
     nightMode: Theme.of(context).brightness == Brightness.dark,
@@ -816,7 +825,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       :oledBlack,
       :backgroundMode,
       :backgroundColorValue,
-      :viewMode,
+      :pageTurnAnimation,
       :pagedDirection,
       :volumeKeyPagingEnabled,
       :immersiveEnabled,
@@ -829,7 +838,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
           oledBlack: settings.oledBlack,
           backgroundMode: settings.comicReader.backgroundMode,
           backgroundColorValue: settings.comicReader.backgroundColorValue,
-          viewMode: settings.comicReader.viewMode,
+          pageTurnAnimation: settings.comicReader.pageTurnAnimation,
           pagedDirection: settings.comicPagedDirection,
           volumeKeyPagingEnabled: settings.comicReader.volumeKeyPagingEnabled,
           immersiveEnabled: settings.comicReader.immersiveEnabled,
@@ -848,14 +857,14 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     // 阅读模式与分屏都会换掉翻页条的页序，落定后要把当前页重新对准。
     // 用 `|` 不用 `||`：`_syncDual` 要在这一帧就把分屏表建好，供下面的 body 取用，
     // 短路掉就会拿旧表画一帧。
+    final paged = pageTurnAnimation != ReaderPageTurnAnimation.vertical;
     final relaid =
-        _syncDual(dualPageEnabled, dualPageOffsetEnabled) | (_mode != viewMode);
-    _mode = viewMode;
+        _syncDual(dualPageEnabled, dualPageOffsetEnabled) | (_paged != paged);
+    _paged = paged;
     if (relaid && !loading) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _syncToPage());
     }
 
-    final paged = viewMode == ReaderViewMode.paged;
     final pills = paged && statusPillsEnabled;
 
     final Widget body;
@@ -867,7 +876,11 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       );
     } else {
       body = paged
-          ? _pagedView(pagedDirection == ComicPagedDirection.rtl)
+          ? _pagedView(
+              reversed: pagedDirection == ComicPagedDirection.rtl,
+              animation: pageTurnAnimation,
+              background: background,
+            )
           : _continuousView();
     }
 
