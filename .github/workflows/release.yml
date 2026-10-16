@@ -38,11 +38,17 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # tag 构建只读 main 上建好的缓存，不写入。
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.47.7
           channel: stable
           cache: true
+          pub-cache: true
 
       - name: 检查签名配置
         env:
@@ -90,6 +96,15 @@ jobs:
           flutter-version: 3.47.7
           channel: stable
           cache: true
+          pub-cache: true
+
+      - uses: actions/cache/restore@v5
+        with:
+          path: |
+            ios/Pods
+            ~/Library/Caches/CocoaPods
+          key: pods-${{ runner.os }}-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: pods-${{ runner.os }}-
 
       - run: flutter pub get
 
