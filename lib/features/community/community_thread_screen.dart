@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/list_detail.dart';
 import '../../core/network/api_error.dart';
 import '../../data/api/models.dart';
 import '../../shared/format.dart';
@@ -140,7 +141,7 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
     final deleted = await ref.read(_provider.notifier).deleteThread();
     if (!deleted || !mounted) return;
     showAppSnackBar(context, '帖子已删除');
-    context.go('/community');
+    if (!context.closePanePage()) context.go('/community');
   }
 
   Future<void> _toggleLock() async {

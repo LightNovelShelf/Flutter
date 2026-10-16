@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../app/list_detail.dart';
 import '../../data/api/api_client.dart';
 import '../../data/api/models.dart';
 import '../../data/providers.dart';
@@ -123,7 +123,7 @@ class _CommunityRankingsScreenState
               if (payload.hotThreads.isNotEmpty) ...<Widget>[
                 CommunityHotThreadsPanel(
                   items: payload.hotThreads,
-                  onOpen: (id) => context.push('/community/thread/$id'),
+                  onOpen: (id) => context.openPage('/community/thread/$id'),
                 ),
                 const SizedBox(height: 16),
               ],

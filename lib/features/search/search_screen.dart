@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../app/list_detail.dart';
 import '../../data/api/models.dart';
 import '../../shared/layout/book_grid_layout.dart';
 import '../../shared/paging/identity_child_delegate.dart';
@@ -55,7 +55,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   void _openBook(BookListItem item) {
-    context.push('/book/${item.id}');
+    context.openPage('/book/${item.id}');
   }
 
   void _useKeyword(String keyword) {

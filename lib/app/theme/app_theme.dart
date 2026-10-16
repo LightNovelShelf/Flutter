@@ -182,6 +182,11 @@ ThemeData _buildAppTheme({
       indicatorColor: scheme.secondaryContainer,
       elevation: 3,
     ),
+    navigationRailTheme: NavigationRailThemeData(
+      backgroundColor: isOledDark ? OledPalette.background : scheme.surface,
+      indicatorColor: scheme.secondaryContainer,
+      labelType: NavigationRailLabelType.all,
+    ),
     dividerTheme: DividerThemeData(
       color: scheme.outlineVariant,
       space: 1,

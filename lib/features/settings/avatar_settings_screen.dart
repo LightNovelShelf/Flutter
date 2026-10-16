@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/network/api_error.dart';
 import '../../data/api/models.dart';
@@ -117,7 +116,7 @@ class _AvatarSettingsScreenState extends ConsumerState<AvatarSettingsScreen> {
     try {
       await ref.read(profileProvider.notifier).setAvatar(url);
       if (!mounted) return;
-      context.pop();
+      Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;
       setState(

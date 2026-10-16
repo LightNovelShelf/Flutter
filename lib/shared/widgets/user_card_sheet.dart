@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../app/list_detail.dart';
 import '../../core/network/api_error.dart';
 import '../../data/api/models.dart';
 import '../../data/repositories/profile_repository.dart';
@@ -32,7 +32,7 @@ Future<void> showUserCardSheet(
     ),
   );
   if (action == _UserCardAction.directMessage && context.mounted) {
-    context.push('/messages/$userId');
+    context.openPage('/messages/$userId');
   }
 }
 

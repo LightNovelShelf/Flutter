@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../app/list_detail.dart';
 import '../../data/api/api_client.dart';
 import '../../data/api/models.dart';
 import '../../data/providers.dart';
@@ -164,7 +164,7 @@ class _MyCommunityScreenState extends ConsumerState<MyCommunityScreen> {
           child: _MyReplyCard(
             reply: reply,
             // 深链带 replyId，服务端把它所在主楼置顶，帖子页直接高亮定位。
-            onTap: () => context.push(
+            onTap: () => context.openPage(
               '/community/thread/${reply.threadId}?replyId=${reply.id}',
             ),
           ),
@@ -190,7 +190,7 @@ class _MyCommunityScreenState extends ConsumerState<MyCommunityScreen> {
       padding: const EdgeInsets.only(bottom: 12),
       child: CommunityFeedCard(
         item: item,
-        onTap: () => context.push('/community/thread/${item.id}'),
+        onTap: () => context.openPage('/community/thread/${item.id}'),
       ),
     );
   }

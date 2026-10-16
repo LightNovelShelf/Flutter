@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../app/list_detail.dart';
 import '../../data/api/models.dart';
 import '../../shared/layout/book_grid_layout.dart';
 import '../../shared/paging/identity_child_delegate.dart';
@@ -27,7 +27,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   );
 
   void _openBook(BookListItem book) {
-    context.push('/book/${book.id}');
+    context.openPage('/book/${book.id}');
   }
 
   Future<void> _clear() async {

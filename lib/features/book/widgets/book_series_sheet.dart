@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../../app/list_detail.dart';
 import '../../../data/api/models.dart';
 import '../../../shared/widgets/app_sheet.dart';
 import '../../../shared/widgets/book_image.dart';
@@ -55,7 +55,7 @@ void showBookSeriesSheet(
           current: current,
           onTap: () {
             Navigator.of(sheetContext).pop();
-            if (!current) context.push('/book/${book.id}');
+            if (!current) context.openPage('/book/${book.id}');
           },
         );
       },

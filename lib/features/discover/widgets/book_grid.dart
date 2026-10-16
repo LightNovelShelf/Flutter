@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../../app/list_detail.dart';
 import '../../../data/api/models.dart';
 import '../../../shared/layout/book_grid_layout.dart';
 import '../../../shared/widgets/book_cover_grid_item.dart';
 
 /// 打开书籍详情。
 void openBookDetail(BuildContext context, BookListItem book) {
-  context.push('/book/${book.id}');
+  context.openPage('/book/${book.id}');
 }
 
 /// 首页分区的静态网格，不滚动，按父级宽度分列。

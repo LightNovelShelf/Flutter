@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/list_detail.dart';
 import '../../core/network/api_error.dart';
 import '../../data/api/api_client.dart';
 import '../../data/api/models.dart';
@@ -44,7 +45,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   }
 
   void _openComments(BookDetailBundle bundle) {
-    context.push(
+    context.openPage(
       Uri(
         path: '/book/${widget.id}/comments',
         queryParameters: <String, String>{'title': bundle.detail.title},
@@ -78,7 +79,9 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
               message: error is ApiError ? error.message : '请稍后再试。',
               onRetry: () => ref.invalidate(bookDetailProvider(_request)),
               // 出错时正常态的 SliverAppBar 不渲染，这是页面上唯一的返回入口。
-              onBack: context.canPop() ? context.pop : null,
+              onBack: Navigator.canPop(context)
+                  ? () => Navigator.pop(context)
+                  : null,
             ),
             data: (value) => _body(themedContext, value),
           ),

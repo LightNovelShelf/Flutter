@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../../app/list_detail.dart';
 import '../../../data/api/models.dart';
 import '../../../shared/format.dart';
 import '../community_thread_providers.dart';
@@ -56,7 +56,7 @@ class CommunityThreadFooter extends StatelessWidget {
               radius: 18,
               padding: const EdgeInsets.all(14),
               onTap: () =>
-                  context.pushReplacement('/community/thread/${related.id}'),
+                  context.replacePage('/community/thread/${related.id}'),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[

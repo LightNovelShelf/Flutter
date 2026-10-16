@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../app/list_detail.dart';
 import '../../data/repositories/profile_repository.dart';
 import '../../shared/paging/scroll_prefetch.dart';
 import '../../shared/widgets/unread_badge.dart';
@@ -149,7 +150,7 @@ class _CommunityHomeScreenState extends ConsumerState<CommunityHomeScreen> {
               title: const Text('社区'),
               actions: <Widget>[
                 IconButton(
-                  onPressed: () => context.push('/messages'),
+                  onPressed: () => context.openPage('/messages'),
                   tooltip: '私信',
                   icon: UnreadBadge(
                     count: unreadMessages,
@@ -157,7 +158,7 @@ class _CommunityHomeScreenState extends ConsumerState<CommunityHomeScreen> {
                   ),
                 ),
                 IconButton(
-                  onPressed: () => context.push('/community/notifications'),
+                  onPressed: () => context.openPage('/community/notifications'),
                   tooltip: '通知',
                   icon: UnreadBadge(
                     count: unreadNotifications,
@@ -165,12 +166,12 @@ class _CommunityHomeScreenState extends ConsumerState<CommunityHomeScreen> {
                   ),
                 ),
                 IconButton(
-                  onPressed: () => context.push('/community/mine'),
+                  onPressed: () => context.openPage('/community/mine'),
                   tooltip: '我的社区',
                   icon: const Icon(Icons.person_outline),
                 ),
                 IconButton(
-                  onPressed: () => context.push('/community/rankings'),
+                  onPressed: () => context.openPage('/community/rankings'),
                   tooltip: '排行榜',
                   icon: const Icon(Icons.leaderboard_outlined),
                 ),

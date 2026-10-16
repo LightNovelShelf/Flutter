@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../app/list_detail.dart';
 import '../../core/network/api_error.dart';
 import '../../data/api/models.dart';
 import '../../data/providers.dart';
@@ -118,7 +118,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             title: '头像',
             description: '更换个人头像',
             icon: Icons.account_circle_outlined,
-            onTap: () => context.push('/settings/avatar'),
+            onTap: () => context.openPage('/settings/avatar'),
             trailing: UserAvatar(
               url: profile.avatarUrl,
               name: profile.userName,
@@ -187,7 +187,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 TextButton(
-                  onPressed: () => context.push('/shop'),
+                  onPressed: () => context.openPage('/shop'),
                   child: const Text('商城'),
                 ),
                 Text(

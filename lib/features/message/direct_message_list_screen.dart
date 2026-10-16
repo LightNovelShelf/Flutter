@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../app/list_detail.dart';
 import '../../data/api/models.dart';
 import '../../shared/format.dart';
 import '../../shared/paging/scroll_prefetch.dart';
@@ -106,7 +106,7 @@ class _DirectMessageListScreenState
         final item = state.items[index];
         return _ConversationTile(
           item: item,
-          onTap: () => context.push('/messages/${item.peer.id}'),
+          onTap: () => context.openPage('/messages/${item.peer.id}'),
         );
       },
     );

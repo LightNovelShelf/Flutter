@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/list_detail.dart';
 import '../../data/api/models.dart';
 import '../../data/providers.dart';
 import '../../data/repositories/shelf_draft.dart';
@@ -214,7 +215,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
   }
 
   void _openBook(BookListItem book) {
-    context.push('/book/${book.id}');
+    context.openPage('/book/${book.id}');
   }
 
   Widget _filterMenu() {

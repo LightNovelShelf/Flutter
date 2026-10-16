@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/list_detail.dart';
 import '../../core/network/api_error.dart';
 import '../../data/api/models.dart';
 import '../../data/providers.dart';
@@ -508,7 +509,7 @@ class _AnnouncementStrip extends StatelessWidget {
       children: <Widget>[
         for (final item in items)
           InkWell(
-            onTap: () => context.push('/announcement/${item.id}'),
+            onTap: () => context.openPage('/announcement/${item.id}'),
             borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),

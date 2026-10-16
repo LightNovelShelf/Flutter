@@ -69,7 +69,7 @@ class ReaderPreferences {
   const ReaderPreferences({
     this.backgroundMode = ReaderBackgroundMode.auto,
     this.backgroundColorValue = '#F7F1E3',
-    this.dualPageEnabled = false,
+    this.dualPageEnabled = true,
     this.dualPageOffsetEnabled = false,
     this.immersiveEnabled = false,
     this.pageTurnAnimation = ReaderPageTurnAnimation.none,
@@ -131,7 +131,7 @@ class ReaderPreferences {
       backgroundColorValue: color is String && _hexPattern.hasMatch(color)
           ? color.toUpperCase()
           : '#F7F1E3',
-      dualPageEnabled: _bool(values['dualPageEnabled'], false),
+      dualPageEnabled: _bool(values['dualPageEnabled'], true),
       dualPageOffsetEnabled: _bool(values['dualPageOffsetEnabled'], false),
       immersiveEnabled: _bool(values['immersiveEnabled'], false),
       pageTurnAnimation: _enumFromName(

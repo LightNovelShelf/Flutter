@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../../app/list_detail.dart';
 import '../../../data/api/models.dart';
 import '../../../shared/paging/identity_child_delegate.dart';
 import '../community_providers.dart';
@@ -78,7 +78,7 @@ IdentityChildDelegate<CommunityFeedItem> _feedDelegate(
     padding: EdgeInsets.only(top: index == 0 ? 0 : 8),
     child: CommunityFeedCard(
       item: item,
-      onTap: () => context.push('/community/thread/${item.id}'),
+      onTap: () => context.openPage('/community/thread/${item.id}'),
     ),
   ),
 );

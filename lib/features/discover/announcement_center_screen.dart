@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../app/list_detail.dart';
 import '../../data/api/models.dart';
 import '../../shared/format.dart';
 import '../../shared/paging/scroll_prefetch.dart';
@@ -33,9 +33,8 @@ String announcementSummary(String contentHtml) {
   return _summaryCache[contentHtml] = _buildSummary(contentHtml);
 }
 
-String _stripTags(String value) => value
-    .replaceAll(_htmlTagPattern, ' ')
-    .replaceAll(_danglingTagPattern, ' ');
+String _stripTags(String value) =>
+    value.replaceAll(_htmlTagPattern, ' ').replaceAll(_danglingTagPattern, ' ');
 
 String _decodeEntities(String value) {
   var text = value;
@@ -129,7 +128,7 @@ class AnnouncementCenterScreen extends ConsumerWidget {
             final item = state.items[index];
             return _AnnouncementCard(
               item: item,
-              onTap: () => context.push('/announcement/${item.id}'),
+              onTap: () => context.openPage('/announcement/${item.id}'),
             );
           },
         ),

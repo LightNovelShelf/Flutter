@@ -61,6 +61,7 @@ void main() {
       novelReader: const ReaderPreferences(
         viewMode: ReaderViewMode.scroll,
         theme: ReaderThemeSetting.dark,
+        dualPageEnabled: false,
       ),
       comicReader: const ReaderPreferences(
         dualPageEnabled: true,

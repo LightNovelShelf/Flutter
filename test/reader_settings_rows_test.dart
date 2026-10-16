@@ -71,7 +71,7 @@ void main() {
       tester,
       const AppSettings(
         novelReader: ReaderPreferences(viewMode: ReaderViewMode.scroll),
-        comicReader: ReaderPreferences(dualPageEnabled: true),
+        comicReader: ReaderPreferences(dualPageEnabled: false),
       ),
     );
 
@@ -81,8 +81,8 @@ void main() {
     await tester.ensureVisible(find.text('双页模式'));
     await tester.tap(find.text('双页模式'));
     await tester.pump();
-    expect(controller.settings.novelReader.dualPageEnabled, isFalse);
-    expect(controller.settings.comicReader.dualPageEnabled, isTrue);
+    expect(controller.settings.novelReader.dualPageEnabled, isTrue);
+    expect(controller.settings.comicReader.dualPageEnabled, isFalse);
     expect(controller.settings.novelReader.statusPillsEnabled, isTrue);
     await tester.ensureVisible(find.text('翻页动画'));
     await tester.tap(find.text('翻页动画'));
@@ -103,7 +103,10 @@ void main() {
   testWidgets('漫画设置只显示漫画选项并独立更新', (tester) async {
     final controller = await _pumpSettings(
       tester,
-      const AppSettings(),
+      const AppSettings(
+        novelReader: ReaderPreferences(dualPageEnabled: false),
+        comicReader: ReaderPreferences(dualPageEnabled: false),
+      ),
       type: BookType.comic,
     );
 

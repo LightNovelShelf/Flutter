@@ -6,7 +6,6 @@ import '../core/platform/reader_volume_keys.dart';
 import '../data/api/api_client.dart';
 import '../data/api/models.dart';
 import '../data/providers.dart';
-import '../data/repositories/comment_thread_repository.dart';
 import '../data/session/auth_controller.dart';
 import '../features/auth/register_screen.dart';
 import '../features/auth/register_verify_screen.dart';
@@ -15,40 +14,25 @@ import '../features/auth/reset_password_screen.dart';
 import '../features/auth/reset_password_verify_screen.dart';
 import '../features/auth/sign_in_screen.dart';
 import '../features/auth/welcome_screen.dart';
-import '../features/book/book_detail_screen.dart';
-import '../features/book/comments_screen.dart';
 import '../features/community/community_compose_screen.dart';
 import '../features/community/community_home_screen.dart';
-import '../features/community/community_mine_screen.dart';
-import '../features/community/community_notifications_screen.dart';
-import '../features/community/community_rankings_screen.dart';
-import '../features/community/community_thread_screen.dart';
 import '../features/discover/announcement_center_screen.dart';
-import '../features/discover/announcement_detail_screen.dart';
 import '../features/discover/book_list_screen.dart';
 import '../features/discover/comic_list_screen.dart';
 import '../features/discover/discover_screen.dart';
 import '../features/discover/novel_series_books_screen.dart';
 import '../features/discover/ranking_screen.dart';
 import '../features/history/history_screen.dart';
-import '../features/message/direct_chat_screen.dart';
-import '../features/message/direct_message_list_screen.dart';
 import '../features/reader/comic_reader_screen.dart';
 import '../features/reader/novel_reader_screen.dart';
 import '../features/reader/reader_open_position.dart';
 import '../features/reader/widgets/reader_theme.dart';
 import '../features/search/search_screen.dart';
-import '../features/shop/shop_screen.dart';
-import '../features/settings/about_settings_screen.dart';
-import '../features/settings/appearance_settings_screen.dart';
-import '../features/settings/avatar_settings_screen.dart';
-import '../features/settings/cache_settings_screen.dart';
-import '../features/settings/content_settings_screen.dart';
-import '../features/settings/profile_screen.dart';
-import '../features/settings/reader_settings_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/shelf/shelf_screen.dart';
 import 'home_shell.dart';
+import 'list_detail.dart';
+import 'pane_routes.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -77,6 +61,10 @@ const Set<String> _authRoutes = <String>{
   '/reset-password/verify',
   '/reset-password/new-password',
 };
+
+/// 能放进右栏的页面整页打开时也用 [buildPanePage] 构建。嵌套路由的父页按自己那一段地址解析。
+Widget _panePage(BuildContext _, GoRouterState state) =>
+    buildPanePage(state.uri.replace(path: state.matchedLocation))!;
 
 final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
   final runtime = ref.watch(appRuntimeProvider);
@@ -133,8 +121,9 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
             routes: <RouteBase>[
               GoRoute(
                 path: '/discover',
-                builder: (_, _) =>
-                    const RepaintBoundary(child: DiscoverScreen()),
+                builder: (_, _) => const RepaintBoundary(
+                  child: ListDetailHost(child: DiscoverScreen()),
+                ),
               ),
             ],
           ),
@@ -142,7 +131,9 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
             routes: <RouteBase>[
               GoRoute(
                 path: '/shelf',
-                builder: (_, _) => const RepaintBoundary(child: ShelfScreen()),
+                builder: (_, _) => const RepaintBoundary(
+                  child: ListDetailHost(child: ShelfScreen()),
+                ),
               ),
             ],
           ),
@@ -150,8 +141,9 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
             routes: <RouteBase>[
               GoRoute(
                 path: '/history',
-                builder: (_, _) =>
-                    const RepaintBoundary(child: HistoryScreen()),
+                builder: (_, _) => const RepaintBoundary(
+                  child: ListDetailHost(child: HistoryScreen()),
+                ),
               ),
             ],
           ),
@@ -159,8 +151,12 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
             routes: <RouteBase>[
               GoRoute(
                 path: '/community',
-                builder: (_, _) =>
-                    const RepaintBoundary(child: CommunityHomeScreen()),
+                builder: (_, _) => const RepaintBoundary(
+                  child: ListDetailHost(
+                    initialLocation: '/community/rankings',
+                    child: CommunityHomeScreen(),
+                  ),
+                ),
               ),
             ],
           ),
@@ -168,7 +164,9 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
             routes: <RouteBase>[
               GoRoute(
                 path: '/search',
-                builder: (_, _) => const RepaintBoundary(child: SearchScreen()),
+                builder: (_, _) => const RepaintBoundary(
+                  child: ListDetailHost(child: SearchScreen()),
+                ),
               ),
             ],
           ),
@@ -176,48 +174,48 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/shelf/folder',
-        builder: (_, state) => ShelfScreen(
-          parents: state.uri.queryParametersAll['parent'] ?? const <String>[],
+        builder: (_, state) => ListDetailHost(
+          child: ShelfScreen(
+            parents: state.uri.queryParametersAll['parent'] ?? const <String>[],
+          ),
         ),
       ),
-      GoRoute(path: '/books', builder: (_, _) => const BookListScreen()),
+      GoRoute(
+        path: '/books',
+        builder: (_, _) => const ListDetailHost(child: BookListScreen()),
+      ),
       GoRoute(
         path: '/books/series',
-        builder: (_, state) => NovelSeriesBooksScreen(
-          seriesName: state.uri.queryParameters['name'] ?? '',
-          initialOrder:
-              bookListOrderFromWire(state.uri.queryParameters['order']) ??
-              BookListOrder.latest,
+        builder: (_, state) => ListDetailHost(
+          child: NovelSeriesBooksScreen(
+            seriesName: state.uri.queryParameters['name'] ?? '',
+            initialOrder:
+                bookListOrderFromWire(state.uri.queryParameters['order']) ??
+                BookListOrder.latest,
+          ),
         ),
       ),
-      GoRoute(path: '/comics', builder: (_, _) => const ComicListScreen()),
-      GoRoute(path: '/ranking', builder: (_, _) => const RankingScreen()),
+      GoRoute(
+        path: '/comics',
+        builder: (_, _) => const ListDetailHost(child: ComicListScreen()),
+      ),
+      GoRoute(
+        path: '/ranking',
+        builder: (_, _) => const ListDetailHost(child: RankingScreen()),
+      ),
       GoRoute(
         path: '/announcements',
-        builder: (_, _) => const AnnouncementCenterScreen(),
-      ),
-      GoRoute(
-        path: '/announcement/:id',
-        builder: (_, state) => AnnouncementDetailScreen(
-          id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
+        builder: (_, _) => const ListDetailHost(
+          placeholder: PanePlaceholder.announcement,
+          primaryFraction: 0.4,
+          child: AnnouncementCenterScreen(),
         ),
       ),
+      GoRoute(path: '/announcement/:id', builder: _panePage),
       GoRoute(
         path: '/book/:id',
-        builder: (_, state) => BookDetailScreen(
-          id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
-        ),
-        routes: <RouteBase>[
-          GoRoute(
-            path: 'comments',
-            builder: (_, state) => CommentsScreen(
-              target: CommentTarget.book(
-                int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
-              ),
-              title: state.uri.queryParameters['title'] ?? '',
-            ),
-          ),
-        ],
+        builder: _panePage,
+        routes: <RouteBase>[GoRoute(path: 'comments', builder: _panePage)],
       ),
       GoRoute(
         path: '/reader/:bookId/:sortNum',
@@ -244,14 +242,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
           return ReaderThemeScope(type: type, child: screen);
         },
       ),
-      GoRoute(
-        path: '/community/thread/:id',
-        // 只带 replyId，服务端会定位它所在的主楼
-        builder: (_, state) => CommunityThreadScreen(
-          threadId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
-          replyId: int.tryParse(state.uri.queryParameters['replyId'] ?? ''),
-        ),
-      ),
+      GoRoute(path: '/community/thread/:id', builder: _panePage),
       GoRoute(
         path: '/community/compose',
         // 带 threadId 即编辑已有帖子
@@ -261,62 +252,31 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
           subCategoryKey: state.uri.queryParameters['subCategoryKey'],
         ),
       ),
-      GoRoute(
-        path: '/community/mine',
-        builder: (_, _) => const MyCommunityScreen(),
-      ),
-      GoRoute(
-        path: '/community/notifications',
-        builder: (_, _) => const CommunityNotificationsScreen(),
-      ),
-      GoRoute(
-        path: '/community/rankings',
-        builder: (_, _) => const CommunityRankingsScreen(),
-      ),
-      GoRoute(
-        path: '/messages',
-        builder: (_, _) => const DirectMessageListScreen(),
-      ),
-      GoRoute(
-        path: '/messages/:peerId',
-        builder: (_, state) => DirectChatScreen(
-          peerId: int.tryParse(state.pathParameters['peerId'] ?? '') ?? 0,
-        ),
-      ),
-      GoRoute(path: '/shop', builder: (_, _) => const ShopScreen()),
+      GoRoute(path: '/community/mine', builder: _panePage),
+      GoRoute(path: '/community/notifications', builder: _panePage),
+      GoRoute(path: '/community/rankings', builder: _panePage),
+      GoRoute(path: '/messages', builder: _panePage),
+      GoRoute(path: '/messages/:peerId', builder: _panePage),
+      GoRoute(path: '/shop', builder: _panePage),
       GoRoute(
         path: '/settings',
-        builder: (_, _) => const SettingsScreen(),
+        builder: (_, _) => const ListDetailHost(
+          placeholder: PanePlaceholder.settings,
+          primaryFraction: 0.4,
+          child: SettingsScreen(),
+        ),
         routes: <RouteBase>[
-          GoRoute(path: 'profile', builder: (_, _) => const ProfileScreen()),
-          GoRoute(
-            path: 'avatar',
-            builder: (_, _) => const AvatarSettingsScreen(),
-          ),
-          GoRoute(
-            path: 'appearance',
-            builder: (_, _) => const AppearanceSettingsScreen(),
-          ),
-          GoRoute(
-            path: 'content',
-            builder: (_, _) => const ContentSettingsScreen(),
-          ),
-          GoRoute(
-            path: 'reader/novel',
-            builder: (_, _) => const ReaderSettingsScreen(type: BookType.novel),
-          ),
-          GoRoute(
-            path: 'reader/comic',
-            builder: (_, _) => const ReaderSettingsScreen(type: BookType.comic),
-          ),
-          GoRoute(
-            path: 'cache',
-            builder: (_, _) => const CacheSettingsScreen(),
-          ),
-          GoRoute(
-            path: 'about',
-            builder: (_, _) => const AboutSettingsScreen(),
-          ),
+          for (final path in const <String>[
+            'profile',
+            'avatar',
+            'appearance',
+            'content',
+            'reader/novel',
+            'reader/comic',
+            'cache',
+            'about',
+          ])
+            GoRoute(path: path, builder: _panePage),
         ],
       ),
     ],
