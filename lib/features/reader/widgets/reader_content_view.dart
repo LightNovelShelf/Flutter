@@ -67,6 +67,18 @@ class ReaderContentPosition {
   final int pages;
 }
 
+class ReaderScreenInfo {
+  const ReaderScreenInfo({
+    required this.sortNum,
+    required this.page,
+    required this.pages,
+  });
+
+  final int sortNum;
+  final int page;
+  final int pages;
+}
+
 /// 从阅读器外部翻页或在本章内跳页；未挂载或正文尚未就绪时操作会被忽略。
 class ReaderContentController {
   _ReaderContentViewState? _state;
@@ -120,6 +132,7 @@ class ReaderContentView extends StatefulWidget {
     this.controller,
     this.pageTurnAnimation = ReaderPageTurnAnimation.none,
     this.paperColor = const Color(0xFFFFFFFF),
+    this.screenBuilder,
   });
 
   final ReaderContentController? controller;
@@ -144,6 +157,13 @@ class ReaderContentView extends StatefulWidget {
   final ReaderPageTurnAnimation pageTurnAnimation;
 
   final Color paperColor;
+
+  final Widget Function(
+    BuildContext context,
+    ReaderScreenInfo info,
+    Widget screen,
+  )?
+  screenBuilder;
 
   /// 翻页模式下是否把一屏拆成两栏，只在大屏横屏时真的分栏。
   final bool dualPage;
@@ -1179,21 +1199,51 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       onTurnEnd: _onTurnEnd,
       onBoundary: _turn,
       itemBuilder: (context, screen) {
-        if (_columns <= 1) return _pageColumn(screen, viewport, 0, 1);
-        return Row(
-          children: <Widget>[
-            for (var column = 0; column < _columns; column++)
-              Expanded(
-                child: _pageColumn(
-                  screen * _columns + column,
-                  viewport,
-                  column,
-                  _columns,
+        final Widget content;
+        if (_columns <= 1) {
+          content = _pageColumn(screen, viewport, 0, 1);
+        } else {
+          content = Row(
+            children: <Widget>[
+              for (var column = 0; column < _columns; column++)
+                Expanded(
+                  child: _pageColumn(
+                    screen * _columns + column,
+                    viewport,
+                    column,
+                    _columns,
+                  ),
                 ),
-              ),
-          ],
-        );
+            ],
+          );
+        }
+        final decorate = widget.screenBuilder;
+        return decorate == null
+            ? content
+            : decorate(context, _screenInfo(screen), content);
       },
+    );
+  }
+
+  ReaderScreenInfo _screenInfo(int screen) {
+    final first = screen * _columns - _leadingPending;
+    for (var column = first; column < first + _columns; column++) {
+      final located = column < 0 ? null : _strip.locate(column);
+      if (located == null) continue;
+      final (slot, page) = located;
+      return ReaderScreenInfo(
+        sortNum: slot.sortNum,
+        page: page + 1,
+        pages: slot.columnCount,
+      );
+    }
+    final edge = first < 0 ? _strip.chapters.firstOrNull : null;
+    return ReaderScreenInfo(
+      sortNum: edge == null
+          ? (_strip.chapters.lastOrNull?.sortNum ?? widget.sortNum) + 1
+          : edge.sortNum - 1,
+      page: 0,
+      pages: 0,
     );
   }
 

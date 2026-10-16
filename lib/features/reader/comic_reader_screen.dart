@@ -27,6 +27,7 @@ import 'reader_providers.dart';
 import 'widgets/comic_retry_tile.dart';
 import 'widgets/reader_chapter_sheet.dart';
 import 'widgets/reader_chrome.dart';
+import 'widgets/reader_frame.dart';
 import 'widgets/reader_page_turner.dart';
 import 'widgets/reader_settings_sheet.dart';
 import 'widgets/reader_shell.dart';
@@ -732,10 +733,51 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
     );
   }
 
+  Widget _framedPage(
+    BuildContext context, {
+    required int head,
+    required Widget content,
+    required Color foreground,
+    required bool pills,
+  }) => Stack(
+    children: <Widget>[
+      Positioned.fill(
+        child: Padding(
+          padding:
+              ReaderFrameInfo.bandsOf(context) +
+              const EdgeInsets.symmetric(vertical: 12),
+          child: content,
+        ),
+      ),
+      Positioned.fill(
+        child: ValueListenableBuilder<bool>(
+          valueListenable: _chromeVisible,
+          builder: (context, visible, _) => ReaderFrameInfo(
+            title: _chapter?.title ?? '',
+            foregroundColor: foreground,
+            infoVisible: !visible,
+            trailing: pills
+                ? ReaderStatusPills(
+                    visible: !visible,
+                    foregroundColor: foreground,
+                    currentChapter: _chapterIndex + 1,
+                    totalChapters: _chapters.length,
+                    currentPage: head + 1,
+                    totalPages: _slots.length,
+                  )
+                : null,
+          ),
+        ),
+      ),
+    ],
+  );
+
   Widget _pagedView({
     required bool reversed,
     required ReaderPageTurnAnimation animation,
     required Color background,
+    required Color foreground,
+    required bool pills,
   }) => LayoutBuilder(
     builder: (context, constraints) {
       final size = constraints.biggest;
@@ -775,7 +817,9 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
                       ),
                 itemBuilder: (context, index) {
                   final Widget content;
+                  final int head;
                   if (spreads == null) {
+                    head = index;
                     content = _pageContent(
                       index,
                       size.width,
@@ -783,10 +827,17 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
                     );
                   } else {
                     final pages = spreads[index];
+                    head = pages.first;
                     final spreadSize = _spreadSize(pages, size.width);
                     content = _spreadContent(pages, spreadSize, reversed);
                   }
-                  return FittedBox(fit: BoxFit.contain, child: content);
+                  return _framedPage(
+                    context,
+                    head: head,
+                    content: FittedBox(fit: BoxFit.contain, child: content),
+                    foreground: foreground,
+                    pills: pills,
+                  );
                 },
               ),
       );
@@ -909,6 +960,8 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
               reversed: pagedDirection == ComicPagedDirection.rtl,
               animation: pageTurnAnimation,
               background: background,
+              foreground: foreground,
+              pills: pills,
             )
           : _continuousView();
     }
@@ -919,46 +972,9 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       loading: loading || _chapter == null,
       error: loadError,
       onRetry: () => unawaited(_loadChapter()),
-      body: SafeArea(
-        left: false,
-        right: false,
-        bottom: paged,
-        child: paged
-            ? Padding(
-                padding: EdgeInsets.only(top: 12, bottom: pills ? 56 : 12),
-                child: body,
-              )
-            : body,
-      ),
-      overlay: _slots.isEmpty || !pills
-          ? null
-          : Positioned(
-              bottom: 12,
-              left: 0,
-              right: 0,
-              child: SafeArea(
-                top: false,
-                left: false,
-                right: false,
-                child: Center(
-                  child: ValueListenableBuilder<bool>(
-                    valueListenable: _chromeVisible,
-                    builder: (context, visible, _) =>
-                        ValueListenableBuilder<int>(
-                          valueListenable: _pageNotifier,
-                          builder: (context, page, _) => ReaderStatusPills(
-                            visible: !visible,
-                            foregroundColor: foreground,
-                            currentChapter: _chapterIndex + 1,
-                            totalChapters: _chapters.length,
-                            currentPage: page + 1,
-                            totalPages: _slots.length,
-                          ),
-                        ),
-                  ),
-                ),
-              ),
-            ),
+      body: paged && _slots.isNotEmpty
+          ? body
+          : SafeArea(left: false, right: false, bottom: paged, child: body),
       chrome: ValueListenableBuilder<bool>(
         valueListenable: _chromeVisible,
         builder: (context, visible, _) => ValueListenableBuilder<int>(

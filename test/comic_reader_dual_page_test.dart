@@ -304,11 +304,19 @@ void main() {
       padding: const FakeViewPadding(top: 40, bottom: 30),
     );
 
-    final pageView = tester.getRect(find.byType(ReaderPageTurner));
+    final image = tester.getRect(_page(0));
     final pills = tester.getRect(find.byType(ReaderStatusPills));
-    expect(pageView.top, 52);
-    expect(pageView.bottom, 714);
-    expect(pills.top, greaterThan(pageView.bottom));
+    final title = find.byKey(const ValueKey<String>('reader-frame-title'));
+    expect(image.top, greaterThanOrEqualTo(52));
+    expect(image.bottom, lessThanOrEqualTo(714));
+    expect(pills.top, greaterThan(image.bottom));
+    expect(pills.right, 784);
+    expect(tester.getRect(title).top, greaterThanOrEqualTo(42));
+    expect(tester.getRect(title).bottom, lessThanOrEqualTo(image.top));
+    expect(
+      find.descendant(of: find.byType(ReaderPageTurner), matching: title),
+      findsOneWidget,
+    );
   });
 
   testWidgets('滚动模式只避开状态栏并隐藏页码胶囊', (tester) async {
