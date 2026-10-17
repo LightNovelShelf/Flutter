@@ -27,4 +27,10 @@ extension ApiClientShop on ApiClient {
     <String, Object?>{'Date': date},
     SignMakeupResult.decode,
   );
+
+  Future<RenameCardResult> useRenameCard({required String userName}) => invoke(
+    'UseRenameCard',
+    <String, Object?>{'UserName': userName},
+    RenameCardResult.decode,
+  );
 }

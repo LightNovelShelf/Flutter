@@ -119,6 +119,36 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
     }
   }
 
+  Future<void> _useRenameCard(OwnedShopItem item) async {
+    if (_usingKey != null || _buyingKey != null) return;
+    final userName = await showAppTextPrompt(
+      context: context,
+      title: '使用改名卡',
+      hint: '新用户名',
+      initial: ref.read(profileProvider).value?.userName ?? '',
+    );
+    if (userName == null || !mounted) return;
+    if (userName.runes.length > 50) {
+      _showMessage('用户名最多 50 个字符', error: true);
+      return;
+    }
+
+    setState(() => _usingKey = item.key);
+    try {
+      final result = await ref
+          .read(apiClientProvider)
+          .useRenameCard(userName: userName);
+      await ref.read(profileProvider.notifier).reload();
+      await _load(showLoading: false);
+      if (!mounted) return;
+      _showMessage('改名成功，现在的用户名是「${result.userName}」');
+    } catch (error) {
+      if (mounted) _showMessage(describeApiError(error), error: true);
+    } finally {
+      if (mounted) setState(() => _usingKey = null);
+    }
+  }
+
   Future<void> _openSignIn() async {
     await showSignInSheet(context);
     if (!mounted) return;
@@ -191,6 +221,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
               items: owned,
               onMakeUp: _openSignIn,
               onUse: _useItem,
+              onRename: _useRenameCard,
               usingKey: _usingKey,
             ),
           if (_error != null) ...<Widget>[
@@ -344,12 +375,14 @@ class _OwnedItemsCard extends StatelessWidget {
     required this.items,
     required this.onMakeUp,
     required this.onUse,
+    required this.onRename,
     required this.usingKey,
   });
 
   final List<OwnedShopItem> items;
   final VoidCallback onMakeUp;
   final ValueChanged<OwnedShopItem> onUse;
+  final ValueChanged<OwnedShopItem> onRename;
   final String? usingKey;
 
   @override
@@ -385,6 +418,20 @@ class _OwnedItemsCard extends StatelessWidget {
                     OutlinedButton(
                       onPressed: onMakeUp,
                       child: const Text('去补签'),
+                    ),
+                  ],
+                  if (items[index].key == renameCardItemKey) ...<Widget>[
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      onPressed: usingKey != null
+                          ? null
+                          : () => onRename(items[index]),
+                      child: usingKey == items[index].key
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('改名'),
                     ),
                   ],
                   if (items[index].usable) ...<Widget>[

@@ -1,6 +1,7 @@
 import '../decode.dart';
 
 const String signMakeupItemKey = 'sign_makeup';
+const String renameCardItemKey = 'rename_card';
 
 class ShopItem {
   const ShopItem({
@@ -232,6 +233,21 @@ class SignMakeupResult {
       streak: asCount(record['Streak']),
       reward: asCount(record['Reward']),
       coinReward: asCount(record['CoinReward']),
+      owned: asCount(record['Owned']),
+    );
+  }
+}
+
+class RenameCardResult {
+  const RenameCardResult({required this.userName, required this.owned});
+
+  final String userName;
+  final int owned;
+
+  static RenameCardResult decode(Object? value) {
+    final record = asRecord(value, '改名响应');
+    return RenameCardResult(
+      userName: asString(record['UserName']),
       owned: asCount(record['Owned']),
     );
   }
