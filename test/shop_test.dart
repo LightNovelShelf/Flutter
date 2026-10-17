@@ -19,7 +19,7 @@ void main() {
           'MonthlyPurchased': 3,
         },
         <String, Object?>{
-          'Key': comicQuotaItemKey,
+          'Key': 'comic_quota_50',
           'Name': '漫画额度 ×50',
           'Description': '使用后获得 50 点漫画额度',
           'Image': '/img/shop/comic-quota.svg',
@@ -36,7 +36,7 @@ void main() {
     expect(limited.key, signMakeupItemKey);
     expect(limited.remaining, 0);
     expect(limited.canPurchase, isFalse);
-    expect(unlimited.key, comicQuotaItemKey);
+    expect(unlimited.key, 'comic_quota_50');
     expect(unlimited.monthlyLimit, isNull);
     expect(unlimited.remaining, isNull);
     expect(unlimited.canPurchase, isTrue);
@@ -75,11 +75,10 @@ void main() {
       'CoinReward': 2,
       'Owned': 1,
     });
-    final quota = ComicQuotaUseResult.decode(<String, Object?>{
-      'Key': comicQuotaItemKey,
-      'Granted': 50,
-      'Quota': 125,
+    final used = ShopItemUseResult.decode(<String, Object?>{
+      'Key': 'comic_quota_50',
       'Owned': 1,
+      'Message': '已发放 50 点漫画额度，当前余额 125 点',
     });
 
     expect(inventory.items.single.quantity, 2);
@@ -87,10 +86,9 @@ void main() {
     expect(purchase.coin, 90);
     expect(makeup.streak, 4);
     expect(makeup.owned, 1);
-    expect(quota.key, comicQuotaItemKey);
-    expect(quota.granted, 50);
-    expect(quota.quota, 125);
-    expect(quota.owned, 1);
+    expect(used.key, 'comic_quota_50');
+    expect(used.owned, 1);
+    expect(used.message, '已发放 50 点漫画额度，当前余额 125 点');
   });
 
   test('decodes permanent and daily comic quota balances', () {

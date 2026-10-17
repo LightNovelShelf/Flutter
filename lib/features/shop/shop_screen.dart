@@ -28,7 +28,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
   OwnedShopItems? _owned;
   bool _loading = true;
   String? _buyingKey;
-  bool _usingComicQuota = false;
+  String? _usingKey;
   String? _error;
 
   @override
@@ -65,7 +65,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
   }
 
   Future<void> _buy(ShopItem item) async {
-    if (_buyingKey != null || _usingComicQuota) return;
+    if (_buyingKey != null || _usingKey != null) return;
     final confirmed = await showAppConfirm(
       context: context,
       title: '确认购买',
@@ -90,27 +90,32 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
     }
   }
 
-  Future<void> _useComicQuotaCard() async {
-    if (_usingComicQuota || _buyingKey != null) return;
+  Future<void> _useItem(OwnedShopItem item) async {
+    if (_usingKey != null || _buyingKey != null) return;
+    final description = item.description.trim();
     final confirmed = await showAppConfirm(
       context: context,
-      title: '使用漫画额度卡',
-      message: '使用后立即获得 50 点漫画额度，永不过期。',
+      title: '使用道具',
+      message: description.isEmpty
+          ? '使用 1 个「${item.name}」？'
+          : '使用 1 个「${item.name}」？\n$description',
       confirmLabel: '使用',
     );
     if (!confirmed || !mounted) return;
 
-    setState(() => _usingComicQuota = true);
+    setState(() => _usingKey = item.key);
     try {
-      final result = await ref.read(apiClientProvider).useComicQuotaCard();
+      final result = await ref
+          .read(apiClientProvider)
+          .useShopItem(key: item.key);
       await ref.read(profileProvider.notifier).reload();
       await _load(showLoading: false);
       if (!mounted) return;
-      _showMessage('已发放 ${result.granted} 点漫画额度，当前余额 ${result.quota} 点');
+      _showMessage(result.message);
     } catch (error) {
       if (mounted) _showMessage(describeApiError(error), error: true);
     } finally {
-      if (mounted) setState(() => _usingComicQuota = false);
+      if (mounted) setState(() => _usingKey = null);
     }
   }
 
@@ -185,8 +190,8 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
             _OwnedItemsCard(
               items: owned,
               onMakeUp: _openSignIn,
-              onUseComicQuota: _useComicQuotaCard,
-              usingComicQuota: _usingComicQuota,
+              onUse: _useItem,
+              usingKey: _usingKey,
             ),
           if (_error != null) ...<Widget>[
             const SizedBox(height: 16),
@@ -338,14 +343,14 @@ class _OwnedItemsCard extends StatelessWidget {
   const _OwnedItemsCard({
     required this.items,
     required this.onMakeUp,
-    required this.onUseComicQuota,
-    required this.usingComicQuota,
+    required this.onUse,
+    required this.usingKey,
   });
 
   final List<OwnedShopItem> items;
   final VoidCallback onMakeUp;
-  final VoidCallback onUseComicQuota;
-  final bool usingComicQuota;
+  final ValueChanged<OwnedShopItem> onUse;
+  final String? usingKey;
 
   @override
   Widget build(BuildContext context) {
@@ -382,11 +387,13 @@ class _OwnedItemsCard extends StatelessWidget {
                       child: const Text('去补签'),
                     ),
                   ],
-                  if (items[index].key == comicQuotaItemKey) ...<Widget>[
+                  if (items[index].usable) ...<Widget>[
                     const SizedBox(width: 8),
                     OutlinedButton(
-                      onPressed: usingComicQuota ? null : onUseComicQuota,
-                      child: usingComicQuota
+                      onPressed: usingKey != null
+                          ? null
+                          : () => onUse(items[index]),
+                      child: usingKey == items[index].key
                           ? const SizedBox.square(
                               dimension: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
