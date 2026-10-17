@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
@@ -10,6 +12,7 @@ import 'package:lightnovel/data/api/models.dart';
 import 'package:lightnovel/data/providers.dart';
 import 'package:lightnovel/data/repositories/read_position_cache.dart';
 import 'package:lightnovel/data/settings/app_settings.dart';
+import 'package:lightnovel/features/reader/widgets/reader_page_turner.dart';
 import 'package:lightnovel/features/reader/comic_reader_screen.dart';
 import 'package:lightnovel/features/reader/widgets/reader_status_pills.dart';
 import 'package:lightnovel/shared/widgets/image_preview.dart';
@@ -28,7 +31,7 @@ const List<String> _pageSizes = <String>[
 ];
 
 class _FakeApi extends ApiClient {
-  _FakeApi()
+  _FakeApi({this.pageSizes = _pageSizes, this.gate})
     : super(
         signalR: SignalRConnection(
           endpoint: 'http://localhost/hub',
@@ -37,6 +40,9 @@ class _FakeApi extends ApiClient {
         scheduler: RateLimitRequestScheduler(),
         headers: () async => const <String, String>{},
       );
+
+  final List<String> pageSizes;
+  final Completer<void>? gate;
 
   @override
   Future<T> invoke<T>(
@@ -70,13 +76,14 @@ class _FakeApi extends ApiClient {
             'LastUpdatedAt': '2026-01-01T00:00:00Z',
             'Favorite': 0,
             'Chapters': <Object?>[
-              <String, Object?>{
-                'Id': _chapterId,
-                'SortNum': 1,
-                'Title': '第 1 话',
-                'CreatedAt': '2026-01-01T00:00:00Z',
-                'PageCount': _pageSizes.length,
-              },
+              for (var sortNum = 1; sortNum <= 2; sortNum++)
+                <String, Object?>{
+                  'Id': _chapterId + sortNum - 1,
+                  'SortNum': sortNum,
+                  'Title': '第 $sortNum 话',
+                  'CreatedAt': '2026-01-01T00:00:00Z',
+                  'PageCount': pageSizes.length,
+                },
             ],
           },
           'ReadPosition': null,
@@ -84,22 +91,27 @@ class _FakeApi extends ApiClient {
       case 'GetComicContent':
         final skip = args['Skip']! as int;
         final take = args['Take']! as int;
+        final chapterId = args['Cid']! as int;
+        final sortNum = chapterId - _chapterId + 1;
         expect(take, 6);
+        final gate = this.gate;
+        if (skip > 0 && gate != null) await gate.future;
         return decode(<String, Object?>{
           'Chapter': <String, Object?>{
-            'Id': _chapterId,
+            'Id': chapterId,
             'BookId': _bookId,
-            'Title': '第 1 话',
-            'SortNum': 1,
-            'Total': _pageSizes.length,
+            'Title': '第 $sortNum 话',
+            'SortNum': sortNum,
+            'Total': pageSizes.length,
             'Skip': skip,
             'Images': <Object?>[
               for (
                 var index = skip;
-                index < skip + take && index < _pageSizes.length;
+                index < skip + take && index < pageSizes.length;
                 index++
               )
-                'https://img.example/page$index.webp?size=${_pageSizes[index]}',
+                'https://img.example/c$chapterId/page$index.webp'
+                    '?size=${pageSizes[index]}',
             ],
           },
           'ReadPosition': null,
@@ -129,10 +141,13 @@ Future<void> _open(
   bool dualPage = true,
   bool offsetFirstPage = false,
   bool statusPills = true,
-  ReaderViewMode viewMode = ReaderViewMode.paged,
+  ReaderPageTurnAnimation pageTurnAnimation = ReaderPageTurnAnimation.none,
   ComicPagedDirection direction = ComicPagedDirection.ltr,
   Size size = const Size(1400, 800),
   FakeViewPadding padding = const FakeViewPadding(),
+  int sortNum = 1,
+  List<String> pageSizes = _pageSizes,
+  Completer<void>? gate,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -146,7 +161,7 @@ Future<void> _open(
         dualPageEnabled: dualPage,
         dualPageOffsetEnabled: offsetFirstPage,
         statusPillsEnabled: statusPills,
-        viewMode: viewMode,
+        pageTurnAnimation: pageTurnAnimation,
       ),
       comicPagedDirection: direction,
     ),
@@ -154,11 +169,13 @@ Future<void> _open(
   await tester.pumpWidget(
     ProviderScope(
       overrides: <Override>[
-        apiClientProvider.overrideWithValue(_FakeApi()),
+        apiClientProvider.overrideWithValue(
+          _FakeApi(pageSizes: pageSizes, gate: gate),
+        ),
         settingsControllerProvider.overrideWith((ref) => settings),
       ],
-      child: const MaterialApp(
-        home: ComicReaderScreen(bookId: _bookId, sortNum: 1),
+      child: MaterialApp(
+        home: ComicReaderScreen(bookId: _bookId, sortNum: sortNum),
       ),
     ),
   );
@@ -167,7 +184,11 @@ Future<void> _open(
 
 /// 往后滑动一屏，覆盖图片手势与 PageView 的协作。
 Future<void> _swipeForward(WidgetTester tester) async {
-  await tester.fling(find.byType(PageView), const Offset(-600, 0), 1500);
+  await tester.fling(
+    find.byType(ReaderPageTurner),
+    const Offset(-600, 0),
+    1500,
+  );
   await tester.pumpAndSettle();
 }
 
@@ -283,17 +304,25 @@ void main() {
       padding: const FakeViewPadding(top: 40, bottom: 30),
     );
 
-    final pageView = tester.getRect(find.byType(PageView));
+    final image = tester.getRect(_page(0));
     final pills = tester.getRect(find.byType(ReaderStatusPills));
-    expect(pageView.top, 52);
-    expect(pageView.bottom, 714);
-    expect(pills.top, greaterThan(pageView.bottom));
+    final title = find.byKey(const ValueKey<String>('reader-frame-title'));
+    expect(image.top, greaterThanOrEqualTo(52));
+    expect(image.bottom, lessThanOrEqualTo(714));
+    expect(pills.top, greaterThan(image.bottom));
+    expect(pills.right, 784);
+    expect(tester.getRect(title).top, greaterThanOrEqualTo(42));
+    expect(tester.getRect(title).bottom, lessThanOrEqualTo(image.top));
+    expect(
+      find.descendant(of: find.byType(ReaderPageTurner), matching: title),
+      findsOneWidget,
+    );
   });
 
   testWidgets('滚动模式只避开状态栏并隐藏页码胶囊', (tester) async {
     await _open(
       tester,
-      viewMode: ReaderViewMode.scroll,
+      pageTurnAnimation: ReaderPageTurnAnimation.vertical,
       size: const Size(800, 800),
       padding: const FakeViewPadding(top: 40, bottom: 30),
     );
@@ -314,8 +343,8 @@ void main() {
   testWidgets('翻页模式点击边缘时抬手立即换页', (tester) async {
     await _open(tester, dualPage: false);
 
-    final pageView = find.byType(PageView);
-    final controller = tester.widget<PageView>(pageView).controller!;
+    final pageView = find.byType(ReaderPageTurner);
+    final controller = tester.widget<ReaderPageTurner>(pageView).controller;
     final rect = tester.getRect(pageView);
     final gesture = await tester.startGesture(
       Offset(rect.right - 10, rect.center.dy),
@@ -326,6 +355,134 @@ void main() {
     await tester.pump();
     expect(_page(1), findsOneWidget);
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
+  });
+
+  Finder chapterPage(int chapterId, int index) => find.byWidgetPredicate(
+    (widget) =>
+        widget is ContentImage &&
+        widget.url.contains('/c$chapterId/page$index.webp'),
+  );
+
+  testWidgets('末页再往后翻进入下一话首页', (tester) async {
+    await _open(tester, dualPage: false, size: const Size(800, 800));
+
+    for (var page = 1; page < _pageSizes.length; page++) {
+      await tester.tapAt(const Offset(790, 400));
+      await tester.pumpAndSettle();
+    }
+    expect(_currentPage(tester), _pageSizes.length);
+
+    await tester.tapAt(const Offset(790, 400));
+    await tester.pumpAndSettle();
+
+    expect(chapterPage(_chapterId + 1, 0), findsOneWidget);
+    expect(_currentPage(tester), 1);
+  });
+
+  testWidgets('首页再往前翻进入上一话末页', (tester) async {
+    await _open(
+      tester,
+      dualPage: false,
+      size: const Size(800, 800),
+      sortNum: 2,
+    );
+    expect(chapterPage(_chapterId + 1, 0), findsOneWidget);
+
+    await tester.tapAt(const Offset(10, 400));
+    await tester.pumpAndSettle();
+
+    expect(chapterPage(_chapterId, _pageSizes.length - 1), findsOneWidget);
+    expect(_currentPage(tester), _pageSizes.length);
+  });
+
+  testWidgets('双页末屏再往后翻进入下一话', (tester) async {
+    await _open(tester);
+
+    for (var screen = 0; screen < 3; screen++) {
+      await tester.tapAt(const Offset(1390, 400));
+      await tester.pumpAndSettle();
+    }
+    expect(_currentPage(tester), 5);
+
+    await tester.tapAt(const Offset(1390, 400));
+    await tester.pumpAndSettle();
+
+    expect(chapterPage(_chapterId + 1, 0), findsOneWidget);
+    expect(chapterPage(_chapterId + 1, 1), findsOneWidget);
+    expect(_currentPage(tester), 1);
+  });
+
+  ReaderPageTurnController turnController(WidgetTester tester) =>
+      tester.widget<ReaderPageTurner>(find.byType(ReaderPageTurner)).controller;
+
+  Future<ReaderPageTurnController> turnWhileBatchArrives(
+    WidgetTester tester,
+    List<String> pageSizes,
+  ) async {
+    final gate = Completer<void>();
+    await _open(
+      tester,
+      pageTurnAnimation: ReaderPageTurnAnimation.slide,
+      pageSizes: pageSizes,
+      gate: gate,
+    );
+    await tester.tapAt(const Offset(1390, 400));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final controller = turnController(tester);
+    await tester.tapAt(const Offset(1390, 400));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(controller.isTurning, isTrue);
+
+    gate.complete();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(controller.isTurning, isTrue);
+    return controller;
+  }
+
+  testWidgets('双页翻页途中新一批图到达：配对没变就不打断翻页', (tester) async {
+    final controller = await turnWhileBatchArrives(
+      tester,
+      List<String>.filled(14, '1000x1500'),
+    );
+
+    await tester.pumpAndSettle();
+    expect(controller.page, 2);
+    expect(_currentPage(tester), 5);
+  });
+
+  testWidgets('双页翻页途中配对被宽图错开：等翻页结束再对准', (tester) async {
+    final controller = await turnWhileBatchArrives(tester, <String>[
+      for (var index = 0; index < 14; index++)
+        index == 7 ? '1600x1000' : '1000x1500',
+    ]);
+
+    await tester.pumpAndSettle();
+    expect(controller.isTurning, isFalse);
+    expect(_currentPage(tester), 5);
+    expect(_page(4), findsOneWidget);
+    expect(_page(5), findsOneWidget);
+  });
+
+  testWidgets('翻页动画途中连点：每一下都算数', (tester) async {
+    await _open(
+      tester,
+      dualPage: false,
+      size: const Size(800, 800),
+      pageTurnAnimation: ReaderPageTurnAnimation.slide,
+    );
+
+    await tester.tapAt(const Offset(790, 400));
+    await tester.pump(const Duration(milliseconds: 30));
+    await tester.tapAt(const Offset(790, 400));
+    await tester.pump(const Duration(milliseconds: 30));
+    await tester.tapAt(const Offset(790, 400));
+    await tester.pumpAndSettle();
+
+    expect(_currentPage(tester), 4);
   });
 
   testWidgets('屏幕竖着时一屏只摆一页', (tester) async {

@@ -1,5 +1,6 @@
 package app.lightnovel.shelf
 
+import android.os.BatteryManager
 import android.os.Bundle
 
 import android.view.KeyEvent
@@ -16,13 +17,33 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val READER_VOLUME_KEY_CHANNEL = "app.lightnovel.shelf/reader_volume_keys"
+        const val BATTERY_CHANNEL = "app.lightnovel.shelf/battery"
     }
 
     private var readerVolumeKeyChannel: MethodChannel? = null
     private var readerVolumeKeyPagingEnabled = false
+    private var batteryChannel: MethodChannel? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        val battery = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            BATTERY_CHANNEL,
+        )
+        battery.setMethodCallHandler { call, result ->
+            if (call.method != "getBattery") {
+                result.notImplemented()
+                return@setMethodCallHandler
+            }
+            val manager = getSystemService(BATTERY_SERVICE) as BatteryManager
+            result.success(
+                mapOf(
+                    "level" to manager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY),
+                    "charging" to manager.isCharging,
+                ),
+            )
+        }
+        batteryChannel = battery
         readerVolumeKeyPagingEnabled = false
         val channel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
@@ -43,6 +64,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        batteryChannel?.setMethodCallHandler(null)
+        batteryChannel = null
         readerVolumeKeyChannel?.setMethodCallHandler(null)
         readerVolumeKeyChannel = null
         readerVolumeKeyPagingEnabled = false

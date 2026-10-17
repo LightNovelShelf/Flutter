@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme/app_theme.dart';
-import '../../core/platform/reader_immersive_mode.dart';
 import '../../data/providers.dart';
 import '../../data/settings/app_settings.dart';
 import '../../data/api/models/book.dart';
@@ -52,7 +51,7 @@ class ReaderSettingsContent extends ConsumerWidget {
     final reader = comic ? settings.comicReader : settings.novelReader;
     final customBackground =
         reader.backgroundMode == ReaderBackgroundMode.custom;
-    final paged = reader.viewMode == ReaderViewMode.paged;
+    final paged = reader.paged;
     final scopes = settings.cleanChapterTitleScopes;
 
     void updateReader(
@@ -276,33 +275,23 @@ class ReaderSettingsContent extends ConsumerWidget {
                 description: '阅读时在角落常驻显示章节与页码',
                 icon: Icons.pin_outlined,
                 value: reader.statusPillsEnabled,
-                enabled: reader.viewMode == ReaderViewMode.paged,
+                enabled: paged,
                 onChanged: (value) => updateReader(
                   (reader) => reader.copyWith(statusPillsEnabled: value),
                 ),
               ),
-              SettingsPickerRow<ReaderViewMode>(
-                title: '阅读模式',
-                description: '选择滚动或逐页阅读',
-                icon: Icons.view_day_outlined,
-                value: reader.viewMode,
-                options: const <(ReaderViewMode, String)>[
-                  (ReaderViewMode.paged, '翻页'),
-                  (ReaderViewMode.scroll, '滚动'),
-                ],
-                onChanged: (value) =>
-                    updateReader((reader) => reader.copyWith(viewMode: value)),
-              ),
               SettingsPickerRow<ReaderPageTurnAnimation>(
                 title: '翻页动画',
-                description: '点击或音量键翻页时的过渡效果',
+                description: '滑动、点击或音量键翻页时的效果',
                 icon: Icons.animation_outlined,
                 value: reader.pageTurnAnimation,
                 options: const <(ReaderPageTurnAnimation, String)>[
+                  (ReaderPageTurnAnimation.simulation, '仿真'),
+                  (ReaderPageTurnAnimation.cover, '覆盖'),
+                  (ReaderPageTurnAnimation.slide, '平移'),
+                  (ReaderPageTurnAnimation.vertical, '上下'),
                   (ReaderPageTurnAnimation.none, '无动画'),
-                  (ReaderPageTurnAnimation.slide, '平滑滑动'),
                 ],
-                enabled: paged,
                 onChanged: (value) => updateReader(
                   (reader) => reader.copyWith(pageTurnAnimation: value),
                 ),
@@ -326,16 +315,6 @@ class ReaderSettingsContent extends ConsumerWidget {
                   enabled: paged && reader.dualPageEnabled,
                   onChanged: (value) => updateReader(
                     (reader) => reader.copyWith(dualPageOffsetEnabled: value),
-                  ),
-                ),
-              if (readerImmersiveSupported)
-                SettingsToggleRow(
-                  title: '沉浸式阅读',
-                  description: '阅读时隐藏状态栏和导航栏',
-                  icon: Icons.fullscreen,
-                  value: reader.immersiveEnabled,
-                  onChanged: (value) => updateReader(
-                    (reader) => reader.copyWith(immersiveEnabled: value),
                   ),
                 ),
               if (defaultTargetPlatform == TargetPlatform.android)

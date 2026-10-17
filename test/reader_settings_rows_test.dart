@@ -66,28 +66,41 @@ Switch _switchFor(WidgetTester tester, String title) {
 }
 
 void main() {
-  testWidgets('小说滚动模式下保留并禁用分页设置', (tester) async {
+  testWidgets('小说上下模式下禁用分页设置，翻页动画仍可切回分页', (tester) async {
     final controller = await _pumpSettings(
       tester,
       const AppSettings(
-        novelReader: ReaderPreferences(viewMode: ReaderViewMode.scroll),
+        novelReader: ReaderPreferences(
+          pageTurnAnimation: ReaderPageTurnAnimation.vertical,
+        ),
         comicReader: ReaderPreferences(dualPageEnabled: false),
       ),
     );
 
+    expect(find.text('阅读模式'), findsNothing);
     expect(_switchFor(tester, '页码胶囊').onChanged, isNull);
     expect(_switchFor(tester, '双页模式').onChanged, isNull);
-    expect(_tileFor(tester, '翻页动画').enabled, isFalse);
+    expect(_tileFor(tester, '翻页动画').enabled, isTrue);
     await tester.ensureVisible(find.text('双页模式'));
     await tester.tap(find.text('双页模式'));
     await tester.pump();
     expect(controller.settings.novelReader.dualPageEnabled, isTrue);
     expect(controller.settings.comicReader.dualPageEnabled, isFalse);
     expect(controller.settings.novelReader.statusPillsEnabled, isTrue);
+
     await tester.ensureVisible(find.text('翻页动画'));
     await tester.tap(find.text('翻页动画'));
     await tester.pumpAndSettle();
-    expect(find.text('平滑滑动'), findsNothing);
+    for (final label in <String>['仿真', '覆盖', '平移', '无动画']) {
+      expect(find.text(label), findsOneWidget);
+    }
+    await tester.tap(find.text('仿真'));
+    await tester.pumpAndSettle();
+    expect(
+      controller.settings.novelReader.pageTurnAnimation,
+      ReaderPageTurnAnimation.simulation,
+    );
+    expect(_switchFor(tester, '页码胶囊').onChanged, isNotNull);
   });
 
   testWidgets('小说设置只显示小说选项', (tester) async {
@@ -120,7 +133,7 @@ void main() {
     await tester.ensureVisible(find.text('翻页动画'));
     await tester.tap(find.text('翻页动画'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('平滑滑动'));
+    await tester.tap(find.text('平移'));
     await tester.pumpAndSettle();
     expect(
       controller.settings.comicReader.pageTurnAnimation,
@@ -128,7 +141,7 @@ void main() {
     );
     expect(
       controller.settings.novelReader.pageTurnAnimation,
-      ReaderPageTurnAnimation.none,
+      ReaderPageTurnAnimation.simulation,
     );
 
     await tester.ensureVisible(find.text('双页模式'));
@@ -150,17 +163,19 @@ void main() {
     expect(_switchFor(tester, '错位双页').onChanged, isNull);
   });
 
-  testWidgets('漫画滚动模式下保留并禁用分页设置', (tester) async {
+  testWidgets('漫画上下模式下保留并禁用分页设置', (tester) async {
     await _pumpSettings(
       tester,
       const AppSettings(
-        comicReader: ReaderPreferences(viewMode: ReaderViewMode.scroll),
+        comicReader: ReaderPreferences(
+          pageTurnAnimation: ReaderPageTurnAnimation.vertical,
+        ),
       ),
       type: BookType.comic,
     );
 
     expect(_switchFor(tester, '页码胶囊').onChanged, isNull);
-    expect(_tileFor(tester, '翻页动画').enabled, isFalse);
+    expect(_tileFor(tester, '翻页动画').enabled, isTrue);
     expect(_switchFor(tester, '错位双页').onChanged, isNull);
   });
 

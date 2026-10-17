@@ -23,6 +23,7 @@ import 'widgets/reader_chapter_sheet.dart';
 import 'widgets/reader_chrome.dart';
 import 'widgets/reader_content_view.dart';
 import 'widgets/reader_footnote_sheet.dart';
+import 'widgets/reader_frame.dart';
 import 'widgets/reader_settings_sheet.dart';
 import 'widgets/reader_shell.dart';
 import 'widgets/reader_status_pills.dart';
@@ -299,19 +300,12 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
           style: _contentStyle(settings, prepared.fontFamily),
         );
 
-  /// 系统栏由外层 SafeArea 处理，这里只保留正文和页码胶囊的间距。
-  EdgeInsets _contentPadding(AppSettings settings) {
-    final reader = settings.novelReader;
-    final paged = reader.viewMode == ReaderViewMode.paged;
-    // 页底那块留白是给页码胶囊的，胶囊关掉就还给正文。
-    final pills = paged && reader.statusPillsEnabled;
-    return EdgeInsets.fromLTRB(
-      settings.readerSidePadding,
-      12,
-      settings.readerSidePadding,
-      pills ? 56 : 12,
-    );
-  }
+  EdgeInsets _contentPadding(AppSettings settings) => EdgeInsets.fromLTRB(
+    settings.readerSidePadding,
+    12,
+    settings.readerSidePadding,
+    12,
+  );
 
   void _onSettingsChanged(AppSettings? previous, AppSettings next) {
     // 排版与分页参数随 build 生效，只有繁简变更需要重新取正文。
@@ -470,6 +464,98 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
   String get _title {
     final title = _window.current?.chapter.title ?? '';
     if (title.isEmpty) return '阅读器';
+    return _displayTitle(title);
+  }
+
+  String _titleOf(int sortNum) {
+    final title = _window.at(sortNum)?.chapter.title ?? '';
+    return title.isEmpty ? '' : _displayTitle(title);
+  }
+
+  Widget _content(
+    BuildContext context, {
+    required AppSettings settings,
+    required bool paged,
+    required Color background,
+    required Color foreground,
+  }) {
+    final reader = settings.novelReader;
+    return Stack(
+      children: <Widget>[
+        Positioned.fill(
+          // 正文色走 DefaultTextStyle：亮暗切换只重画文字，不动排版参数，
+          // 也就不会整章重建再分页。
+          child: DefaultTextStyle.merge(
+            style: TextStyle(color: foreground),
+            child: ReaderContentView(
+              chapters: <ReaderChapterContent>[
+                for (final prepared in _window.chapters)
+                  _chapterContent(prepared, settings)!,
+              ],
+              sortNum: _sortNum,
+              totalChapters: _totalChapters,
+              failedChapters: _failedChapters,
+              paged: paged,
+              pageTurnAnimation: reader.pageTurnAnimation,
+              paperColor: background,
+              dualPage: reader.dualPageEnabled,
+              padding: paged
+                  ? _contentPadding(settings) + ReaderFrameInfo.bandsOf(context)
+                  : _contentPadding(settings),
+              screenBuilder: paged
+                  ? (context, info, screen) => Stack(
+                      children: <Widget>[
+                        Positioned.fill(child: screen),
+                        Positioned.fill(
+                          child: ReaderFrameInfo(
+                            title: _titleOf(info.sortNum),
+                            foregroundColor: foreground,
+                            infoVisible: !_chromeVisible,
+                            trailing:
+                                reader.statusPillsEnabled && info.pages > 0
+                                ? ReaderStatusPills(
+                                    visible: !_chromeVisible,
+                                    foregroundColor: foreground,
+                                    currentChapter: info.sortNum,
+                                    totalChapters: _totalChapters,
+                                    currentPage: info.page,
+                                    totalPages: info.pages,
+                                  )
+                                : null,
+                          ),
+                        ),
+                      ],
+                    )
+                  : null,
+              restoreLocator: _restoreLocator,
+              restoreProgression: _restoreProgression,
+              restoreToken: _restoreToken,
+              onPosition: _onPositionReported,
+              onTapCenter: () =>
+                  setState(() => _chromeVisible = !_chromeVisible),
+              onChapterChanged: _onChapterChanged,
+              onBoundary: (next) => unawaited(_openAdjacent(next)),
+              onNeedChapter: (next, from) =>
+                  unawaited(_needChapter(next, from)),
+              onFootnote: _onFootnote,
+              onReady: () {
+                if (mounted && !_contentReady) {
+                  setState(() => _contentReady = true);
+                }
+              },
+              controller: _contentController,
+            ),
+          ),
+        ),
+        if (!_contentReady)
+          const IgnorePointer(
+            child: Center(child: CircularProgressIndicator()),
+          ),
+      ],
+    );
+  }
+
+  String _displayTitle(String title) {
     final scopes = ref.read(appSettingsProvider).cleanChapterTitleScopes;
     return scopes.contains(CleanChapterTitleScope.readerTitle)
         ? cleanChapterTitle(title)
@@ -487,7 +573,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
       customColorValue: reader.backgroundColorValue,
       oledBlack: settings.oledBlack,
     );
-    final paged = reader.viewMode == ReaderViewMode.paged;
+    final paged = reader.paged;
     final current = _window.current;
     // 工具栏可见时 _onPositionReported 会重建整屏，这里读到的页码总是最新的。
     final pages = _pages.value;
@@ -500,84 +586,35 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
       onRetry: () => unawaited(_load()),
       body: current == null
           ? const SizedBox.shrink()
-          : SafeArea(
-              left: false,
-              right: false,
-              bottom: paged,
-              child: Stack(
+          : Builder(
+              builder: (context) => Stack(
                 children: <Widget>[
                   Positioned.fill(
-                    // 正文色走 DefaultTextStyle：亮暗切换只重画文字，不动排版参数，
-                    // 也就不会整章重建再分页。
-                    child: DefaultTextStyle.merge(
-                      style: TextStyle(color: foreground),
-                      child: ReaderContentView(
-                        chapters: <ReaderChapterContent>[
-                          for (final prepared in _window.chapters)
-                            _chapterContent(prepared, settings)!,
-                        ],
-                        sortNum: _sortNum,
-                        totalChapters: _totalChapters,
-                        failedChapters: _failedChapters,
+                    child: Padding(
+                      padding: paged
+                          ? EdgeInsets.zero
+                          : ReaderFrameInfo.bandsOf(context),
+                      child: _content(
+                        context,
+                        settings: settings,
                         paged: paged,
-                        pageTurnAnimation: reader.pageTurnAnimation,
-                        dualPage: reader.dualPageEnabled,
-                        padding: _contentPadding(settings),
-                        restoreLocator: _restoreLocator,
-                        restoreProgression: _restoreProgression,
-                        restoreToken: _restoreToken,
-                        onPosition: _onPositionReported,
-                        onTapCenter: () =>
-                            setState(() => _chromeVisible = !_chromeVisible),
-                        onChapterChanged: _onChapterChanged,
-                        onBoundary: (next) => unawaited(_openAdjacent(next)),
-                        onNeedChapter: (next, from) =>
-                            unawaited(_needChapter(next, from)),
-                        onFootnote: _onFootnote,
-                        onReady: () {
-                          if (mounted && !_contentReady) {
-                            setState(() => _contentReady = true);
-                          }
-                        },
-                        controller: _contentController,
+                        background: background,
+                        foreground: foreground,
                       ),
                     ),
                   ),
-                  if (!_contentReady)
-                    const IgnorePointer(
-                      child: Center(child: CircularProgressIndicator()),
-                    ),
+                  Positioned.fill(
+                    child: paged
+                        ? const SizedBox.shrink()
+                        : ReaderFrameInfo(
+                            title: _title,
+                            foregroundColor: foreground,
+                            infoVisible: !_chromeVisible,
+                          ),
+                  ),
                 ],
               ),
             ),
-      overlay: paged && _contentReady && reader.statusPillsEnabled
-          ? Positioned(
-              right: 16,
-              bottom: 16,
-              child: SafeArea(
-                top: false,
-                left: false,
-                right: false,
-                child: ValueListenableBuilder<(int, int)>(
-                  valueListenable: _pages,
-                  builder: (context, pages, _) {
-                    final (page, total) = pages;
-                    if (page <= 0 || total <= 0) {
-                      return const SizedBox.shrink();
-                    }
-                    return ReaderStatusPills(
-                      visible: !_chromeVisible,
-                      foregroundColor: foreground,
-                      currentChapter: _sortNum,
-                      totalChapters: _totalChapters,
-                      currentPage: page,
-                      totalPages: total,
-                    );
-                  },
-                ),
-              ),
-            )
-          : null,
       chrome: ReaderChrome(
         visible: _chromeVisible,
         title: _title,
@@ -609,12 +646,12 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
       ),
     );
     return ReaderImmersiveMode(
-      enabled: reader.immersiveEnabled,
+      enabled: !_chromeVisible,
       child: ReaderVolumeKeyListener(
         enabled: reader.volumeKeyPagingEnabled && !_chromeVisible,
         onPrevious: _contentController.previousPage,
         onNext: _contentController.nextPage,
-        child: shell,
+        child: ReaderStableInsets(child: shell),
       ),
     );
   }

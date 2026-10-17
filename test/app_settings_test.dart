@@ -59,7 +59,7 @@ void main() {
   test('小说和漫画通用阅读设置独立持久化', () {
     final settings = const AppSettings().copyWith(
       novelReader: const ReaderPreferences(
-        viewMode: ReaderViewMode.scroll,
+        pageTurnAnimation: ReaderPageTurnAnimation.vertical,
         theme: ReaderThemeSetting.dark,
         dualPageEnabled: false,
       ),
@@ -71,10 +71,14 @@ void main() {
     );
 
     final restored = AppSettings.decode(settings.encode());
-    expect(restored.novelReader.viewMode, ReaderViewMode.scroll);
+    expect(
+      restored.novelReader.pageTurnAnimation,
+      ReaderPageTurnAnimation.vertical,
+    );
+    expect(restored.novelReader.paged, isFalse);
     expect(restored.novelReader.theme, ReaderThemeSetting.dark);
     expect(restored.novelReader.dualPageEnabled, isFalse);
-    expect(restored.comicReader.viewMode, ReaderViewMode.paged);
+    expect(restored.comicReader.paged, isTrue);
     expect(restored.comicReader.dualPageEnabled, isTrue);
     expect(restored.comicReader.dualPageOffsetEnabled, isTrue);
     expect(restored.comicReader.statusPillsEnabled, isFalse);
@@ -103,7 +107,65 @@ void main() {
       ReaderPreferences.decode(const <String, dynamic>{
         'pageTurnAnimation': 'fade',
       }).pageTurnAnimation,
+      ReaderPageTurnAnimation.simulation,
+    );
+  });
+
+  test('小说和漫画默认使用仿真翻页', () {
+    const settings = AppSettings();
+    expect(
+      settings.novelReader.pageTurnAnimation,
+      ReaderPageTurnAnimation.simulation,
+    );
+    expect(
+      settings.comicReader.pageTurnAnimation,
+      ReaderPageTurnAnimation.simulation,
+    );
+    final restored = AppSettings.decode(const <String, dynamic>{});
+    expect(
+      restored.novelReader.pageTurnAnimation,
+      ReaderPageTurnAnimation.simulation,
+    );
+    expect(
+      restored.comicReader.pageTurnAnimation,
+      ReaderPageTurnAnimation.simulation,
+    );
+  });
+
+  test('旧版阅读模式迁移到翻页动画', () {
+    ReaderPageTurnAnimation migrate(Map<String, dynamic> raw) =>
+        ReaderPreferences.decode(raw).pageTurnAnimation;
+
+    expect(
+      migrate(const <String, dynamic>{
+        'viewMode': 'scroll',
+        'pageTurnAnimation': 'slide',
+      }),
+      ReaderPageTurnAnimation.vertical,
+    );
+    expect(
+      migrate(const <String, dynamic>{
+        'viewMode': 'paged',
+        'pageTurnAnimation': 'slide',
+      }),
+      ReaderPageTurnAnimation.slide,
+    );
+    expect(
+      migrate(const <String, dynamic>{
+        'viewMode': 'paged',
+        'pageTurnAnimation': 'none',
+      }),
       ReaderPageTurnAnimation.none,
+    );
+    expect(
+      migrate(const <String, dynamic>{}),
+      ReaderPageTurnAnimation.simulation,
+    );
+    expect(
+      const ReaderPreferences(pageTurnAnimation: ReaderPageTurnAnimation.cover)
+          .encode()
+          .containsKey('viewMode'),
+      isFalse,
     );
   });
 

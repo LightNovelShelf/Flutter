@@ -9,10 +9,10 @@ import '../../../shared/widgets/html/html_source.dart';
 import '../../../shared/widgets/reader_html_block.dart';
 import '../reader_block_markup.dart';
 import '../reader_pagination.dart';
-import '../reader_page_turn.dart';
 import '../reader_position.dart';
 import 'reader_measure_box.dart';
 import 'reader_page_body.dart';
+import 'reader_page_turner.dart';
 import 'reader_tap_zone.dart';
 
 final RegExp _spacedReaderTextBlock = RegExp(
@@ -63,6 +63,18 @@ class ReaderContentPosition {
 
   final String locator;
   final double progression;
+  final int page;
+  final int pages;
+}
+
+class ReaderScreenInfo {
+  const ReaderScreenInfo({
+    required this.sortNum,
+    required this.page,
+    required this.pages,
+  });
+
+  final int sortNum;
   final int page;
   final int pages;
 }
@@ -119,6 +131,8 @@ class ReaderContentView extends StatefulWidget {
     this.failedChapters = const <int>{},
     this.controller,
     this.pageTurnAnimation = ReaderPageTurnAnimation.none,
+    this.paperColor = const Color(0xFFFFFFFF),
+    this.screenBuilder,
   });
 
   final ReaderContentController? controller;
@@ -140,8 +154,16 @@ class ReaderContentView extends StatefulWidget {
 
   final bool paged;
 
-  /// 点击或外部控制器触发翻页时使用的动画；手势拖动仍由 [PageView] 处理。
   final ReaderPageTurnAnimation pageTurnAnimation;
+
+  final Color paperColor;
+
+  final Widget Function(
+    BuildContext context,
+    ReaderScreenInfo info,
+    Widget screen,
+  )?
+  screenBuilder;
 
   /// 翻页模式下是否把一屏拆成两栏，只在大屏横屏时真的分栏。
   final bool dualPage;
@@ -271,6 +293,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       const ReaderPageStrip<_ChapterSlot>.empty();
   bool _stripDirty = false;
   bool _scrolling = false;
+  bool _reanchorPending = false;
 
   /// 已通知上层、窗口尚未平移的那一章。`jumpTo` 与惯性收尾会多次上报落定，用于去重。
   int? _notifiedChapter;
@@ -281,7 +304,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
   int _columns = 1;
 
   ScrollController? _scrollController;
-  PageController? _pageController;
+  ReaderPageTurnController? _pageController;
 
   /// 最近一次重排定下的滚动偏移，控制器未挂载时的上报用它。
   double _installedOffset = 0;
@@ -370,6 +393,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     _slots.clear();
     _strip = const ReaderPageStrip<_ChapterSlot>.empty();
     _stripDirty = false;
+    _reanchorPending = false;
     _locator = '';
     _progression = 0;
     _pageIndex = 0;
@@ -587,8 +611,12 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     final activeMeasured = identical(window.slot, active);
     setState(() {
       if (activeMeasured && active != null && active.geometry != null) {
-        _syncStrip();
-        _installControllers(_anchorOffset(active.geometry!, viewport));
+        if (_scrolling) {
+          _reanchorPending = true;
+        } else {
+          _syncStrip();
+          _installControllers(_anchorOffset(active.geometry!, viewport));
+        }
       } else {
         _refreshStrip();
       }
@@ -790,29 +818,35 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     final controller = _pageController;
     if (controller != null &&
         controller.hasClients &&
-        controller.page?.round() == target) {
+        controller.page == target) {
       return;
     }
     controller?.dispose();
-    _pageController = PageController(initialPage: target);
+    _pageController = ReaderPageTurnController(initialPage: target);
   }
 
   void _onScroll() => _report(force: false);
 
-  bool _onPageScroll(ScrollNotification notification) {
-    if (notification.depth != 0) return false;
-    if (notification is ScrollStartNotification) {
-      _scrolling = true;
-    } else if (notification is ScrollEndNotification) {
-      _scrolling = false;
-      _settle();
-    }
-    return false;
+  void _onTurnStart() => _scrolling = true;
+
+  void _onTurnEnd() {
+    _scrolling = false;
+    if (mounted) _settle();
   }
 
   /// 翻页落定，补上挂起的翻页条改动，并把位置同步给上层。
   void _settle() {
-    if (_stripDirty) setState(_refreshStrip);
+    final active = _active;
+    if (_reanchorPending && active?.geometry != null) {
+      setState(() {
+        _reanchorPending = false;
+        _stripDirty = false;
+        _syncStrip();
+        _installControllers(_anchorOffset(active!.geometry!, _viewport));
+      });
+    } else if (_stripDirty) {
+      setState(_refreshStrip);
+    }
     _syncPosition();
   }
 
@@ -958,14 +992,19 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     }
     final controller = _pageController;
     final target = _screenIndex() + (next ? 1 : -1);
-    if (controller == null || target < 0 || target >= _screenCount) {
+    final outside = target < 0 || target >= _screenCount;
+    if (outside && (next ? _hasChapterAfter : _hasChapterBefore)) {
+      _scheduleRequest();
+      return;
+    }
+    if (controller == null || outside) {
       // 条外没有栏可翻了：滚动模式交给上层换章，翻页模式此处已是全书两端。
       widget.onBoundary(next);
       return;
     }
     _applyPage(target);
     if (controller.hasClients) {
-      turnReaderPage(controller, target, widget.pageTurnAnimation);
+      controller.animateToPage(target);
       return;
     }
     // 重排刚换过控制器、PageView 还没挂载时调 `jumpToPage` 会触发 assert，
@@ -1145,32 +1184,68 @@ class _ReaderContentViewState extends State<ReaderContentView> {
     );
   }
 
-  Widget _pagedContent(Size viewport) =>
-      NotificationListener<ScrollNotification>(
-        onNotification: _onPageScroll,
-        child: PageView.builder(
-          key: ObjectKey(_pageController),
-          controller: _pageController,
-          itemCount: _screenCount,
-          onPageChanged: _applyPage,
-          itemBuilder: (context, screen) {
-            if (_columns <= 1) return _pageColumn(screen, viewport, 0, 1);
-            return Row(
-              children: <Widget>[
-                for (var column = 0; column < _columns; column++)
-                  Expanded(
-                    child: _pageColumn(
-                      screen * _columns + column,
-                      viewport,
-                      column,
-                      _columns,
-                    ),
+  Widget _pagedContent(Size viewport) {
+    final controller = _pageController;
+    if (controller == null) return const SizedBox.shrink();
+    return ReaderPageTurner(
+      key: ObjectKey(controller),
+      controller: controller,
+      itemCount: _screenCount,
+      animation: widget.pageTurnAnimation,
+      isSpread: _columns > 1 ? (_) => true : null,
+      paperColor: widget.paperColor,
+      onPageChanged: _applyPage,
+      onTurnStart: _onTurnStart,
+      onTurnEnd: _onTurnEnd,
+      onBoundary: _turn,
+      itemBuilder: (context, screen) {
+        final Widget content;
+        if (_columns <= 1) {
+          content = _pageColumn(screen, viewport, 0, 1);
+        } else {
+          content = Row(
+            children: <Widget>[
+              for (var column = 0; column < _columns; column++)
+                Expanded(
+                  child: _pageColumn(
+                    screen * _columns + column,
+                    viewport,
+                    column,
+                    _columns,
                   ),
-              ],
-            );
-          },
-        ),
+                ),
+            ],
+          );
+        }
+        final decorate = widget.screenBuilder;
+        return decorate == null
+            ? content
+            : decorate(context, _screenInfo(screen), content);
+      },
+    );
+  }
+
+  ReaderScreenInfo _screenInfo(int screen) {
+    final first = screen * _columns - _leadingPending;
+    for (var column = first; column < first + _columns; column++) {
+      final located = column < 0 ? null : _strip.locate(column);
+      if (located == null) continue;
+      final (slot, page) = located;
+      return ReaderScreenInfo(
+        sortNum: slot.sortNum,
+        page: page + 1,
+        pages: slot.columnCount,
       );
+    }
+    final edge = first < 0 ? _strip.chapters.firstOrNull : null;
+    return ReaderScreenInfo(
+      sortNum: edge == null
+          ? (_strip.chapters.lastOrNull?.sortNum ?? widget.sortNum) + 1
+          : edge.sortNum - 1,
+      page: 0,
+      pages: 0,
+    );
+  }
 
   /// 整条上第 [globalColumn] 栏：落在翻页条上的摆正文，落在条外的摆加载栏。
   Widget _pageColumn(int globalColumn, Size viewport, int column, int columns) {

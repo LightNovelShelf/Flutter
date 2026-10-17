@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +11,7 @@ import 'package:lightnovel/data/api/api_client.dart';
 import 'package:lightnovel/data/providers.dart';
 import 'package:lightnovel/data/repositories/read_position_cache.dart';
 import 'package:lightnovel/data/settings/app_settings.dart';
+import 'package:lightnovel/features/reader/widgets/reader_page_turner.dart';
 import 'package:lightnovel/features/reader/novel_reader_screen.dart';
 import 'package:lightnovel/features/reader/widgets/reader_content_view.dart';
 import 'package:lightnovel/features/reader/widgets/reader_page_body.dart';
@@ -134,7 +136,7 @@ class _MemoryStore implements KeyValueStore {
 
 /// 翻页条内渲染的正文，排除测量层中的同名文本。
 Finder _pageText(String text) => find.descendant(
-  of: find.byType(PageView),
+  of: find.byType(ReaderPageTurner),
   matching: find.byWidgetPredicate(
     (widget) => widget is RichText && widget.text.toPlainText().contains(text),
   ),
@@ -174,6 +176,7 @@ Future<_FakeApi> _open(
   Map<int, int> columnsByChapter = const <int, int>{},
   Duration latency = Duration.zero,
   bool scroll = false,
+  ReaderPageTurnAnimation pageTurnAnimation = ReaderPageTurnAnimation.none,
   bool longSingleBlock = false,
   Size? size,
   FakeViewPadding padding = const FakeViewPadding(),
@@ -196,7 +199,9 @@ Future<_FakeApi> _open(
       readerPrerenderAdjacent: prerender,
       novelReader: ReaderPreferences(
         statusPillsEnabled: statusPills,
-        viewMode: scroll ? ReaderViewMode.scroll : ReaderViewMode.paged,
+        pageTurnAnimation: scroll
+            ? ReaderPageTurnAnimation.vertical
+            : pageTurnAnimation,
         dualPageEnabled: dualPage,
       ),
     ),
@@ -509,31 +514,57 @@ void main() {
     expect(seen.last, startsWith('reader-page-2-'));
   });
 
-  testWidgets('关掉页码胶囊后页底留白还给正文', (tester) async {
-    Future<(double padding, double height)> layout({
-      required bool statusPills,
-    }) async {
+  testWidgets('关掉页码胶囊只藏胶囊，电量时间照常显示，正文版面不变', (tester) async {
+    Future<double> layout({required bool statusPills}) async {
       await _open(tester, statusPills: statusPills);
-      final view = tester.widget<ReaderContentView>(
-        find.byType(ReaderContentView),
+      expect(
+        find.byType(ReaderStatusPills),
+        statusPills ? findsOneWidget : findsNothing,
       );
-      final page = tester.getRect(find.byKey(readerPageBodyKey(2, 0)));
+      expect(
+        find.byKey(const ValueKey<String>('reader-clock')),
+        findsOneWidget,
+      );
+      final height = tester.getRect(find.byKey(readerPageBodyKey(2, 0))).height;
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
-      return (view.padding.bottom, page.height);
+      return height;
     }
 
-    final (pillPadding, pillHeight) = await layout(statusPills: true);
-    final (barePadding, bareHeight) = await layout(statusPills: false);
-
-    // 页底给胶囊留的 56 点缩回普通间距 12 点。
-    expect(pillPadding, 56);
-    expect(barePadding, 12);
-    // 多出来的高度落到正文上，页尾能多排一行。
-    expect(bareHeight, greaterThan(pillHeight));
+    final withPills = await layout(statusPills: true);
+    final withoutPills = await layout(statusPills: false);
+    expect(withoutPills, withPills);
   });
 
-  testWidgets('翻页模式用 SafeArea 避开系统栏并保留胶囊空间', (tester) async {
+  testWidgets('全屏阅读时左上角是章节名，左下角是时间，打开菜单时淡出', (tester) async {
+    await _open(tester, size: const Size(800, 800));
+
+    final title = find.byKey(const ValueKey<String>('reader-frame-title'));
+    final clock = find.byKey(const ValueKey<String>('reader-clock'));
+    expect(tester.widget<Text>(title).data, isNotEmpty);
+    expect(tester.getTopLeft(title).dx, 16);
+    expect(tester.getTopLeft(title).dy, greaterThanOrEqualTo(12));
+    expect(tester.getBottomLeft(title).dy, lessThanOrEqualTo(36));
+    expect(tester.getTopLeft(clock).dx, 16);
+    expect(tester.getBottomLeft(clock).dy, greaterThan(740));
+
+    double opacityOf(Finder finder) => tester
+        .widget<AnimatedOpacity>(
+          find
+              .ancestor(of: finder, matching: find.byType(AnimatedOpacity))
+              .first,
+        )
+        .opacity;
+    expect(opacityOf(title), 1);
+    expect(opacityOf(clock), 1);
+
+    await tester.tapAt(const Offset(400, 400));
+    await tester.pumpAndSettle();
+    expect(opacityOf(title), 0);
+    expect(opacityOf(clock), 0);
+  });
+
+  testWidgets('翻页模式避开系统栏，页底一行留给电量时间与胶囊', (tester) async {
     await _open(
       tester,
       size: const Size(800, 800),
@@ -545,14 +576,51 @@ void main() {
       find.byType(ReaderContentView),
     );
     final pills = tester.getRect(find.byType(ReaderStatusPills));
-    expect(content.top, 40);
-    expect(content.bottom, 770);
-    expect(view.padding.top, 12);
-    expect(view.padding.bottom, 56);
-    expect(pills.bottom, 754);
+    final clock = tester.getRect(
+      find.byKey(const ValueKey<String>('reader-clock')),
+    );
+    expect(content.top, 0);
+    expect(content.bottom, 800);
+    expect(view.padding.top, 86);
+    expect(view.padding.bottom, 86);
+    expect(pills.bottom, 758);
+    expect(pills.right, 784);
+    expect(clock.left, 16);
+    expect(clock.top, greaterThan(800 - 86));
   });
 
-  testWidgets('滚动模式用 SafeArea 只避开状态栏并隐藏胶囊', (tester) async {
+  testWidgets('页眉页脚画在每一页上，翻页时跟着整页一起动', (tester) async {
+    await _open(
+      tester,
+      size: const Size(800, 800),
+      pageTurnAnimation: ReaderPageTurnAnimation.slide,
+    );
+    final turner = find.byType(ReaderPageTurner);
+    final title = find.byKey(const ValueKey<String>('reader-frame-title'));
+    final clock = find.byKey(const ValueKey<String>('reader-clock'));
+    expect(find.descendant(of: turner, matching: title), findsOneWidget);
+    expect(find.descendant(of: turner, matching: clock), findsOneWidget);
+
+    final gesture = await tester.startGesture(const Offset(600, 400));
+    await gesture.moveBy(const Offset(-40, 0));
+    await gesture.moveBy(const Offset(-200, 0));
+    await tester.pump();
+
+    final titles = tester.widgetList(title).length;
+    expect(titles, 2);
+    final lefts = <double>[
+      for (final element in title.evaluate())
+        (element.renderObject! as RenderBox).localToGlobal(Offset.zero).dx,
+    ]..sort();
+    expect(lefts.first, lessThan(0));
+    expect(lefts.last, greaterThan(400));
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(tester.widgetList(title).length, 1);
+  });
+
+  testWidgets('滚动模式同样留出页眉页脚，只是不摆胶囊', (tester) async {
     await _open(
       tester,
       scroll: true,
@@ -564,10 +632,36 @@ void main() {
     final view = tester.widget<ReaderContentView>(
       find.byType(ReaderContentView),
     );
-    expect(content.top, 40);
-    expect(content.bottom, 800);
+    expect(content.top, 74);
+    expect(content.bottom, 726);
     expect(view.padding.top, 12);
     expect(view.padding.bottom, 12);
     expect(find.byType(ReaderStatusPills), findsNothing);
+    expect(find.byKey(const ValueKey<String>('reader-clock')), findsOneWidget);
+  });
+
+  testWidgets('全屏阅读时藏起系统栏，打开阅读菜单时还回来', (tester) async {
+    final modes = <String>[];
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'SystemChrome.setEnabledSystemUIMode') {
+        modes.add(call.arguments as String);
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    await _open(tester, size: const Size(800, 800));
+    expect(modes.last, 'SystemUiMode.immersiveSticky');
+
+    await tester.tapAt(const Offset(400, 400));
+    await tester.pumpAndSettle();
+    expect(modes.last, 'SystemUiMode.edgeToEdge');
+
+    await tester.tapAt(const Offset(400, 400));
+    await tester.pumpAndSettle();
+    expect(modes.last, 'SystemUiMode.immersiveSticky');
   });
 }
