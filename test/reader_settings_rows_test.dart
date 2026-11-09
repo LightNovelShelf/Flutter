@@ -97,7 +97,38 @@ void main() {
     expect(find.text('章节标题'), findsOneWidget);
     expect(find.text('预渲染前后章节'), findsOneWidget);
     expect(find.text('翻页动画'), findsOneWidget);
+    expect(find.text('图像显示'), findsOneWidget);
     expect(find.text('漫画分页方向'), findsNothing);
+  });
+
+  testWidgets('图像显示可切到点击显示与不显示', (tester) async {
+    final controller = await _pumpSettings(tester, const AppSettings());
+
+    Future<void> pick(String label) async {
+      await tester.ensureVisible(find.text('图像显示'));
+      await tester.tap(find.text('图像显示'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(RadioListTile<ReaderImageMode>, label),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await pick('不显示');
+    expect(controller.settings.readerImageMode, ReaderImageMode.hide);
+    expect(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('图像显示'),
+          matching: find.byType(ListTile),
+        ),
+        matching: find.text('不显示'),
+      ),
+      findsOneWidget,
+    );
+
+    await pick('点击显示');
+    expect(controller.settings.readerImageMode, ReaderImageMode.tapToShow);
   });
 
   testWidgets('漫画设置只显示漫画选项并独立更新', (tester) async {
@@ -114,6 +145,7 @@ void main() {
     expect(find.text('字号'), findsNothing);
     expect(find.text('章节标题'), findsNothing);
     expect(find.text('预渲染前后章节'), findsNothing);
+    expect(find.text('图像显示'), findsNothing);
     expect(_switchFor(tester, '错位双页').onChanged, isNull);
     expect(find.text('翻页动画'), findsOneWidget);
 

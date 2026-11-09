@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
+import 'package:lightnovel/data/settings/app_settings.dart';
 import 'package:lightnovel/shared/widgets/html/html_source.dart';
 import 'package:lightnovel/shared/widgets/html/reader_content_style.dart';
 import 'package:lightnovel/shared/widgets/blurhash_image.dart';
 import 'package:lightnovel/shared/widgets/book_image.dart';
 import 'package:lightnovel/shared/widgets/image_preview.dart';
 import 'package:lightnovel/shared/widgets/html_content.dart';
+import 'package:lightnovel/shared/widgets/reader_html_block.dart';
 import 'package:lightnovel/features/reader/widgets/reader_content_view.dart';
 import 'package:lightnovel/features/reader/widgets/reader_measure_box.dart';
 import 'package:lightnovel/features/reader/widgets/reader_page_body.dart';
@@ -57,6 +59,20 @@ ReaderChapterContent _paged(int sortNum, int columns) => ReaderChapterContent(
   blocks: _pageBlocks(columns),
   style: _style,
 );
+
+/// 正文里每隔 [every] 段夹一张整页图像，用来比图像显示与不显示时的分页。
+List<ReaderBlock> _illustratedBlocks({int count = 44, int every = 8}) =>
+    parseRenderableHtmlBlocks(
+      <String>[
+        for (var index = 0; index < count; index++) ...<String>[
+          '<p>第$index段 这是一段用来测试原生分页与定位的正文，'
+              '长度足够触发换行，好让每一页里都落进若干行。</p>',
+          if (index % every == every - 1)
+            '<div><img src="https://img.example/i$index.webp?size=1000x700"/>'
+                '</div>',
+        ],
+      ].join(),
+    );
 
 class _Harness {
   _Harness({
@@ -109,6 +125,9 @@ class _Harness {
   final ReaderContentController controller = ReaderContentController();
   final Set<int> failedChapters = <int>{};
 
+  /// 模拟阅读器挂在正文之上的“点击显示”记录，null 表示不挂。
+  ReaderImageReveals? reveals;
+
   final List<ReaderContentPosition> positions = <ReaderContentPosition>[];
   final List<bool> boundaries = <bool>[];
   final List<int> needed = <int>[];
@@ -144,33 +163,40 @@ class _Harness {
     if (serve != null) join(serve(target));
   }
 
-  Widget build() => MaterialApp(
-    home: Scaffold(
-      body: DefaultTextStyle.merge(
-        style: TextStyle(color: textColor),
-        child: ReaderContentView(
-          chapters: chapters,
-          sortNum: sortNum,
-          totalChapters: totalChapters,
-          failedChapters: failedChapters,
-          paged: paged,
-          dualPage: dualPage,
-          padding: padding,
-          restoreLocator: restoreLocator,
-          restoreProgression: 0,
-          restoreToken: restoreToken,
-          onPosition: positions.add,
-          onTapCenter: () => centerTaps++,
-          onChapterChanged: chapterChanges.add,
-          onBoundary: boundaries.add,
-          onNeedChapter: _onNeedChapter,
-          onFootnote: (_, _) {},
-          onReady: () => ready++,
-          controller: controller,
+  Widget build() {
+    Widget content = ReaderContentView(
+      chapters: chapters,
+      sortNum: sortNum,
+      totalChapters: totalChapters,
+      failedChapters: failedChapters,
+      paged: paged,
+      dualPage: dualPage,
+      padding: padding,
+      restoreLocator: restoreLocator,
+      restoreProgression: 0,
+      restoreToken: restoreToken,
+      onPosition: positions.add,
+      onTapCenter: () => centerTaps++,
+      onChapterChanged: chapterChanges.add,
+      onBoundary: boundaries.add,
+      onNeedChapter: _onNeedChapter,
+      onFootnote: (_, _) {},
+      onReady: () => ready++,
+      controller: controller,
+    );
+    final reveals = this.reveals;
+    if (reveals != null) {
+      content = ReaderImageRevealScope(reveals: reveals, child: content);
+    }
+    return MaterialApp(
+      home: Scaffold(
+        body: DefaultTextStyle.merge(
+          style: TextStyle(color: textColor),
+          child: content,
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 Future<_Harness> _pump(
@@ -240,6 +266,18 @@ Finder _pageText(String text) => find.descendant(
     head = (int.parse(parts[2]), int.parse(parts[3]));
   }
   return head;
+}
+
+/// 屏首那一栏的正文区里有没有摆出 [text]；邻屏的、被页底裁掉的都不算。
+bool _onScreenPage(WidgetTester tester, String text) {
+  final (sortNum, page) = _headColumn(tester)!;
+  final body = tester.getRect(find.byKey(readerPageBodyKey(sortNum, page)));
+  return _pageText(text).evaluate().any((element) {
+    final box = element.renderObject! as RenderBox;
+    return (box.localToGlobal(Offset.zero) & box.size).overlaps(
+      body.deflate(1),
+    );
+  });
 }
 
 /// 当前屏从左到右每一栏上摆着什么，见 `support/reader_screen.dart`。
@@ -1058,7 +1096,7 @@ void main() {
     expect(harness.last.sortNum, 1);
   });
 
-  testWidgets('整页插图缩进一页，不再被分页切成两半', (tester) async {
+  testWidgets('整页图像缩进一页，不再被分页切成两半', (tester) async {
     final harness = _Harness(
       blocks: parseRenderableHtmlBlocks(
         '<div class="illus duokan-image-single">'
@@ -1070,7 +1108,7 @@ void main() {
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
 
-    // 插图独占一页，正文另起一页：中间不再夹着只剩一条图的碎片页。
+    // 图像独占一页，正文另起一页：中间不再夹着只剩一条图的碎片页。
     expect(harness.last.pages, 2);
 
     final page = tester.getRect(find.byKey(readerPageBodyKey(2, 0)));
@@ -1083,7 +1121,7 @@ void main() {
     expect(image.center.dx, closeTo(page.center.dx, 0.5));
   });
 
-  testWidgets('单张超长插图缩进一页，不产生空白碎片页', (tester) async {
+  testWidgets('单张超长图像缩进一页，不产生空白碎片页', (tester) async {
     final harness = _Harness(
       blocks: parseRenderableHtmlBlocks(
         '<div class="illus">'
@@ -1169,7 +1207,7 @@ void main() {
     expect(harness.last.pages, 1);
     expect(harness.last.page, 1);
 
-    // 左栏是插图所在的本章唯一一栏，右栏是下一章的第一栏。
+    // 左栏是图像所在的本章唯一一栏，右栏是下一章的第一栏。
     final left = find.byKey(readerPageBodyKey(2, 0));
     final right = find.byKey(readerPageBodyKey(3, 0));
     expect(left, findsOneWidget);
@@ -1573,5 +1611,303 @@ void main() {
     expect(harness.last.page, 1);
     expect(harness.last.locator, previous.blocks.first.locator);
     expect(find.byKey(readerPageBodyKey(1, 0)), findsOneWidget);
+  });
+
+  const hiddenImages = ReaderContentStyle(
+    fontSize: 18,
+    lineHeight: 1.6,
+    firstLineIndent: false,
+    justify: false,
+    imageMode: ReaderImageMode.hide,
+  );
+  const maskedImages = ReaderContentStyle(
+    fontSize: 18,
+    lineHeight: 1.6,
+    firstLineIndent: false,
+    justify: false,
+    imageMode: ReaderImageMode.tapToShow,
+  );
+
+  testWidgets('不显示：图像不占位，正文接着排，locator 仍落在正文块上', (tester) async {
+    final blocks = parseRenderableHtmlBlocks(
+      '<div class="illus"><img src="https://img.example/a.webp?size=1000x700"/>'
+      '</div><p class="illus"><img src="https://img.example/b.webp?size=40x60">'
+      '</p><p>图片后的正文</p>',
+    );
+    final harness = _Harness(blocks: blocks, paged: true, style: hiddenImages);
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BookImage), findsNothing);
+    expect(harness.last.pages, 1);
+    // 两张图像都不占高度，正文顶到页首；块列表与直接显示时一致，保存的进度换模式后照样对得上。
+    final page = tester.getRect(find.byKey(readerPageBodyKey(2, 0)));
+    expect(tester.getRect(_pageText('图片后的正文')).top, closeTo(page.top, 0.5));
+    expect(harness.last.locator, blocks.last.locator);
+  });
+
+  testWidgets('不显示：只有图像的章摆一句提示，点右侧照常翻进下一章', (tester) async {
+    final harness = _Harness(
+      blocks: _pageBlocks(3),
+      paged: true,
+      style: hiddenImages,
+      next: _chapter(3),
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    expect(harness.last.pages, 1);
+    expect(find.byType(BookImage), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byKey(readerPageBodyKey(2, 0)),
+        matching: find.text('本章只有图像，已设为不显示'),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tapAt(const Offset(700, 300));
+    await tester.pumpAndSettle();
+    expect(harness.chapterChanges, <int>[3]);
+    expect(harness.last.sortNum, 3);
+  });
+
+  testWidgets('不显示：滚动阅读空章也摆提示，再往下翻交给上层翻章', (tester) async {
+    final harness = _Harness(
+      blocks: _pageBlocks(2),
+      paged: false,
+      style: hiddenImages,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    expect(find.text('本章只有图像，已设为不显示'), findsOneWidget);
+    harness.controller.nextPage();
+    await tester.pumpAndSettle();
+    expect(harness.boundaries, <bool>[true]);
+  });
+
+  testWidgets('有内容的章不摆空章提示', (tester) async {
+    final harness = _Harness(
+      blocks: parseRenderableHtmlBlocks(
+        '<div class="illus"><img src="https://img.example/a.webp?size=40x60"/>'
+        '</div><p>正文</p>',
+      ),
+      paged: true,
+      style: hiddenImages,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    expect(find.text('本章只有图像，已设为不显示'), findsNothing);
+    expect(_pageText('正文'), findsOneWidget);
+  });
+
+  testWidgets('不显示：没有图像的空章不摆提示', (tester) async {
+    final harness = _Harness(
+      blocks: parseRenderableHtmlBlocks('<p></p><p></p>'),
+      paged: true,
+      style: hiddenImages,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    // 排不出内容不是图像没显示造成的，跟直接显示时一样留白。
+    expect(harness.ready, 1);
+    expect(find.byKey(readerPageBodyKey(2, 0)), findsOneWidget);
+    expect(find.text('本章只有图像，已设为不显示'), findsNothing);
+  });
+
+  /// 给当前章换一套排版参数，正文块不动：阅读中改一项阅读设置就是这样。
+  Future<void> restyle(
+    WidgetTester tester,
+    _Harness harness,
+    ReaderContentStyle style,
+  ) {
+    harness.chapter = ReaderChapterContent(
+      sortNum: harness.sortNum,
+      blocks: harness.blocks,
+      style: style,
+    );
+    return tester.pumpWidget(harness.build());
+  }
+
+  for (final paged in <bool>[true, false]) {
+    testWidgets('不显示：只有图像的章换回直接显示，提示摆到图像排好为止，'
+        '从第一张开始（${paged ? '翻页' : '滚动'}）', (tester) async {
+      final harness = _Harness(
+        blocks: _pageBlocks(60),
+        paged: paged,
+        style: hiddenImages,
+      );
+      await tester.pumpWidget(harness.build());
+      await tester.pumpAndSettle();
+      expect(find.text('本章只有图像，已设为不显示'), findsOneWidget);
+      // 整章没有高度，进度记在章首，不是最后一张图像上。
+      expect(harness.last.locator, harness.blocks.first.locator);
+
+      await restyle(tester, harness, _style);
+      // 整章重测要好几帧，这期间屏上还是上一批，提示得接着摆，不能先空一屏。
+      var frames = 0;
+      while (find.byType(BookImage).evaluate().isEmpty && frames < 200) {
+        expect(
+          find.text('本章只有图像，已设为不显示'),
+          findsOneWidget,
+          reason: '第 $frames 帧',
+        );
+        await tester.pump(const Duration(milliseconds: 16));
+        frames++;
+      }
+      expect(frames, greaterThan(1));
+      expect(find.byType(BookImage), findsWidgets);
+      expect(find.text('本章只有图像，已设为不显示'), findsNothing);
+
+      await tester.pumpAndSettle();
+      expect(harness.last.locator, harness.blocks.first.locator);
+      if (paged) expect(harness.last.page, 1);
+    });
+  }
+
+  /// 进度所在的那一段：locator 落在图像块上时，取它后面第一段文字。
+  String anchorLabel(_Harness harness) {
+    final index = harness.blocks.indexWhere(
+      (block) => block.locator == harness.last.locator,
+    );
+    final text = harness.blocks
+        .skip(index)
+        .firstWhere((block) => block is ReaderMarkupBlock);
+    return RegExp(r'第\d+段').firstMatch(text.html)![0]!;
+  }
+
+  testWidgets('阅读中切换图像模式：重排后进度所在的那一段仍在当前页', (tester) async {
+    final harness = _Harness(blocks: _illustratedBlocks(), paged: true);
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    final shownPages = harness.last.pages;
+
+    // 读到第 4 页：页顶是一张整页图像，进度记在图像块上。
+    for (var turn = 0; turn < 3; turn++) {
+      await tester.tapAt(const Offset(700, 300));
+      await tester.pumpAndSettle();
+    }
+    final shown = harness.last;
+    expect(shown.page, 4);
+    expect(
+      harness.blocks.firstWhere((block) => block.locator == shown.locator),
+      isA<ReaderImageBlock>(),
+    );
+    var anchor = anchorLabel(harness);
+
+    // 点击显示与直接显示几何一致：页码、进度原样不动。
+    await restyle(tester, harness, maskedImages);
+    await tester.pumpAndSettle();
+    expect(harness.last.page, shown.page);
+    expect(harness.last.pages, shownPages);
+    expect(harness.last.locator, shown.locator);
+
+    // 不显示：图像不占位，页数变少，那张图像后面的一段还在屏上。
+    await restyle(tester, harness, hiddenImages);
+    await tester.pumpAndSettle();
+    expect(find.byType(BookImage), findsNothing);
+    expect(harness.last.pages, lessThan(shownPages));
+    expect(_onScreenPage(tester, anchor), isTrue);
+
+    // 接着往后读两页再换回直接显示：同样留在读到的地方。
+    for (var turn = 0; turn < 2; turn++) {
+      await tester.tapAt(const Offset(700, 300));
+      await tester.pumpAndSettle();
+    }
+    anchor = anchorLabel(harness);
+    await restyle(tester, harness, _style);
+    await tester.pumpAndSettle();
+    expect(harness.last.pages, shownPages);
+    expect(harness.last.page, greaterThan(shown.page));
+    expect(_onScreenPage(tester, anchor), isTrue);
+  });
+
+  testWidgets('点击显示：遮罩与图像同尺寸，分页与直接显示时一致', (tester) async {
+    Size firstBlock() => tester.getSize(
+      find
+          .descendant(
+            of: find.byKey(readerPageBodyKey(2, 0)),
+            matching: find.byType(ReaderBlockBox),
+          )
+          .first,
+    );
+    final shown = _Harness(blocks: _pageBlocks(3), paged: true);
+    await tester.pumpWidget(shown.build());
+    await tester.pumpAndSettle();
+    final shownBlock = firstBlock();
+    expect(find.byType(BookImage), findsWidgets);
+
+    final masked = _Harness(
+      blocks: _pageBlocks(3),
+      paged: true,
+      style: maskedImages,
+    );
+    await tester.pumpWidget(masked.build());
+    await tester.pumpAndSettle();
+
+    expect(masked.last.pages, shown.last.pages);
+    expect(firstBlock(), shownBlock);
+    expect(find.byType(BookImage), findsNothing);
+    expect(find.text('显示图像').hitTestable(), findsOneWidget);
+  });
+
+  testWidgets('点击显示：遮罩不接两侧的点击，整页图像照样翻得过去', (tester) async {
+    final harness = _Harness(
+      blocks: _pageBlocks(3),
+      paged: true,
+      style: maskedImages,
+    );
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+
+    // 整页图像铺满一栏，这一下落在遮罩上，但不在按钮上。
+    await tester.tapAt(const Offset(700, 300));
+    await tester.pumpAndSettle();
+    expect(harness.last.page, 2);
+    expect(find.byType(BookImage), findsNothing);
+
+    await tester.tapAt(const Offset(400, 100));
+    await tester.pumpAndSettle();
+    expect(harness.centerTaps, 1);
+    expect(find.byType(BookImage), findsNothing);
+  });
+
+  testWidgets('点击显示：点开后原位换成图像，不重排；翻走再翻回来仍是点开的', (tester) async {
+    final reveals = ReaderImageReveals();
+    addTearDown(reveals.dispose);
+    final harness = _Harness(
+      blocks: _pageBlocks(3),
+      paged: true,
+      style: maskedImages,
+    )..reveals = reveals;
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    final reports = harness.positions.length;
+
+    await tester.tap(find.text('显示图像').hitTestable());
+    await tester.pumpAndSettle();
+    Finder imageOn(int page) => find.descendant(
+      of: find.byKey(readerPageBodyKey(2, page)),
+      matching: find.byType(BookImage),
+    );
+    expect(imageOn(0), findsOneWidget);
+    expect(harness.last.page, 1);
+    expect(harness.positions.length, reports);
+
+    for (var turn = 0; turn < 2; turn++) {
+      await tester.tapAt(const Offset(700, 300));
+      await tester.pumpAndSettle();
+    }
+    expect(harness.last.page, 3);
+    expect(imageOn(2), findsNothing);
+    for (var turn = 0; turn < 2; turn++) {
+      await tester.tapAt(const Offset(100, 300));
+      await tester.pumpAndSettle();
+    }
+    expect(harness.last.page, 1);
+    expect(imageOn(0), findsOneWidget);
   });
 }

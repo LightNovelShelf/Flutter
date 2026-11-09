@@ -90,7 +90,7 @@ void main() {
       );
     });
 
-    test('超高原子（整页插图）无可断处时硬切', () {
+    test('超高原子（整页图像）无可断处时硬切', () {
       expect(
         paginateReaderContent(
           contentHeight: 250,
@@ -210,6 +210,19 @@ void main() {
         0,
       );
     });
+
+    test('整章没有高度时回到首块，不退到末块', () {
+      // “不显示”模式下只有图像的章：每一块都不占位。
+      const flat = <double>[0, 0, 0];
+      expect(
+        readerBlockIndexAtOffset(
+          blockTops: flat,
+          blockBottoms: flat,
+          offset: 0,
+        ),
+        0,
+      );
+    });
   });
 
   group('进度块定位', () {
@@ -245,6 +258,23 @@ void main() {
     test('本页放不下整块时仍取跨页的那个块', () {
       expect(locate(100, paged: true, pageHeight: 20), 1);
       expect(locate(500, paged: true), 2);
+    });
+
+    test('整章没有高度时进度记在章首', () {
+      const flat = <double>[0, 0, 0];
+      for (final paged in <bool>[true, false]) {
+        expect(
+          readerLocatorBlockIndex(
+            blockTops: flat,
+            blockBottoms: flat,
+            offset: 0,
+            paged: paged,
+            pageHeight: 100,
+          ),
+          0,
+          reason: 'paged=$paged',
+        );
+      }
     });
   });
 

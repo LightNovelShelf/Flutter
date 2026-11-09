@@ -13,6 +13,7 @@ import '../../data/providers.dart';
 import '../../data/settings/app_settings.dart';
 import '../../shared/format.dart';
 import '../../shared/widgets/html/reader_content_style.dart';
+import '../../shared/widgets/reader_html_block.dart';
 import 'reader_chapter_prerenderer.dart';
 import 'reader_chapter_window.dart';
 import 'reader_open_position.dart';
@@ -63,6 +64,9 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
   late final ReaderChapterPrerenderer _prerenderer;
   final ReaderContentController _contentController = ReaderContentController();
 
+  /// “点击显示”模式下这次阅读点开过的图像，退出阅读器才忘掉。
+  final ReaderImageReveals _imageReveals = ReaderImageReveals();
+
   /// 当前章号；加载中为待打开的章号，加载完成后与窗口当前章一致。
   late int _sortNum;
   late ReaderOpenPosition _openPosition;
@@ -111,6 +115,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
   @override
   void dispose() {
     _pages.dispose();
+    _imageReveals.dispose();
     _prerenderer.dispose();
     unawaited(_progress.dispose());
     super.dispose();
@@ -286,6 +291,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
         firstLineIndent: settings.readerFirstLineIndent,
         justify: settings.readerJustify,
         fontFamily: fontFamily,
+        imageMode: settings.readerImageMode,
       );
 
   ReaderChapterContent? _chapterContent(
@@ -389,6 +395,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
         context,
         html: note,
         fontFamily: chapter?.fontFamily,
+        imageMode: ref.read(appSettingsProvider).readerImageMode,
       ),
     );
   }
@@ -614,7 +621,7 @@ class _NovelReaderScreenState extends ConsumerState<NovelReaderScreen>
         enabled: reader.volumeKeyPagingEnabled && !_chromeVisible,
         onPrevious: _contentController.previousPage,
         onNext: _contentController.nextPage,
-        child: shell,
+        child: ReaderImageRevealScope(reveals: _imageReveals, child: shell),
       ),
     );
   }

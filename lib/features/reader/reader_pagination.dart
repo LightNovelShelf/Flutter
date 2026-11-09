@@ -19,7 +19,7 @@ const double readerMinSpreadAspect = 1.2;
 
 /// 翻页模式下正文分几栏。[width]/[height] 是去掉留白后的正文区尺寸。
 ///
-/// 正文可重排，所以下限是「一栏还剩多少行长」而不是绝对宽度：比的是单栏宽度，
+/// 正文可重排，所以下限是“一栏还剩多少行长”而不是绝对宽度：比的是单栏宽度，
 /// 且随字号走。市面上的可重排阅读器都是这么定的（Readium CSS 的 `20em`、
 /// calibre 的 `35rem`、crengine 的 `fontSize * 20`）。
 int readerColumnCount({
@@ -114,6 +114,9 @@ int readerBlockIndexAtOffset({
   required double offset,
 }) {
   if (blockBottoms.isEmpty) return 0;
+  // 整章没有高度时（“不显示”模式下只有图像的章）每一块都排在偏移之前，
+  // 下面的查找会退到末块上；这样的章位置记在章首。
+  if (blockBottoms.last <= _tolerance) return 0;
   final limit = offset + _tolerance;
   // 顶部留白与滚动回弹会给出小于首块 top 的偏移，此时取首块。
   if (blockTops.isNotEmpty && limit < blockTops.first) return 0;
@@ -154,7 +157,7 @@ int readerLocatorBlockIndex({
   while (candidate < blockTops.length && blockTops[candidate] < offset - 0.5) {
     candidate++;
   }
-  // 没有整块能放进本页（跨多页的长段、整页插图）时，仍以跨页的那个块为准。
+  // 没有整块能放进本页（跨多页的长段、整页图像）时，仍以跨页的那个块为准。
   return candidate < blockTops.length &&
           blockTops[candidate] < offset + pageHeight
       ? candidate
