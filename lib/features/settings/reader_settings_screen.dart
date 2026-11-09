@@ -228,6 +228,26 @@ class ReaderSettingsContent extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
             SettingsSection(
+              title: '图像',
+              children: <Widget>[
+                SettingsPickerRow<ReaderImageMode>(
+                  title: '图像显示',
+                  description: '正文中封面、插图等图像的显示方式',
+                  icon: Icons.hide_image_outlined,
+                  value: settings.readerImageMode,
+                  options: const <(ReaderImageMode, String)>[
+                    (ReaderImageMode.show, '直接显示'),
+                    (ReaderImageMode.tapToShow, '点击显示'),
+                    (ReaderImageMode.hide, '不显示'),
+                  ],
+                  onChanged: (value) => controller.update(
+                    (settings) => settings.copyWith(readerImageMode: value),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SettingsSection(
               title: '章节标题',
               children: <Widget>[
                 SettingsToggleRow(

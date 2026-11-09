@@ -175,6 +175,7 @@ Future<_FakeApi> _open(
   Duration latency = Duration.zero,
   bool scroll = false,
   bool longSingleBlock = false,
+  ReaderImageMode imageMode = ReaderImageMode.show,
   Size? size,
   FakeViewPadding padding = const FakeViewPadding(),
 }) async {
@@ -194,6 +195,7 @@ Future<_FakeApi> _open(
     _MemoryStore(),
     AppSettings(
       readerPrerenderAdjacent: prerender,
+      readerImageMode: imageMode,
       novelReader: ReaderPreferences(
         statusPillsEnabled: statusPills,
         viewMode: scroll ? ReaderViewMode.scroll : ReaderViewMode.paged,
@@ -507,6 +509,37 @@ void main() {
     expect(seen.sublist(1), isNotEmpty);
     expect(seen.sublist(1).toSet(), hasLength(1));
     expect(seen.last, startsWith('reader-page-2-'));
+  });
+
+  testWidgets('不显示：只有图像的章进度记在章首，阅读中换回直接显示就从第一张看起', (tester) async {
+    await _open(
+      tester,
+      columnsByChapter: const <int, int>{2: 3},
+      imageMode: ReaderImageMode.hide,
+    );
+    expect(find.text('本章只有图像，已设为不显示'), findsOneWidget);
+    // 整章没有高度，进度记在第一块上；记到最后一张图像上的话，换回显示就会落在章尾。
+    expect(ReadPositionCache.read(_bookId)?.position, '//*/div[1]');
+
+    // 在阅读设置里把图像换回直接显示。
+    ProviderScope.containerOf(tester.element(find.byType(NovelReaderScreen)))
+        .read(settingsControllerProvider)
+        .update(
+          (settings) =>
+              settings.copyWith(readerImageMode: ReaderImageMode.show),
+        );
+    await tester.pump();
+    // 这一帧图像还没排好，屏上仍是上一批：提示接着摆，不空一屏。
+    expect(find.text('本章只有图像，已设为不显示'), findsOneWidget);
+
+    await tester.pumpAndSettle();
+    expect(find.text('本章只有图像，已设为不显示'), findsNothing);
+    expect(_visiblePage(tester), 'reader-page-2-0');
+    final pills = tester.widget<ReaderStatusPills>(
+      find.byType(ReaderStatusPills),
+    );
+    expect((pills.currentPage, pills.totalPages), (1, 3));
+    expect(ReadPositionCache.read(_bookId)?.position, '//*/div[1]');
   });
 
   testWidgets('关掉页码胶囊后页底留白还给正文', (tester) async {

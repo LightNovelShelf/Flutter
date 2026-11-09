@@ -5,6 +5,16 @@ const String htmlImageBlockClass = 'html-image-block';
 const String htmlImageSpacingClass = 'html-image-spaced';
 const double htmlDefaultBlockSpacing = 8;
 
+/// 一个 `<img>` 标签。
+///
+/// 序列化出来的属性值里 `>` 不转义，标签要按引号整段跳过，否则 `alt="甲 > 乙"` 只匹配到
+/// 第一个 `>`，后半截会被当成正文留下来。引号配不上对的坏标签没法按引号跳，
+/// 退回到第一个 `>` 为止。
+final RegExp htmlImageTagPattern = RegExp(
+  r'''<img\b(?:(?:"[^"]*"|'[^']*'|[^<>'"])*>|[^>]*>)''',
+  caseSensitive: false,
+);
+
 sealed class ReaderBlock {
   const ReaderBlock({required this.locator, required this.html});
 
