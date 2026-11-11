@@ -30,6 +30,9 @@ double _readerBlockSpacing(
   return _spacedReaderTextBlock.hasMatch(block.html) ? lineSpace : 0;
 }
 
+/// “不显示”模式下只有图像的章排不出内容，栏中间摆这一句，免得以为正文没加载出来。
+const String _hiddenImagesHint = '本章只有图像，已设为不显示';
+
 /// 一章正文及其排版参数。正文字形逐章混淆，字体各章不同，所以样式随章走。
 class ReaderChapterContent {
   const ReaderChapterContent({
@@ -220,6 +223,13 @@ class _ChapterSlot {
 
   ReaderGeometry? geometry;
 
+  /// [rendered] 这一批是不是没排出内容、而这一章其实有图像（“不显示”模式下只有
+  /// 图像的章），是的话栏中间摆 [_hiddenImagesHint]。
+  ///
+  /// 与 [geometry] 同一批定下，不看当前的图像模式：换模式重测期间屏上还是上一批，
+  /// 提示得跟着它走，否则那几帧既没有提示也没有图像，整屏空白。
+  bool imagesHidden = false;
+
   /// 每一栏的页顶。翻页条按栏走，一屏摆几栏由视口决定，与章节无关。
   List<double> pageTops = const <double>[0];
 
@@ -254,6 +264,11 @@ class _ChapterSlot {
   void publish(ReaderGeometry value) {
     geometry = value;
     rendered = List<Widget>.unmodifiable(pendingContent.cast<Widget>());
+    // 没有图像的空章不算：那不是图像没显示造成的，照旧留白。
+    imagesHidden =
+        value.height < 1 &&
+        content.style.imageMode == ReaderImageMode.hide &&
+        content.blocks.any((block) => htmlImageTagPattern.hasMatch(block.html));
   }
 
   /// 有没有一批对得上的正文块与几何可以摆。
@@ -702,7 +717,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
   int get _trailingPending => _hasChapterAfter ? 1 : 0;
 
   /// 一屏摆 [_columns] 栏，栏在条上首尾相接，所以屏的划分与章节边界无关：
-  /// 只剩一栏的章节（整页插图）右边不再空着，接的是下一章的第一栏。
+  /// 只剩一栏的章节（整页图像）右边不再空着，接的是下一章的第一栏。
   int get _screenCount =>
       (_leadingPending + _strip.pages + _trailingPending + _columns - 1) ~/
       _columns;
@@ -1118,7 +1133,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
   /// 滚动模式按测好的块高逐块建，整章一次性排完会让每次重绘都录一遍全章段落。
   Widget _scrollingContent(_ChapterSlot slot) {
     final geometry = slot.geometry!;
-    return ListView.builder(
+    final list = ListView.builder(
       key: ObjectKey(_scrollController),
       controller: _scrollController,
       padding: widget.padding,
@@ -1126,6 +1141,20 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       itemExtentBuilder: (index, _) =>
           geometry.blockBottoms[index] - geometry.blockTops[index],
       itemBuilder: (context, index) => slot.rendered[index],
+    );
+    if (!slot.imagesHidden) return list;
+    // 空章也照样挂着列表：滚动控制器得有 client，点热区才翻得到相邻章。
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        list,
+        IgnorePointer(
+          child: Padding(
+            padding: widget.padding,
+            child: const ReaderEmptyChapterHint(text: _hiddenImagesHint),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1198,6 +1227,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
       index: page,
       viewport: viewport,
       padding: padding,
+      emptyHint: slot.imagesHidden ? _hiddenImagesHint : null,
     );
   }
 

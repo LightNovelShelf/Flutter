@@ -19,6 +19,17 @@ void main() {
     expect(source, isNot(contains('<img')));
     expect(source, contains('<h2>标题</h2>'));
     expect(source, contains('<p>正文</p>'));
+
+    // 属性值里带 `>` 的图片也整个去掉，不留半截标签。
+    expect(
+      createCompactHtmlSource('<p>前<img alt="甲 > 乙" src="x">后</p>'),
+      contains('<p>前后</p>'),
+    );
+    // 引号没配上对的坏标签退回到第一个 `>` 为止，图片照样去掉。
+    expect(
+      createCompactHtmlSource('<p>前<img alt="坏 src=x>后</p>'),
+      contains('<p>前后</p>'),
+    );
   });
 
   testWidgets('full HTML uses common image interaction and custom font', (
@@ -64,7 +75,7 @@ void main() {
               child: const HtmlContent(
                 html:
                     '<img src="https://img.lightnovel.life/file/post.webp'
-                    '?size=400x600&amp;placeholder=$hash" alt="插图">',
+                    '?size=400x600&amp;placeholder=$hash" alt="图像">',
               ),
             ),
           ),
@@ -81,7 +92,7 @@ void main() {
     expect(tester.getSize(find.byType(ContentImage)), const Size(200, 300));
 
     await tester.tap(find.byType(ContentImage));
-    expect(tapped?.alt, '插图');
+    expect(tapped?.alt, '图像');
     expect(tapped?.sources.single.url, image.url);
   });
 
