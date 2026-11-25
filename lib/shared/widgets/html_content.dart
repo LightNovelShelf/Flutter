@@ -12,7 +12,6 @@ final RegExp _scriptOrStyle = RegExp(
   r'<(script|style)[^>]*>[\s\S]*?<\/\1>',
   caseSensitive: false,
 );
-final RegExp _imageTag = RegExp(r'<img[^>]*>', caseSensitive: false);
 final RegExp _linkedImage = RegExp(
   r'''<a\b[^>]*\bhref\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)[^>]*>\s*(<img\b[^>]*>)\s*</a>''',
   caseSensitive: false,
@@ -20,9 +19,13 @@ final RegExp _linkedImage = RegExp(
 
 /// 紧凑内容保留块级排版，只移除折叠区域不显示的内容。
 String createCompactHtmlSource(String html) {
-  final content = html.replaceAll(_scriptOrStyle, '').replaceAll(_imageTag, '');
+  final content = removeHtmlImages(html.replaceAll(_scriptOrStyle, ''));
   return '<div class="html-compact-root">$content</div>';
 }
+
+/// 去掉全部 `<img>`，用于不显示图片的场合（紧凑内容、不显示或还没点开图像的脚注）。
+String removeHtmlImages(String html) =>
+    html.replaceAll(htmlImageTagPattern, '');
 
 typedef HtmlSourceTransformer = String Function(String html);
 

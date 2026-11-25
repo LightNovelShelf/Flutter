@@ -56,6 +56,24 @@ void main() {
     );
   });
 
+  test('正文图像默认直接显示，点击显示与不显示可持久化', () {
+    expect(
+      AppSettings.decode(const <String, dynamic>{}).readerImageMode,
+      ReaderImageMode.show,
+    );
+    for (final mode in ReaderImageMode.values) {
+      final settings = const AppSettings().copyWith(readerImageMode: mode);
+      expect(settings.encode()['readerImageMode'], mode.name);
+      expect(AppSettings.decode(settings.encode()).readerImageMode, mode);
+      expect(settings == const AppSettings(), mode == ReaderImageMode.show);
+    }
+    expect(
+      AppSettings.decode(const <String, dynamic>{'readerImageMode': 'blur'})
+          .readerImageMode,
+      ReaderImageMode.show,
+    );
+  });
+
   test('小说和漫画通用阅读设置独立持久化', () {
     final settings = const AppSettings().copyWith(
       novelReader: const ReaderPreferences(

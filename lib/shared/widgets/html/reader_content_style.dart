@@ -1,5 +1,6 @@
 import 'package:flutter/painting.dart';
 
+import '../../../data/settings/app_settings.dart';
 import 'html_source.dart';
 
 /// 正文 class/标签的排版语义由本文件维护。
@@ -14,6 +15,7 @@ class ReaderContentStyle {
     required this.justify,
     this.lineSpace = 0,
     this.fontFamily,
+    this.imageMode = ReaderImageMode.show,
   });
 
   /// 正文基准字号（逻辑像素）。
@@ -33,6 +35,9 @@ class ReaderContentStyle {
 
   /// 章节混淆字体族名，null 用系统字体。
   final String? fontFamily;
+
+  /// 图像的显示方式。“不显示”会改变块高，跟其他排版参数一样，换了要整章重排。
+  final ReaderImageMode imageMode;
 
   /// 正文色不在这里：颜色只影响绘制，掺进来会让亮暗切换等于排版参数变更，整章
   /// 重建并重新分页。颜色由外层 `DefaultTextStyle` 提供。
@@ -221,7 +226,8 @@ class ReaderContentStyle {
       other.lineSpace == lineSpace &&
       other.firstLineIndent == firstLineIndent &&
       other.justify == justify &&
-      other.fontFamily == fontFamily;
+      other.fontFamily == fontFamily &&
+      other.imageMode == imageMode;
 
   @override
   int get hashCode => Object.hash(
@@ -231,5 +237,6 @@ class ReaderContentStyle {
     firstLineIndent,
     justify,
     fontFamily,
+    imageMode,
   );
 }
