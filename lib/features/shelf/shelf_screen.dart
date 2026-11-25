@@ -13,6 +13,7 @@ import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/book_grid_slivers.dart';
 import '../../shared/widgets/check_menu_button.dart';
 import '../../shared/widgets/state_views.dart';
+import '../../shared/layout/scroll_layers.dart';
 import 'shelf_editor_controller.dart';
 import 'shelf_filter.dart';
 import 'widgets/shelf_folder_picker.dart';
@@ -428,6 +429,7 @@ class _ShelfScreenState extends ConsumerState<ShelfScreen> {
     final editorError = editor.error;
 
     return CustomScrollView(
+      scrollCacheExtent: listCacheExtent,
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: <Widget>[
         SliverPadding(

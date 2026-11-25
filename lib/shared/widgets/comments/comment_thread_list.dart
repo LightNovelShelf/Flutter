@@ -10,6 +10,7 @@ import '../skeleton.dart';
 import '../state_views.dart';
 import 'comment_compose_sheet.dart';
 import 'thread_reply_row.dart';
+import '../../layout/scroll_layers.dart';
 
 /// 扁平行：主评论后面直接跟它的回复，长列表能按行回收。
 sealed class _CommentRow {
@@ -142,16 +143,16 @@ class _CommentThreadListState extends ConsumerState<CommentThreadList> {
     return PrefetchOnScroll(
       onLoadMore: _loadMore,
       child: CustomScrollView(
+        scrollCacheExtent: listCacheExtent,
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         slivers: <Widget>[
           SliverPadding(
             padding: widget.padding,
             sliver: SliverMainAxisGroup(
               slivers: <Widget>[
-                if (widget.header != null)
-                  SliverToBoxAdapter(child: widget.header!),
+                if (widget.header != null) SliverLayer(child: widget.header!),
                 if (rows.isEmpty)
-                  const SliverToBoxAdapter(
+                  const SliverLayer(
                     child: EmptyStateView(
                       icon: Icons.mode_comment_outlined,
                       title: '还没有评论。',

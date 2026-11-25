@@ -8,6 +8,7 @@ import '../../shared/format.dart';
 import '../../shared/paging/paged_list.dart';
 import '../../shared/paging/scroll_prefetch.dart';
 import '../../shared/widgets/user_avatar.dart';
+import '../../shared/layout/scroll_layers.dart';
 import 'community_notifications_providers.dart';
 import 'widgets/community_feed_card.dart';
 import 'widgets/community_primitives.dart';
@@ -105,6 +106,7 @@ class _CommunityNotificationsScreenState
       );
     }
     return ListView.separated(
+      scrollCacheExtent: listCacheExtent,
       controller: _controller,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),

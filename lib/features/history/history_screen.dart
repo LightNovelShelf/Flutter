@@ -9,6 +9,7 @@ import '../../shared/paging/scroll_prefetch.dart';
 import '../../shared/widgets/book_cover_grid_item.dart';
 import '../../shared/widgets/book_grid_slivers.dart';
 import '../../shared/widgets/state_views.dart';
+import '../../shared/layout/scroll_layers.dart';
 import 'history_providers.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
@@ -159,7 +160,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             0,
           ),
         ),
-      SliverToBoxAdapter(
+      SliverLayer(
         child: ListFooterStatus(
           loading: false,
           hasMore: tab.hasMore,
@@ -210,9 +211,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 key: ValueKey<HistoryTab>(_tab),
                 onLoadMore: _loadMore,
                 child: CustomScrollView(
+                  scrollCacheExtent: listCacheExtent,
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: <Widget>[
-                    SliverToBoxAdapter(
+                    SliverLayer(
                       child: _segmentedHeader(enabled: !data.clearing),
                     ),
                     ..._tabSlivers(data, layout, media.height),
@@ -246,7 +248,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     return CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: <Widget>[
-        SliverToBoxAdapter(child: _segmentedHeader(enabled: false)),
+        SliverLayer(child: _segmentedHeader(enabled: false)),
         _skeletonGrid(layout, height),
       ],
     );

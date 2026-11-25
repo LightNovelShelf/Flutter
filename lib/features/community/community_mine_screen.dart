@@ -6,6 +6,7 @@ import '../../data/api/api_client.dart';
 import '../../data/api/models.dart';
 import '../../data/providers.dart';
 import '../../shared/format.dart';
+import '../../shared/layout/scroll_layers.dart';
 import 'widgets/community_feed_card.dart';
 import 'widgets/community_primitives.dart';
 
@@ -83,6 +84,7 @@ class _MyCommunityScreenState extends ConsumerState<MyCommunityScreen> {
                 ],
               )
             : ListView.builder(
+                scrollCacheExtent: listCacheExtent,
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 44),
                 itemCount: _sectionCount(overview) + 1,

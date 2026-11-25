@@ -9,6 +9,7 @@ import '../../shared/format.dart';
 import '../../shared/paging/scroll_prefetch.dart';
 import '../../shared/widgets/state_views.dart';
 import '../../shared/widgets/user_avatar.dart';
+import '../../shared/layout/scroll_layers.dart';
 import 'direct_message_providers.dart';
 
 /// 私信会话列表。
@@ -88,6 +89,7 @@ class _DirectMessageListScreenState
       );
     }
     return ListView.separated(
+      scrollCacheExtent: listCacheExtent,
       controller: _controller,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(bottom: 24),

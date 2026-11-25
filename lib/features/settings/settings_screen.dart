@@ -97,24 +97,24 @@ class SettingsScreen extends ConsumerWidget {
     ];
 
     return Scaffold(
+      // 固定标题栏放在滚动视图外，滚动时不随视口重绘。
+      appBar: AppBar(
+        title: const Text('设置'),
+        // 设置页可能由深链直接进入，无法回退时跳到发现页。
+        leading: BackButton(
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/discover'),
+        ),
+        actions: <Widget>[
+          IconButton(
+            tooltip: '重置所有设置',
+            onPressed: () => _resetAll(context, ref),
+            icon: const Icon(Icons.restart_alt),
+          ),
+        ],
+      ),
       body: CustomScrollView(
         slivers: <Widget>[
-          SliverAppBar(
-            pinned: true,
-            title: const Text('设置'),
-            // 设置页可能由深链直接进入，无法回退时跳到发现页。
-            leading: BackButton(
-              onPressed: () =>
-                  context.canPop() ? context.pop() : context.go('/discover'),
-            ),
-            actions: <Widget>[
-              IconButton(
-                tooltip: '重置所有设置',
-                onPressed: () => _resetAll(context, ref),
-                icon: const Icon(Icons.restart_alt),
-              ),
-            ],
-          ),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
             sliver: SliverList.separated(

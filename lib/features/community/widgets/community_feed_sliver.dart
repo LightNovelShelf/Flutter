@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/list_detail.dart';
 import '../../../data/api/models.dart';
+import '../../../shared/layout/scroll_layers.dart';
 import '../../../shared/paging/identity_child_delegate.dart';
 import '../community_providers.dart';
 import 'community_feed_card.dart';
@@ -19,7 +20,7 @@ class CommunityFeedSliver extends ConsumerWidget {
 
     if (state.home == null) {
       if (state.loading) return const _FeedSkeletonSliver();
-      return SliverToBoxAdapter(
+      return SliverLayer(
         child: CommunityStateCard(
           title: '无法加载社区',
           description: state.error ?? '社区暂时不可用。',
@@ -35,7 +36,7 @@ class CommunityFeedSliver extends ConsumerWidget {
     } else if (state.loading) {
       body = const _FeedSkeletonSliver();
     } else {
-      body = SliverToBoxAdapter(
+      body = SliverLayer(
         child: CommunityStateCard(
           title: state.query.keyWords.isEmpty ? '还没有讨论' : '没有匹配的讨论',
           description: state.query.keyWords.isEmpty
@@ -49,7 +50,7 @@ class CommunityFeedSliver extends ConsumerWidget {
     if (error == null) return body;
     return SliverMainAxisGroup(
       slivers: <Widget>[
-        SliverToBoxAdapter(
+        SliverLayer(
           child: Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: CommunityStateCard(

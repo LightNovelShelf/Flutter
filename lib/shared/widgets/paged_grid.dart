@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/api/models.dart';
 import '../layout/book_grid_layout.dart';
+import '../layout/scroll_layers.dart';
 import '../paging/identity_child_delegate.dart';
 import '../paging/scroll_prefetch.dart';
 import 'book_cover_grid_item.dart';
@@ -106,12 +107,13 @@ class PagedGrid<T> extends StatelessWidget {
           return PrefetchOnScroll(
             onLoadMore: _loadMore,
             child: CustomScrollView(
+              scrollCacheExtent: listCacheExtent,
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: <Widget>[
                 if (header != null)
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                    sliver: SliverToBoxAdapter(child: header),
+                    sliver: SliverLayer(child: header!),
                   ),
                 ..._contentSlivers(layout, windowHeight),
               ],
@@ -163,7 +165,7 @@ class PagedGrid<T> extends StatelessWidget {
       ),
       SliverPadding(
         padding: const EdgeInsets.only(bottom: 40),
-        sliver: SliverToBoxAdapter(
+        sliver: SliverLayer(
           child: onLoadMore == null
               ? const SizedBox(height: 8)
               : SizedBox(

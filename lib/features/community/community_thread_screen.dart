@@ -13,6 +13,7 @@ import '../../shared/paging/scroll_prefetch.dart';
 import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/comments/reply_compose_sheet.dart';
 import '../../shared/widgets/comments/thread_reply_row.dart';
+import '../../shared/layout/scroll_layers.dart';
 import 'community_thread_providers.dart';
 import 'community_thread_rows.dart';
 import 'community_thread_state.dart';
@@ -203,13 +204,14 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
         // 整页一个 SelectionArea：逐行包会给每条回复各装一套手势识别与选区注册。
         child: SelectionArea(
           child: CustomScrollView(
+            scrollCacheExtent: listCacheExtent,
             controller: _controller,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: <Widget>[
               if (detail != null)
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                  sliver: SliverToBoxAdapter(
+                  sliver: SliverLayer(
                     child: CommunityThreadHeader(
                       detail: detail,
                       controller: controller,
@@ -223,12 +225,12 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
               if (detail == null)
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  sliver: SliverToBoxAdapter(child: _buildPlaceholder(state)),
+                  sliver: SliverLayer(child: _buildPlaceholder(state)),
                 )
               else if (rows.isEmpty)
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  sliver: SliverToBoxAdapter(
+                  sliver: SliverLayer(
                     child: state.loading
                         ? const CommunityFeedCardSkeleton()
                         : const CommunityStateCard(
@@ -256,7 +258,7 @@ class _CommunityThreadScreenState extends ConsumerState<CommunityThreadScreen> {
                 ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 42),
-                sliver: SliverToBoxAdapter(
+                sliver: SliverLayer(
                   child: CommunityThreadFooter(
                     detail: detail,
                     controller: controller,

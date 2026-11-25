@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 
-import '../image_cache.dart';
+import 'book_image.dart';
 import 'html/html_source.dart';
 import 'html/reader_content_markup.dart';
 import 'html/reader_content_style.dart';
@@ -267,10 +266,7 @@ class _ReaderBlockImageState extends State<_ReaderBlockImage> {
 
   void _resolve() {
     final url = widget.url;
-    final stream = CachedNetworkImageProvider(
-      url,
-      cacheManager: appImageCacheManager,
-    ).resolve(ImageConfiguration.empty);
+    final stream = BookImage.providerFor(url).resolve(ImageConfiguration.empty);
     final listener = ImageStreamListener((info, synchronousCall) {
       final size = Size(
         info.image.width.toDouble(),

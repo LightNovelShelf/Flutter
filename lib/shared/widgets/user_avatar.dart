@@ -2,13 +2,14 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../image_cache.dart';
+import 'reveal_image.dart';
 import 'user_card_sheet.dart';
 
 /// 全站唯一的圆形头像：无地址或加载失败回退到用户名首字母，
 /// 用户名也为空时回退到 [fallbackIcon]（默认 `?`）。
 ///
 /// 传了正数 [userId] 就可点击，点开通用用户名片。
-class UserAvatar extends StatefulWidget {
+class UserAvatar extends StatelessWidget {
   const UserAvatar({
     super.key,
     required this.url,
@@ -25,31 +26,16 @@ class UserAvatar extends StatefulWidget {
   final int? userId;
 
   @override
-  State<UserAvatar> createState() => _UserAvatarState();
-}
-
-class _UserAvatarState extends State<UserAvatar> {
-  bool _failed = false;
-
-  @override
-  void didUpdateWidget(covariant UserAvatar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.url != widget.url && _failed) _failed = false;
-  }
-
-  @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final url = widget.url.trim();
-    final name = widget.name.trim();
-    final size = widget.size;
-    final pixels = (size * MediaQuery.devicePixelRatioOf(context)).round();
+    final url = this.url.trim();
+    final name = this.name.trim();
     final fallback = ColoredBox(
       color: colors.surfaceContainerHighest,
       child: Center(
-        child: name.isEmpty && widget.fallbackIcon != null
+        child: name.isEmpty && fallbackIcon != null
             ? Icon(
-                widget.fallbackIcon,
+                fallbackIcon,
                 size: size * 0.56,
                 color: colors.onSurfaceVariant,
               )
@@ -63,34 +49,32 @@ class _UserAvatarState extends State<UserAvatar> {
               ),
       ),
     );
-    final userId = widget.userId ?? 0;
     final avatar = ClipOval(
       child: SizedBox(
         width: size,
         height: size,
-        child: url.isEmpty || _failed
+        child: url.isEmpty
             ? fallback
-            // 头像不走图床，没有尺寸参数，只能取原图，解码尺寸只能在客户端限制，
-            // 否则 1000×1000 的原图整幅解码进 ImageCache。只给宽度：宽高都给会按精确
-            // 尺寸解码，非方形头像会被压扁而不是裁切。
-            : CachedNetworkImage(
-                imageUrl: url,
-                cacheManager: appImageCacheManager,
-                width: size,
-                height: size,
-                memCacheWidth: pixels,
-                fit: BoxFit.cover,
-                placeholder: (_, _) =>
+            : RevealImage(
+                // 头像不走图床，没有尺寸参数，只能取原图，解码尺寸只能在客户端限制，
+                // 否则 1000×1000 的原图整幅解码进 ImageCache。只给宽度：宽高都给会按精确
+                // 尺寸解码，非方形头像会被压扁而不是裁切。
+                image: ResizeImage(
+                  CachedNetworkImageProvider(
+                    url,
+                    cacheManager: appImageCacheManager,
+                  ),
+                  width: (size * MediaQuery.devicePixelRatioOf(context))
+                      .round(),
+                ),
+                revealKey: url,
+                placeholder: (_) =>
                     ColoredBox(color: colors.surfaceContainerHighest),
-                errorWidget: (_, _, _) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted && !_failed) setState(() => _failed = true);
-                  });
-                  return fallback;
-                },
+                errorBuilder: (_, _) => fallback,
               ),
       ),
     );
+    final userId = this.userId ?? 0;
     if (userId <= 0) return avatar;
     // 卡片、列表行本身也可点，头像的手势要压过外层。
     return GestureDetector(

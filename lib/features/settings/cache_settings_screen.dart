@@ -7,7 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../data/providers.dart';
 import '../../shared/image_cache.dart';
 import '../../shared/widgets/app_dialogs.dart';
-import '../../shared/widgets/book_image.dart';
+import '../../shared/widgets/reveal_image.dart';
 import '../../shared/widgets/settings_rows.dart';
 
 /// 阅读器下载并转换后的字体存放目录。
@@ -30,7 +30,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
     if (_clearingImages) return;
     _clearingImages = true;
     try {
-      BookImage.clearRevealCache();
+      RevealImage.clearRevealCache();
       PaintingBinding.instance.imageCache
         ..clear()
         ..clearLiveImages();

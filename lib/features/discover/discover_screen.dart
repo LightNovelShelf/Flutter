@@ -8,6 +8,7 @@ import '../../data/api/models.dart';
 import '../../data/providers.dart';
 import '../../shared/format.dart';
 import '../../shared/widgets/state_views.dart';
+import '../../shared/layout/scroll_layers.dart';
 import 'home_providers.dart';
 import 'widgets/book_grid.dart';
 
@@ -30,22 +31,24 @@ class DiscoverScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    // 固定标题栏放在滚动视图外：放进 CustomScrollView 当 pinned SliverAppBar，
+    // 每个滚动帧都会随视口整栏重绘。
+    appBar: AppBar(
+      title: const Text('发现'),
+      actions: <Widget>[
+        IconButton(
+          tooltip: '个人资料与设置',
+          icon: const Icon(Icons.account_circle_outlined),
+          onPressed: () => context.push('/settings'),
+        ),
+      ],
+    ),
     body: RefreshIndicator(
       onRefresh: () => _refreshAll(ref),
       child: CustomScrollView(
+        scrollCacheExtent: listCacheExtent,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: <Widget>[
-          SliverAppBar(
-            pinned: true,
-            title: const Text('发现'),
-            actions: <Widget>[
-              IconButton(
-                tooltip: '个人资料与设置',
-                icon: const Icon(Icons.account_circle_outlined),
-                onPressed: () => context.push('/settings'),
-              ),
-            ],
-          ),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
             sliver: SliverList(delegate: _sectionDelegate),

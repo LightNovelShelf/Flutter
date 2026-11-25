@@ -14,6 +14,7 @@ import '../../shared/format.dart';
 import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/state_views.dart';
 import '../../shared/widgets/user_card_sheet.dart';
+import '../../shared/layout/scroll_layers.dart';
 import '../search/search_providers.dart';
 import 'book_providers.dart';
 import 'widgets/book_action_row.dart';
@@ -104,63 +105,69 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
           );
 
     return CustomScrollView(
+      scrollCacheExtent: listCacheExtent,
       slivers: <Widget>[
         SliverAppBar(
           pinned: true,
           expandedHeight: bookHeroHeight,
           backgroundColor: colors.surface,
           surfaceTintColor: Colors.transparent,
+          // 折叠后标题栏仍在视口里，每个滚动帧都会重绘；按钮和封面头图各自隔离成图层。
           actions: <Widget>[
-            IconButton(
-              icon: const Icon(Icons.mode_comment_outlined),
-              tooltip: '评论',
-              onPressed: () => _openComments(bundle),
+            RepaintBoundary(
+              child: IconButton(
+                icon: const Icon(Icons.mode_comment_outlined),
+                tooltip: '评论',
+                onPressed: () => _openComments(bundle),
+              ),
             ),
-            PopupMenuButton<String>(
-              tooltip: '更多',
-              onSelected: (value) {
-                if (value == 'series') {
-                  showBookSeriesSheet(this.context, detail, widget.id);
-                  return;
-                }
-                final uploader = detail.user;
-                if (uploader == null || uploader.id <= 0) {
-                  showAppSnackBar(this.context, '这本书没有上传者资料。');
-                  return;
-                }
-                // 用 State 的 context，使弹窗沿用应用主题而非封面取色主题。
-                showUserCardSheet(
-                  this.context,
-                  userId: uploader.id,
-                  userName: uploader.userName,
-                  avatarUrl: uploader.avatarUrl,
-                );
-              },
-              itemBuilder: (_) => <PopupMenuEntry<String>>[
-                if (hasOtherSeriesBooks)
+            RepaintBoundary(
+              child: PopupMenuButton<String>(
+                tooltip: '更多',
+                onSelected: (value) {
+                  if (value == 'series') {
+                    showBookSeriesSheet(this.context, detail, widget.id);
+                    return;
+                  }
+                  final uploader = detail.user;
+                  if (uploader == null || uploader.id <= 0) {
+                    showAppSnackBar(this.context, '这本书没有上传者资料。');
+                    return;
+                  }
+                  // 用 State 的 context，使弹窗沿用应用主题而非封面取色主题。
+                  showUserCardSheet(
+                    this.context,
+                    userId: uploader.id,
+                    userName: uploader.userName,
+                    avatarUrl: uploader.avatarUrl,
+                  );
+                },
+                itemBuilder: (_) => <PopupMenuEntry<String>>[
+                  if (hasOtherSeriesBooks)
+                    const PopupMenuItem<String>(
+                      value: 'series',
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.library_books_outlined),
+                        title: Text('系列'),
+                      ),
+                    ),
                   const PopupMenuItem<String>(
-                    value: 'series',
+                    value: 'uploader',
                     child: ListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.library_books_outlined),
-                      title: Text('系列'),
+                      leading: Icon(Icons.person_outline),
+                      title: Text('上传者'),
                     ),
                   ),
-                const PopupMenuItem<String>(
-                  value: 'uploader',
-                  child: ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.person_outline),
-                    title: Text('上传者'),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
           flexibleSpace: FlexibleSpaceBar(
-            background: BookHero(detail: detail),
+            background: RepaintBoundary(child: BookHero(detail: detail)),
             collapseMode: CollapseMode.parallax,
           ),
         ),

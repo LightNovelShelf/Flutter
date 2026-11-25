@@ -92,34 +92,57 @@ final class BlurHashImage extends ImageProvider<BlurHashImage> {
   Future<BlurHashImage> obtainKey(ImageConfiguration configuration) =>
       SynchronousFuture(this);
 
+  /// 同步完成：解码后录成每像素一个色块的 Picture，`toImageSync` 立即拿到 GPU 图像。
+  /// 占位层因此在挂载的第一帧就有内容，不会先闪一帧纯色底。
   @override
   ImageStreamCompleter loadImage(
     BlurHashImage key,
     ImageDecoderCallback decode,
-  ) => OneFrameImageStreamCompleter(_load());
+  ) {
+    final Future<ImageInfo> info;
+    try {
+      info = SynchronousFuture<ImageInfo>(_rasterize());
+    } catch (error, stackTrace) {
+      return OneFrameImageStreamCompleter(
+        Future<ImageInfo>.error(error, stackTrace),
+      );
+    }
+    return OneFrameImageStreamCompleter(info);
+  }
 
-  Future<ImageInfo> _load() async {
+  ImageInfo _rasterize() {
     final pixels = (debugBlurHashPixelDecoder ?? decodeBlurHash)(
       blurHash,
       width: decodingWidth,
       height: decodingHeight,
     );
-    final buffer = await ui.ImmutableBuffer.fromUint8List(pixels);
-    final descriptor = ui.ImageDescriptor.raw(
-      buffer,
-      width: decodingWidth,
-      height: decodingHeight,
-      rowBytes: decodingWidth * 4,
-      pixelFormat: ui.PixelFormat.rgba8888,
-    );
-    final codec = await descriptor.instantiateCodec();
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder);
+    final paint = ui.Paint()..isAntiAlias = false;
+    var offset = 0;
+    for (var y = 0; y < decodingHeight; y++) {
+      for (var x = 0; x < decodingWidth; x++) {
+        paint.color = ui.Color.fromARGB(
+          pixels[offset + 3],
+          pixels[offset],
+          pixels[offset + 1],
+          pixels[offset + 2],
+        );
+        canvas.drawRect(
+          ui.Rect.fromLTWH(x.toDouble(), y.toDouble(), 1, 1),
+          paint,
+        );
+        offset += 4;
+      }
+    }
+    final picture = recorder.endRecording();
     try {
-      final frame = await codec.getNextFrame();
-      return ImageInfo(image: frame.image, scale: scale);
+      return ImageInfo(
+        image: picture.toImageSync(decodingWidth, decodingHeight),
+        scale: scale,
+      );
     } finally {
-      codec.dispose();
-      descriptor.dispose();
-      buffer.dispose();
+      picture.dispose();
     }
   }
 

@@ -9,6 +9,7 @@ import '../../shared/paging/scroll_prefetch.dart';
 import '../../shared/widgets/app_dialogs.dart';
 import '../../shared/widgets/state_views.dart';
 import '../../shared/widgets/user_avatar.dart';
+import '../../shared/layout/scroll_layers.dart';
 import 'direct_message_providers.dart';
 
 /// 相邻消息间隔超过它就插一条时间分隔。
@@ -164,6 +165,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen>
     }
 
     return ListView.builder(
+      scrollCacheExtent: listCacheExtent,
       controller: _controller,
       reverse: true,
       physics: const AlwaysScrollableScrollPhysics(),

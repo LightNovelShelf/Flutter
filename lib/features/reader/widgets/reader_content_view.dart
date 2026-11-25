@@ -7,6 +7,7 @@ import '../../../data/settings/app_settings.dart';
 import '../../../shared/widgets/html/reader_content_style.dart';
 import '../../../shared/widgets/html/html_source.dart';
 import '../../../shared/widgets/reader_html_block.dart';
+import '../../../shared/layout/scroll_layers.dart';
 import '../reader_block_markup.dart';
 import '../reader_pagination.dart';
 import '../reader_page_turn.dart';
@@ -1119,6 +1120,7 @@ class _ReaderContentViewState extends State<ReaderContentView> {
   Widget _scrollingContent(_ChapterSlot slot) {
     final geometry = slot.geometry!;
     return ListView.builder(
+      scrollCacheExtent: listCacheExtent,
       key: ObjectKey(_scrollController),
       controller: _scrollController,
       padding: widget.padding,

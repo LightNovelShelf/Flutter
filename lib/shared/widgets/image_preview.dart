@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
@@ -13,7 +12,6 @@ import '../../data/api/decode.dart';
 import '../../data/providers.dart';
 import 'app_dialogs.dart';
 import 'book_image.dart';
-import '../image_cache.dart';
 import '../image_export.dart';
 import '../image_sizing.dart';
 
@@ -244,11 +242,7 @@ class _ImagePreviewState extends ConsumerState<_ImagePreview>
   late String _url = widget.url;
   String? _originalUrl;
 
-  ImageProvider _providerFor(String url) => CachedNetworkImageProvider(
-    url,
-    cacheKey: BookImage.cacheKeyFor(url),
-    cacheManager: appImageCacheManager,
-  );
+  ImageProvider _providerFor(String url) => BookImage.providerFor(url);
   late final PhotoViewController _photo = PhotoViewController();
 
   int _quarterTurns = 0;

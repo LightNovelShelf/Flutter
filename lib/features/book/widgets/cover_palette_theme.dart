@@ -1,10 +1,8 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_theme.dart';
 import '../../../data/settings/app_settings.dart';
 import '../../../shared/cover_seed.dart';
-import '../../../shared/image_cache.dart';
 import '../../../shared/image_sizing.dart';
 import '../../../shared/widgets/blurhash_image.dart';
 import '../../../shared/widgets/book_image.dart';
@@ -56,11 +54,7 @@ class _CoverPaletteThemeState extends State<CoverPaletteTheme> {
         logicalHeight: bookCoverDisplayHeight,
         devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
       );
-      provider = CachedNetworkImageProvider(
-        sized,
-        cacheKey: BookImage.cacheKeyFor(sized),
-        cacheManager: appImageCacheManager,
-      );
+      provider = BookImage.providerFor(sized);
     }
     resolveCoverSeedColor(
           provider,

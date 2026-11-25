@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,11 +12,11 @@ import '../../data/api/api_client.dart';
 import '../../data/api/models.dart';
 import '../../data/providers.dart';
 import '../../data/settings/app_settings.dart';
-import '../../shared/image_cache.dart';
 import '../../shared/image_sizing.dart';
 import '../../shared/widgets/book_image.dart';
 import '../../shared/widgets/image_preview.dart';
 import '../../shared/widgets/state_views.dart';
+import '../../shared/layout/scroll_layers.dart';
 import 'reader_comic_paging.dart';
 import 'reader_open_position.dart';
 import 'reader_page_turn.dart';
@@ -407,14 +406,9 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       final cacheKey = BookImage.cacheKeyFor(url);
       if (!_precachedKeys.add(cacheKey)) continue;
       unawaited(
-        precacheImage(
-          CachedNetworkImageProvider(
-            url,
-            cacheKey: cacheKey,
-            cacheManager: appImageCacheManager,
-          ),
-          context,
-        ).catchError((Object _) {
+        precacheImage(BookImage.providerFor(url), context).catchError((
+          Object _,
+        ) {
           // 预取失败的键放回去，下次经过这页还能再试。
           _precachedKeys.remove(cacheKey);
         }),
@@ -727,6 +721,7 @@ class _ComicReaderScreenState extends ConsumerState<ComicReaderScreen>
       onNext: () => _turn(1),
       onToggleChrome: _toggleChrome,
       child: ListView.builder(
+        scrollCacheExtent: listCacheExtent,
         controller: _scrollController,
         itemCount: _slots.length,
         itemExtentBuilder: (index, _) => _continuousPageExtent(index),

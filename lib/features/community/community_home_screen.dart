@@ -7,6 +7,7 @@ import '../../app/list_detail.dart';
 import '../../data/repositories/profile_repository.dart';
 import '../../shared/paging/scroll_prefetch.dart';
 import '../../shared/widgets/unread_badge.dart';
+import '../../shared/layout/scroll_layers.dart';
 import 'community_providers.dart';
 import 'widgets/community_feed_card.dart';
 import 'widgets/community_feed_sliver.dart';
@@ -139,47 +140,49 @@ class _CommunityHomeScreenState extends ConsumerState<CommunityHomeScreen> {
         tooltip: '发布社区帖子',
         child: const Icon(Icons.edit_outlined),
       ),
+      // 固定标题栏放在滚动视图外：放进 CustomScrollView 当 pinned SliverAppBar，
+      // 每个滚动帧都会随视口整栏重绘。
+      appBar: AppBar(
+        title: const Text('社区'),
+        actions: <Widget>[
+          IconButton(
+            onPressed: () => context.openPage('/messages'),
+            tooltip: '私信',
+            icon: UnreadBadge(
+              count: unreadMessages,
+              child: const Icon(Icons.mail_outline),
+            ),
+          ),
+          IconButton(
+            onPressed: () => context.openPage('/community/notifications'),
+            tooltip: '通知',
+            icon: UnreadBadge(
+              count: unreadNotifications,
+              child: const Icon(Icons.notifications_none),
+            ),
+          ),
+          IconButton(
+            onPressed: () => context.openPage('/community/mine'),
+            tooltip: '我的社区',
+            icon: const Icon(Icons.person_outline),
+          ),
+          IconButton(
+            onPressed: () => context.openPage('/community/rankings'),
+            tooltip: '排行榜',
+            icon: const Icon(Icons.leaderboard_outlined),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () => ref.read(communityHomeProvider.notifier).refresh(),
         child: CustomScrollView(
+          scrollCacheExtent: listCacheExtent,
           controller: _controller,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: <Widget>[
-            SliverAppBar(
-              pinned: true,
-              title: const Text('社区'),
-              actions: <Widget>[
-                IconButton(
-                  onPressed: () => context.openPage('/messages'),
-                  tooltip: '私信',
-                  icon: UnreadBadge(
-                    count: unreadMessages,
-                    child: const Icon(Icons.mail_outline),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => context.openPage('/community/notifications'),
-                  tooltip: '通知',
-                  icon: UnreadBadge(
-                    count: unreadNotifications,
-                    child: const Icon(Icons.notifications_none),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => context.openPage('/community/mine'),
-                  tooltip: '我的社区',
-                  icon: const Icon(Icons.person_outline),
-                ),
-                IconButton(
-                  onPressed: () => context.openPage('/community/rankings'),
-                  tooltip: '排行榜',
-                  icon: const Icon(Icons.leaderboard_outlined),
-                ),
-              ],
-            ),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-              sliver: SliverToBoxAdapter(
+              sliver: SliverLayer(
                 child: home == null
                     ? (state.loading
                           ? const CommunityHomeHeaderSkeleton()
@@ -192,19 +195,19 @@ class _CommunityHomeScreenState extends ConsumerState<CommunityHomeScreen> {
             ),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-              sliver: SliverToBoxAdapter(child: _buildSearchField(state)),
+              sliver: SliverLayer(child: _buildSearchField(state)),
             ),
             if (home != null)
-              SliverToBoxAdapter(child: CommunityBoardStrip(state: state)),
+              SliverLayer(child: CommunityBoardStrip(state: state)),
             if (home != null)
-              SliverToBoxAdapter(child: CommunityFilterToolbar(state: state)),
+              SliverLayer(child: CommunityFilterToolbar(state: state)),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
               sliver: CommunityFeedSliver(state: state),
             ),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
-              sliver: SliverToBoxAdapter(child: _Footer(state: state)),
+              sliver: SliverLayer(child: _Footer(state: state)),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 96)),
           ],

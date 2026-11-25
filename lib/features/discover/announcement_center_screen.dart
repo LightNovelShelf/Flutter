@@ -6,6 +6,7 @@ import '../../data/api/models.dart';
 import '../../shared/format.dart';
 import '../../shared/paging/scroll_prefetch.dart';
 import '../../shared/widgets/state_views.dart';
+import '../../shared/layout/scroll_layers.dart';
 import '../announcement/announcement_providers.dart';
 
 final RegExp _htmlTagPattern = RegExp('<[^>]*>');
@@ -112,6 +113,7 @@ class AnnouncementCenterScreen extends ConsumerWidget {
           controller.loadMore();
         },
         child: ListView.separated(
+          scrollCacheExtent: listCacheExtent,
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 48),
           physics: const AlwaysScrollableScrollPhysics(),
           itemCount: state.items.length + 1,

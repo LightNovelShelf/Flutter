@@ -9,6 +9,7 @@ import '../../shared/paging/scroll_prefetch.dart';
 import '../../shared/widgets/book_cover_grid_item.dart';
 import '../../shared/widgets/book_grid_slivers.dart';
 import '../../shared/widgets/state_views.dart';
+import '../../shared/layout/scroll_layers.dart';
 import 'search_providers.dart';
 import 'widgets/search_filters.dart';
 
@@ -81,9 +82,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         threshold: 600,
         onLoadMore: _loadMore,
         child: CustomScrollView(
+          scrollCacheExtent: listCacheExtent,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           slivers: <Widget>[
-            SliverToBoxAdapter(
+            SliverLayer(
               child: SearchHeader(
                 input: _input,
                 focus: _focus,
@@ -132,7 +134,7 @@ class _SearchResults extends ConsumerWidget {
     final layout = BookGridLayout.of(media.width);
 
     if (error != null && items.isEmpty) {
-      return SliverToBoxAdapter(
+      return SliverLayer(
         child: ErrorStateView(
           title: '搜索失败',
           message: error,
@@ -154,7 +156,7 @@ class _SearchResults extends ConsumerWidget {
       if (history != null && history.isNotEmpty) {
         return const SliverToBoxAdapter(child: SizedBox.shrink());
       }
-      return const SliverToBoxAdapter(
+      return const SliverLayer(
         child: EmptyStateView(
           icon: Icons.search,
           title: '搜索小说和漫画',
@@ -164,7 +166,7 @@ class _SearchResults extends ConsumerWidget {
     }
 
     if (items.isEmpty) {
-      return const SliverToBoxAdapter(
+      return const SliverLayer(
         child: EmptyStateView(
           icon: Icons.search_off,
           title: '未找到结果',
@@ -210,7 +212,7 @@ class _SearchFooter extends ConsumerWidget {
     if (error == null || empty) {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
-    return SliverToBoxAdapter(
+    return SliverLayer(
       child: ListFooterStatus(
         loading: false,
         hasMore: hasMore,

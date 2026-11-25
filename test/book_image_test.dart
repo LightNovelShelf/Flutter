@@ -8,16 +8,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightnovel/shared/widgets/blurhash_image.dart';
 import 'package:lightnovel/shared/widgets/book_image.dart';
+import 'package:lightnovel/shared/widgets/reveal_image.dart';
 
 /// 封面从 BlurHash 占位过渡到真实封面的结构约束。
 ///
-/// 占位层是缓存网络图的同级下层，真图淡入期间保持不透明，否则两层同时淡出会露出背景。
+/// 占位层是网络图的同级下层，真图淡入期间保持不透明，否则两层同时淡出会露出背景。
 void main() {
   const String hash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj';
   const String url = 'https://img.example/cover.webp?placeholder=abc&t=sig';
 
   setUp(() {
-    BookImage.clearRevealCache();
+    RevealImage.clearRevealCache();
     debugBlurHashPixelDecoder = (_, {required width, required height}) =>
         Uint8List.fromList(List<int>.filled(width * height * 4, 255));
   });
@@ -56,35 +57,43 @@ void main() {
     (Widget widget) => widget is Image && widget.image is BlurHashImage,
   );
 
-  Finder networkImageLayer() => find.byType(CachedNetworkImage);
+  Finder networkImageLayer() => find.byWidgetPredicate(
+    (Widget widget) =>
+        widget is Image && widget.image is CachedNetworkImageProvider,
+  );
 
-  testWidgets('占位层与网络图同时存在，且占位层在下层', (WidgetTester tester) async {
+  CachedNetworkImageProvider networkProvider(WidgetTester tester) =>
+      tester.widget<Image>(networkImageLayer()).image
+          as CachedNetworkImageProvider;
+
+  testWidgets('加载中占位层与网络图同时存在，且占位层在下层', (WidgetTester tester) async {
     await pumpCover(tester);
 
     expect(blurHashLayer(), findsOneWidget);
     expect(networkImageLayer(), findsOneWidget);
 
+    // BlurHash 同步出帧：挂载第一帧就有占位图，不是纯色底。
+    final RawImage placeholderPixels = tester.widget<RawImage>(
+      find.descendant(of: blurHashLayer(), matching: find.byType(RawImage)),
+    );
+    expect(placeholderPixels.image, isNotNull);
+
     // Stack 子节点顺序决定层序，占位层须排在网络图之前。
     final Stack stack = tester.widget<Stack>(
-      find
-          .ancestor(of: networkImageLayer(), matching: find.byType(Stack))
-          .first,
+      find.ancestor(of: blurHashLayer(), matching: find.byType(Stack)).first,
     );
-    final int placeholderIndex = stack.children.indexWhere(
-      (Widget child) => child is Image && child.image is BlurHashImage,
+    expect(stack.children, hasLength(2));
+    expect(
+      stack.children.first,
+      isA<Image>().having((i) => i.image, 'image', isA<BlurHashImage>()),
     );
-    final int imageIndex = stack.children.indexWhere(
-      (Widget child) => child is CachedNetworkImage,
-    );
-    expect(placeholderIndex, isNonNegative);
-    expect(imageIndex, greaterThan(placeholderIndex));
+    // 上层是网络图自己的 RawImage（出帧前为空），不淡入时不包透明度图层。
+    expect(stack.children.last, isA<RawImage>());
   });
 
   testWidgets('真图已解码在内存里：重新挂载不再闪一次 BlurHash', (WidgetTester tester) async {
     await pumpCover(tester);
-    final String cacheKey = tester
-        .widget<CachedNetworkImage>(networkImageLayer())
-        .cacheKey!;
+    final CachedNetworkImageProvider provider = networkProvider(tester);
     expect(blurHashLayer(), findsOneWidget);
 
     // 先卸掉这棵树并清空缓存：首次挂载已经把同一个 provider 登记成 pending，
@@ -94,15 +103,11 @@ void main() {
     PaintingBinding.instance.imageCache.clearLiveImages();
 
     // 造一条解码成功的缓存记录。provider 的相等只看 (cacheKey, scale, maxWidth,
-    // maxHeight)，所以这里的 url 随便给也能命中同一个键。
+    // maxHeight)，与显示时用的是同一个键。
     // `createTestImage` 要真异步才会完成，fake-async 里 await 会永久挂住。
     final ui.Image decoded = (await tester.runAsync(
       () => createTestImage(width: 4, height: 6),
     ))!;
-    final CachedNetworkImageProvider provider = CachedNetworkImageProvider(
-      url,
-      cacheKey: cacheKey,
-    );
     PaintingBinding.instance.imageCache.putIfAbsent(
       provider,
       () => OneFrameImageStreamCompleter(
@@ -110,54 +115,27 @@ void main() {
       ),
     );
     addTearDown(PaintingBinding.instance.imageCache.clear);
-    expect(
-      PaintingBinding.instance.imageCache.statusForKey(provider).keepAlive,
-      isTrue,
-    );
 
-    // 翻页就是把整棵子树卸掉重挂，这里重新挂一次制造同样的效果。
+    // 翻页、列表回滚都是把整棵子树卸掉重挂，这里重新挂一次制造同样的效果。
     await pumpCover(tester);
 
     expect(blurHashLayer(), findsNothing);
     expect(networkImageLayer(), findsOneWidget);
+    expect(tester.binding.hasScheduledFrame, isFalse);
   });
 
-  testWidgets('真图缓存被驱逐后恢复占位层', (WidgetTester tester) async {
-    await pumpCover(tester);
-    final element = tester.element(networkImageLayer());
-    final image = tester.widget<CachedNetworkImage>(networkImageLayer());
-
-    image.imageBuilder!(element, const AssetImage('unused'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 251));
-    expect(blurHashLayer(), findsNothing);
-
-    image.placeholder!(element, image.imageUrl);
-    await tester.pump();
-    await tester.pump();
-
-    expect(blurHashLayer(), findsOneWidget);
-  });
-
-  testWidgets('网络图单层淡入，按尺寸档请求图床并使用高质量采样', (WidgetTester tester) async {
+  testWidgets('网络图按尺寸档请求图床，不在客户端限制解码尺寸，使用指定采样', (WidgetTester tester) async {
     await pumpCover(tester);
 
-    final CachedNetworkImage image = tester.widget<CachedNetworkImage>(
-      networkImageLayer(),
-    );
-    expect(image.fadeOutDuration, Duration.zero);
-    expect(image.fadeInDuration, const Duration(milliseconds: 200));
+    final Image image = tester.widget<Image>(networkImageLayer());
+    final CachedNetworkImageProvider provider = networkProvider(tester);
     // 180dp × dpr 3 = 540px，就近取档落到 512。
-    expect(image.imageUrl, contains('height=512'));
-    // 字节已由服务端缩放，客户端不限制解码尺寸。
-    expect(image.memCacheWidth, isNull);
-    expect(image.memCacheHeight, isNull);
-    final Widget rendered = image.imageBuilder!(
-      tester.element(networkImageLayer()),
-      const AssetImage('unused'),
-    );
-    expect(rendered, isA<Image>());
-    expect((rendered as Image).filterQuality, FilterQuality.high);
+    expect(provider.url, contains('height=512'));
+    // 字节已由服务端缩放，provider 不包 ResizeImage。
+    expect(provider.maxWidth, isNull);
+    expect(provider.maxHeight, isNull);
+    expect(provider.cacheKey, BookImage.cacheKeyFor(provider.url));
+    expect(image.filterQuality, FilterQuality.high);
   });
 
   testWidgets('外站图片关闭尺寸参数时保持原地址', (tester) async {
@@ -178,8 +156,7 @@ void main() {
     );
     await tester.pump();
 
-    final image = tester.widget<CachedNetworkImage>(networkImageLayer());
-    expect(image.imageUrl, url);
+    expect(networkProvider(tester).url, url);
   });
 
   testWidgets('没有 BlurHash 时回落到卡片底色加图标', (WidgetTester tester) async {
@@ -231,12 +208,11 @@ void main() {
     expect(provider.decodingWidth, BookImage.blurHashWidth);
     expect(provider.decodingHeight, (BookImage.blurHashWidth * 1.5).round());
 
-    final CachedNetworkImage image = tester.widget<CachedNetworkImage>(
-      networkImageLayer(),
+    final RevealImage image = tester.widget<RevealImage>(
+      find.byType(RevealImage),
     );
     expect(image.fit, BoxFit.contain);
     expect(image.fadeInDuration, const Duration(milliseconds: 80));
-    expect(image.fadeOutDuration, Duration.zero);
     expect(find.byIcon(Icons.menu_book_outlined), findsNothing);
   });
 
@@ -321,13 +297,14 @@ void main() {
     );
     await tester.pump();
 
-    final List<CachedNetworkImage> images = tester
-        .widgetList<CachedNetworkImage>(networkImageLayer())
+    final List<CachedNetworkImageProvider> providers = tester
+        .widgetList<Image>(networkImageLayer())
+        .map((Image image) => image.image as CachedNetworkImageProvider)
         .toList();
-    expect(images, hasLength(2));
+    expect(providers, hasLength(2));
     // 显示高度同档即同一次请求，与布局尺寸、fit、淡入时长无关。
-    expect(images[0].imageUrl, images[1].imageUrl);
-    expect(images[0].cacheKey, images[1].cacheKey);
-    expect(images[0].imageUrl, contains('height=512'));
+    expect(providers[0].url, providers[1].url);
+    expect(providers[0], providers[1]);
+    expect(providers[0].url, contains('height=512'));
   });
 }
